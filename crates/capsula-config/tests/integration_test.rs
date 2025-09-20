@@ -9,7 +9,7 @@ fn test_parse_actual_config_file() {
 
         assert_eq!(config.vault.name, "capsula");
 
-        assert_eq!(config.phase.pre.contexts.len(), 3);
+        assert_eq!(config.phase.pre.contexts.len(), 5);
         assert_eq!(config.phase.post.contexts.len(), 0);
         assert_eq!(config.phase.in_phase.watchers.len(), 0);
 
