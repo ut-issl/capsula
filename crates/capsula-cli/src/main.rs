@@ -37,49 +37,59 @@ fn create_registry() -> capsula_registry::ContextRegistry {
     capsula_registry::standard_registry()
 }
 
-/// Result of running contexts - contains both successful captures and failures
-struct ContextRunResults {
-    successes: Vec<Box<dyn capsula_core::captured::Captured>>,
-    failures: Vec<(String, anyhow::Error)>,  // (context_type, error)
-}
-
 fn build_and_run_contexts(
     runtime_params: &RuntimeParams,
     context_phase_config: &ContextPhaseConfig,
     context_registry: &capsula_registry::ContextRegistry,
     project_root: &std::path::Path,
-) -> Result<ContextRunResults> {
-    let contexts = capsula_config::build_contexts(&context_phase_config, &project_root, &context_registry)
-        .context("Failed to build contexts from configuration")?;
+) -> Result<(Vec<serde_json::Value>, bool)> {
+    let contexts =
+        capsula_config::build_contexts(&context_phase_config, &project_root, &context_registry)
+            .context("Failed to build contexts from configuration")?;
 
     let results: Vec<_> = contexts
         .iter()
         .enumerate()
         .map(|(idx, ctx)| {
-            let context_identifier = context_phase_config.contexts
+            let context_identifier = context_phase_config
+                .contexts
                 .get(idx)
-                .map(|config_ctx| format!("{}[{}]", config_ctx.ty, idx))
+                .map(|config_ctx| format!("{}", config_ctx.ty))
                 .unwrap_or_else(|| format!("context[{}]", idx));
 
-            ctx.run_erased(&runtime_params)
-                .map_err(|e| {
+            match ctx.run_erased(&runtime_params) {
+                Ok(captured) => {
+                    let should_abort = captured.abort_requested();
+
+                    // Convert to JSON and add success indicator
+                    let mut json = captured.to_json();
+                    if let serde_json::Value::Object(ref mut map) = json {
+                        map.insert("success".to_string(), serde_json::Value::Bool(true));
+                    }
+                    (json, should_abort)
+                }
+                Err(e) => {
                     let error = anyhow::anyhow!(e);
-                    eprintln!("Warning: Failed to capture {}: {:#}", context_identifier, error);
-                    (context_identifier, error)
-                })
+                    eprintln!(
+                        "Warning: Failed to capture {}: {:#}",
+                        context_identifier, error
+                    );
+
+                    let json = json!({
+                        "success": false,
+                        "type": context_identifier,
+                        "error": format!("{:#}", error)
+                    });
+                    (json, false)
+                }
+            }
         })
         .collect();
 
-    // Partition results into successes and failures
-    let successes = results.iter()
-        .filter_map(|r| r.as_ref().ok().cloned())
-        .collect();
+    let json_results = results.iter().map(|(json, _)| json.clone()).collect();
+    let should_abort = results.iter().any(|(_, abort)| *abort);
 
-    let failures = results.into_iter()
-        .filter_map(|r| r.err())
-        .collect();
-
-    Ok(ContextRunResults { successes, failures })
+    Ok((json_results, should_abort))
 }
 
 fn run() -> Result<()> {
@@ -87,9 +97,7 @@ fn run() -> Result<()> {
     let registry = create_registry();
 
     let cli = Cli::parse();
-    let config_file_path = cli
-        .config
-        .unwrap_or_else(|| PathBuf::from("capsula.toml"));
+    let config_file_path = cli.config.unwrap_or_else(|| PathBuf::from("capsula.toml"));
 
     // Check if the config file exists
     if !config_file_path.exists() {
@@ -112,17 +120,24 @@ path = \".\"",
     }
 
     // Canonicalize the config file path first to get an absolute path
-    let config_file_path = config_file_path
-        .canonicalize()
-        .with_context(|| format!("Failed to resolve configuration file path: {}", config_file_path.display()))?;
+    let config_file_path = config_file_path.canonicalize().with_context(|| {
+        format!(
+            "Failed to resolve configuration file path: {}",
+            config_file_path.display()
+        )
+    })?;
 
     let project_root = config_file_path
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Failed to determine project root from config file"))?
         .to_path_buf();
 
-    let config = CapsulaConfig::from_file(&config_file_path)
-        .with_context(|| format!("Failed to load configuration from {}", config_file_path.display()))?;
+    let config = CapsulaConfig::from_file(&config_file_path).with_context(|| {
+        format!(
+            "Failed to load configuration from {}",
+            config_file_path.display()
+        )
+    })?;
 
     // TODO: Resolving paths against project_root should be done in config parsing
     let vault_dir = if config.vault.path.is_absolute() {
@@ -143,27 +158,12 @@ path = \".\"",
                 ContextPhase::Pre => &config.phase.pre,
                 ContextPhase::Post => &config.phase.post,
             };
-            let results = build_and_run_contexts(
+            let (output_json, _should_abort) = build_and_run_contexts(
                 &runtime_params,
                 &context_phase_config,
                 &registry,
                 &project_root,
             )?;
-
-            // Include both successes and failures in the output
-            let mut output_json = results.successes
-                .iter()
-                .map(|out| out.to_json())
-                .collect::<Vec<_>>();
-
-            // Add failure information
-            for (ctx_type, err) in &results.failures {
-                output_json.push(json!({
-                    "type": "error",
-                    "context": ctx_type,
-                    "error": format!("{:#}", err)
-                }));
-            }
 
             println!("{}", serde_json::to_string_pretty(&output_json)?);
         }
@@ -177,7 +177,9 @@ path = \".\"",
             // Setup
             let run = Run::<()> {
                 id: Ulid::new(),
-                name: Generator::default().next().unwrap_or_else(|| "unnamed".to_string()),
+                name: Generator::default()
+                    .next()
+                    .with_context(|| "Failed to generate a random name for the run")?,
                 command: cmd,
                 run_dir: (),
             };
@@ -187,8 +189,14 @@ path = \".\"",
             eprintln!("Run directory: {}", run.run_dir.to_string_lossy());
             // Save run metadata to run_dir/metadata.json
             let run_metadata_path = run.run_dir.join("metadata.json");
-            std::fs::write(&run_metadata_path, serde_json::to_string_pretty(&run)?)
-                .with_context(|| format!("Failed to write metadata to {}", run_metadata_path.display()))?;
+            std::fs::write(&run_metadata_path, serde_json::to_string_pretty(&run)?).with_context(
+                || {
+                    format!(
+                        "Failed to write metadata to {}",
+                        run_metadata_path.display()
+                    )
+                },
+            )?;
 
             // Pre-run contexts capture
             let pre_params = RuntimeParams {
@@ -196,40 +204,34 @@ path = \".\"",
                 run_dir: Some(run.run_dir.clone()),
                 project_root: project_root.clone(),
             };
-            let pre_results = build_and_run_contexts(&pre_params, &config.phase.pre, &registry, &project_root)
-                .context("Failed to execute pre-phase contexts")?;
-
-            // Create JSON output including both successes and failures
-            let pre_json: Vec<_> = pre_results.successes
-                .iter()
-                .map(|out| out.to_json())
-                .chain(
-                    pre_results.failures.iter().map(|(ctx, err)| json!({
-                        "type": "error",
-                        "context": ctx,
-                        "error": format!("{:#}", err)
-                    }))
-                )
-                .collect();
+            let (pre_json, should_abort) =
+                build_and_run_contexts(&pre_params, &config.phase.pre, &registry, &project_root)
+                    .context("Failed to execute pre-phase contexts")?;
 
             // Save pre_json to run_dir/pre.json
             let pre_json_path = run.run_dir.join("pre.json");
-            std::fs::write(&pre_json_path, serde_json::to_string_pretty(&pre_json)?)
-                .with_context(|| format!("Failed to write pre-phase results to {}", pre_json_path.display()))?;
+            std::fs::write(&pre_json_path, serde_json::to_string_pretty(&pre_json)?).with_context(
+                || {
+                    format!(
+                        "Failed to write pre-phase results to {}",
+                        pre_json_path.display()
+                    )
+                },
+            )?;
 
-            // If any of the pre-run contexts requested abort, do not execute the command
-            if pre_results.successes.iter().any(|out| out.abort_requested()) {
+            if should_abort {
                 eprintln!("Aborting run due to pre-run context request.");
                 return Ok(());
             }
 
             // Execute the command
-            let run_output = run.exec()
-                .context("Failed to execute command")?;
+            let run_output = run.exec().context("Failed to execute command")?;
             // Save run_output to run_dir/run.json
             let run_json_path = run.run_dir.join("run.json");
             std::fs::write(&run_json_path, serde_json::to_string_pretty(&run_output)?)
-                .with_context(|| format!("Failed to write run output to {}", run_json_path.display()))?;
+                .with_context(|| {
+                    format!("Failed to write run output to {}", run_json_path.display())
+                })?;
 
             // Post-run contexts capture
             let post_params = RuntimeParams {
@@ -237,26 +239,19 @@ path = \".\"",
                 run_dir: Some(run.run_dir.clone()),
                 project_root: project_root.clone(),
             };
-            let post_results = build_and_run_contexts(&post_params, &config.phase.post, &registry, &project_root)
-                .context("Failed to execute post-phase contexts")?;
-
-            // Create JSON output including both successes and failures
-            let post_json: Vec<_> = post_results.successes
-                .iter()
-                .map(|out| out.to_json())
-                .chain(
-                    post_results.failures.iter().map(|(ctx, err)| json!({
-                        "type": "error",
-                        "context": ctx,
-                        "error": format!("{:#}", err)
-                    }))
-                )
-                .collect();
+            let (post_json, _should_abort) =
+                build_and_run_contexts(&post_params, &config.phase.post, &registry, &project_root)
+                    .context("Failed to execute post-phase contexts")?;
 
             // Save post_json to run_dir/post.json
             let post_json_path = run.run_dir.join("post.json");
             std::fs::write(&post_json_path, serde_json::to_string_pretty(&post_json)?)
-                .with_context(|| format!("Failed to write post-phase results to {}", post_json_path.display()))?;
+                .with_context(|| {
+                    format!(
+                        "Failed to write post-phase results to {}",
+                        post_json_path.display()
+                    )
+                })?;
         }
     }
     Ok(())
@@ -265,8 +260,8 @@ path = \".\"",
 fn main() {
     if let Err(err) = run() {
         // Check for verbose mode via environment variable
-        let verbose = std::env::var("RUST_BACKTRACE").is_ok() ||
-                      std::env::var("CAPSULA_VERBOSE").is_ok();
+        let verbose =
+            std::env::var("RUST_BACKTRACE").is_ok() || std::env::var("CAPSULA_VERBOSE").is_ok();
 
         if verbose {
             // Show full error chain with backtrace
