@@ -3,10 +3,10 @@
 > [!WARNING]
 > This project is in early development. The CLI interface and configuration format may change in future releases.
 
+A powerful CLI tool for capturing and preserving the context of your command executions. Capsula automatically records the state of your project environment before and after running commands, making your workflows reproducible and auditable.
+
 > [!NOTE]
 > The Python version of Capsula is deprecated and can be found at the main branch of this repository.
-
-A powerful CLI tool for capturing and preserving the context of your command executions. Capsula automatically records the state of your project environment before and after running commands, making your workflows reproducible and auditable.
 
 ## Features
 
