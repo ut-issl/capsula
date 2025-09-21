@@ -1,5 +1,5 @@
 use capsula_core::context::{ContextErased, ContextFactory};
-use capsula_core::error::{CoreError, CoreResult};
+use capsula_core::error::{CapsulaError, CoreResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
@@ -7,15 +7,34 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RegistryError {
-    #[error("Context type '{0}' not found in registry")]
+    #[error("Unknown context type: '{0}'")]
     ContextTypeNotFound(String),
-    #[error("Context type '{0}' already registered")]
+
+    #[error("Context type '{0}' is already registered")]
     AlreadyRegistered(String),
+
+    #[error("Failed to create context '{context}': {message}")]
+    ContextCreationFailed { context: String, message: String },
 }
 
-impl From<RegistryError> for CoreError {
+impl From<RegistryError> for CapsulaError {
     fn from(err: RegistryError) -> Self {
-        CoreError::from(std::io::Error::new(std::io::ErrorKind::Other, err))
+        match err {
+            RegistryError::ContextTypeNotFound(ty) => CapsulaError::Configuration {
+                message: format!(
+                    "Unknown context type '{}'. Check your configuration file for typos.",
+                    ty
+                ),
+            },
+            RegistryError::AlreadyRegistered(ty) => CapsulaError::Configuration {
+                message: format!("Context type '{}' is already registered", ty),
+            },
+            RegistryError::ContextCreationFailed { context, message } => {
+                CapsulaError::Configuration {
+                    message: format!("Failed to create '{}' context: {}", context, message),
+                }
+            }
+        }
     }
 }
 
@@ -50,12 +69,27 @@ impl ContextRegistry {
         config: &Value,
         project_root: &Path,
     ) -> CoreResult<Box<dyn ContextErased>> {
-        let factory = self
-            .factories
-            .get(context_type)
-            .ok_or_else(|| RegistryError::ContextTypeNotFound(context_type.to_string()))?;
+        let factory = self.factories.get(context_type).ok_or_else(|| {
+            let available = self.registered_types().join(", ");
+            CapsulaError::Configuration {
+                message: format!(
+                    "Unknown context type '{}'. Available types: {}",
+                    context_type, available
+                ),
+            }
+        })?;
 
-        factory.create_context(config, project_root)
+        factory.create_context(config, project_root).map_err(|e| {
+            // Enhance error message with context type information
+            match e {
+                CapsulaError::ContextFailed { .. } => e,
+                _ => CapsulaError::ContextFailed {
+                    context: context_type.to_string(),
+                    message: e.to_string(),
+                    source: Box::new(e),
+                },
+            }
+        })
     }
 
     /// Get list of registered context types
@@ -112,42 +146,42 @@ pub fn standard_registry() -> ContextRegistry {
     {
         builder = builder
             .with_factory(capsula_cwd_context::create_factory())
-            .expect("Failed to register CWD context");
+            .unwrap_or_else(|e| panic!("Failed to register CWD context: {}", e));
     }
 
     #[cfg(feature = "ctx-git")]
     {
         builder = builder
             .with_factory(capsula_git_context::create_factory())
-            .expect("Failed to register Git context");
+            .unwrap_or_else(|e| panic!("Failed to register Git context: {}", e));
     }
 
     #[cfg(feature = "ctx-file")]
     {
         builder = builder
             .with_factory(capsula_file_context::create_factory())
-            .expect("Failed to register File context");
+            .unwrap_or_else(|e| panic!("Failed to register File context: {}", e));
     }
 
     #[cfg(feature = "ctx-env")]
     {
         builder = builder
             .with_factory(capsula_env_context::create_factory())
-            .expect("Failed to register Env context");
+            .unwrap_or_else(|e| panic!("Failed to register Env context: {}", e));
     }
 
     #[cfg(feature = "ctx-command")]
     {
         builder = builder
             .with_factory(capsula_command_context::create_factory())
-            .expect("Failed to register Command context");
+            .unwrap_or_else(|e| panic!("Failed to register Command context: {}", e));
     }
 
     #[cfg(feature = "ctx-machine")]
     {
         builder = builder
             .with_factory(capsula_machine_context::create_factory())
-            .expect("Failed to register Machine context");
+            .unwrap_or_else(|e| panic!("Failed to register Machine context: {}", e));
     }
 
     builder.build()

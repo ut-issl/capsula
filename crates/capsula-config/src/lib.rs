@@ -1,4 +1,4 @@
-use capsula_core::error::CoreResult;
+use capsula_core::error::{CapsulaError, CoreResult};
 use serde::{Deserialize, Deserializer};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -7,13 +7,37 @@ use thiserror::Error;
 pub enum ConfigError {
     #[error("Failed to parse TOML: {0}")]
     TomlParse(#[from] toml::de::Error),
+
+    #[error("Configuration file not found: {path}")]
+    FileNotFound { path: PathBuf },
+
+    #[error("Invalid configuration: {message}")]
+    Invalid { message: String },
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Core error: {0}")]
-    Core(#[from] capsula_core::error::CoreError),
 }
 
 pub type ConfigResult<T> = Result<T, ConfigError>;
+
+/// Convert ConfigError to CoreError for cross-crate compatibility
+impl From<ConfigError> for CapsulaError {
+    fn from(err: ConfigError) -> Self {
+        match err {
+            ConfigError::TomlParse(e) => CapsulaError::Configuration {
+                message: format!("Failed to parse TOML configuration: {}", e),
+            },
+            ConfigError::FileNotFound { path } => CapsulaError::Configuration {
+                message: format!(
+                    "Configuration file not found at '{}'. Create a 'capsula.toml' file or specify a custom path with --config",
+                    path.display()
+                ),
+            },
+            ConfigError::Invalid { message } => CapsulaError::Configuration { message },
+            ConfigError::Io(e) => CapsulaError::from(e),
+        }
+    }
+}
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct CapsulaConfig {
@@ -102,7 +126,16 @@ impl CapsulaConfig {
     }
 
     pub fn from_file(path: impl AsRef<std::path::Path>) -> ConfigResult<Self> {
-        let content = std::fs::read_to_string(path)?;
+        let path = path.as_ref();
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                ConfigError::FileNotFound {
+                    path: path.to_path_buf(),
+                }
+            } else {
+                ConfigError::Io(e)
+            }
+        })?;
         Self::from_str(&content)
     }
 }

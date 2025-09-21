@@ -1,4 +1,4 @@
-use crate::error::{CoreError, CoreResult};
+use crate::error::{CapsulaError, CoreResult};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -27,7 +27,7 @@ pub trait ContextErased: Send + Sync {
     fn run_erased(
         &self,
         parmas: &RuntimeParams,
-    ) -> Result<Box<dyn super::captured::Captured>, CoreError>;
+    ) -> Result<Box<dyn super::captured::Captured>, CapsulaError>;
 }
 
 impl<T> ContextErased for T
@@ -37,7 +37,7 @@ where
     fn run_erased(
         &self,
         params: &RuntimeParams,
-    ) -> Result<Box<dyn super::captured::Captured>, CoreError> {
+    ) -> Result<Box<dyn super::captured::Captured>, CapsulaError> {
         let out = <T as Context>::run(self, params)?;
         Ok(Box::new(out))
     }

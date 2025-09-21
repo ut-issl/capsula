@@ -28,13 +28,24 @@ impl ContextFactory for GitContextFactory {
         config: &Value,
         project_root: &Path,
     ) -> CoreResult<Box<dyn ContextErased>> {
-        let config: GitContextConfig = serde_json::from_value(config.clone())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        let config: GitContextConfig = serde_json::from_value(config.clone()).map_err(|e| {
+            capsula_core::error::CapsulaError::Configuration {
+                message: format!("Invalid git context configuration: {}", e),
+            }
+        })?;
 
         let working_dir = if config.path.is_absolute() {
             config.path
         } else {
-            project_root.join(&config.path).canonicalize()?
+            project_root
+                .join(&config.path)
+                .canonicalize()
+                .map_err(|e| {
+                    capsula_core::error::CapsulaError::io_with_path(
+                        project_root.join(&config.path),
+                        e,
+                    )
+                })?
         };
 
         let context = GitContext {

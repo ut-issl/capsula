@@ -1,4 +1,7 @@
 mod config;
+mod error;
+
+use crate::error::GitContextError;
 
 use crate::config::GitContextFactory;
 use capsula_core::captured::Captured;
@@ -22,6 +25,8 @@ pub struct GitCaptured {
     pub name: String,
     pub working_dir: PathBuf,
     pub sha: String, // TODO: Use more suitable type
+    pub is_dirty: bool,
+    pub abort_on_dirty: bool,
 }
 
 impl Captured for GitCaptured {
@@ -30,8 +35,14 @@ impl Captured for GitCaptured {
             "type": KEY.to_string(),
             "name": self.name,
             "working_dir": self.working_dir.to_string_lossy(),
-            "sha": self.sha
+            "sha": self.sha,
+            "is_dirty": self.is_dirty,
+            "abort_on_dirty": self.abort_on_dirty
         })
+    }
+
+    fn abort_requested(&self) -> bool {
+        self.is_dirty && self.abort_on_dirty
     }
 }
 
@@ -45,33 +56,35 @@ impl Context for GitContext {
             self.working_dir.clone()
         };
 
-        let repo = Repository::discover(&repo_path)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.message()))?;
-
-        let head = repo
-            .head()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.message()))?;
-        let oid = head.target().ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::Other, "Failed to get HEAD target")
+        let repo = Repository::discover(&repo_path).map_err(|e| {
+            if e.code() == git2::ErrorCode::NotFound {
+                GitContextError::NotARepository
+            } else {
+                GitContextError::GitOperation(e)
+            }
         })?;
 
-        if !self.allow_dirty {
-            let statuses = repo
-                .statuses(None)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.message()))?;
-            if !statuses.is_empty() {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Repository has uncommitted changes",
-                )
-                .into());
-            }
+        let head = repo.head().map_err(GitContextError::from)?;
+        let oid = head.target().ok_or_else(|| GitContextError::HeadNotFound {
+            message: "HEAD does not point to a valid commit".to_string(),
+        })?;
+
+        // Check if repository is dirty
+        let statuses = repo.statuses(None).map_err(GitContextError::from)?;
+        let is_dirty = !statuses.is_empty();
+
+        // If dirty and not allowed, we'll signal abort through the Captured trait
+        // rather than returning an error, so other contexts can still be captured
+        if is_dirty && !self.allow_dirty {
+            eprintln!("Warning: Repository has uncommitted changes. Run will be aborted after context capture.");
         }
 
         Ok(GitCaptured {
             name: self.name.clone(),
             working_dir: repo_path,
             sha: oid.to_string(),
+            is_dirty,
+            abort_on_dirty: !self.allow_dirty,
         })
     }
 }
