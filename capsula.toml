@@ -32,6 +32,10 @@ hash = "sha256"
 type = "env"
 name = "HOME"
 
+[[phase.pre.contexts]]
+type = "command"
+command = ["rustc", "--version"]
+
 # [[phase.pre.contexts]]
 # type = "file"
 # path = "Cargo.toml"
