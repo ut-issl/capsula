@@ -6,7 +6,6 @@ use capsula_core::context::{ContextPhase, RuntimeParams};
 use capsula_core::run::Run;
 use clap::{Parser, Subcommand};
 use names::Generator;
-use serde_json::json;
 use ulid::Ulid;
 
 #[derive(Parser, Debug)]
@@ -50,7 +49,7 @@ fn build_and_run_contexts(
     let results: Vec<_> = contexts
         .iter()
         .enumerate()
-        .map(|(idx, ctx)| {
+        .filter_map(|(idx, ctx)| {
             let context_identifier = context_phase_config
                 .contexts
                 .get(idx)
@@ -66,7 +65,7 @@ fn build_and_run_contexts(
                     if let serde_json::Value::Object(ref mut map) = json {
                         map.insert("success".to_string(), serde_json::Value::Bool(true));
                     }
-                    (json, should_abort)
+                    Some((json, should_abort))
                 }
                 Err(e) => {
                     let error = anyhow::anyhow!(e);
@@ -74,13 +73,8 @@ fn build_and_run_contexts(
                         "Warning: Failed to capture {}: {:#}",
                         context_identifier, error
                     );
-
-                    let json = json!({
-                        "success": false,
-                        "type": context_identifier,
-                        "error": format!("{:#}", error)
-                    });
-                    (json, false)
+                    // Return None to filter out failed contexts from the JSON output
+                    None
                 }
             }
         })
