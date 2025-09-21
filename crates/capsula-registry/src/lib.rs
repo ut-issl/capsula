@@ -1,5 +1,5 @@
 use capsula_core::context::{ContextErased, ContextFactory};
-use capsula_core::error::{CoreError, CoreResult};
+use capsula_core::error::{CapsulaError, CoreResult};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
@@ -14,24 +14,26 @@ pub enum RegistryError {
     AlreadyRegistered(String),
 
     #[error("Failed to create context '{context}': {message}")]
-    ContextCreationFailed {
-        context: String,
-        message: String,
-    },
+    ContextCreationFailed { context: String, message: String },
 }
 
-impl From<RegistryError> for CoreError {
+impl From<RegistryError> for CapsulaError {
     fn from(err: RegistryError) -> Self {
         match err {
-            RegistryError::ContextTypeNotFound(ty) => CoreError::Configuration {
-                message: format!("Unknown context type '{}'. Check your configuration file for typos.", ty),
+            RegistryError::ContextTypeNotFound(ty) => CapsulaError::Configuration {
+                message: format!(
+                    "Unknown context type '{}'. Check your configuration file for typos.",
+                    ty
+                ),
             },
-            RegistryError::AlreadyRegistered(ty) => CoreError::Configuration {
+            RegistryError::AlreadyRegistered(ty) => CapsulaError::Configuration {
                 message: format!("Context type '{}' is already registered", ty),
             },
-            RegistryError::ContextCreationFailed { context, message } => CoreError::Configuration {
-                message: format!("Failed to create '{}' context: {}", context, message),
-            },
+            RegistryError::ContextCreationFailed { context, message } => {
+                CapsulaError::Configuration {
+                    message: format!("Failed to create '{}' context: {}", context, message),
+                }
+            }
         }
     }
 }
@@ -67,24 +69,21 @@ impl ContextRegistry {
         config: &Value,
         project_root: &Path,
     ) -> CoreResult<Box<dyn ContextErased>> {
-        let factory = self
-            .factories
-            .get(context_type)
-            .ok_or_else(|| {
-                let available = self.registered_types().join(", ");
-                CoreError::Configuration {
-                    message: format!(
-                        "Unknown context type '{}'. Available types: {}",
-                        context_type, available
-                    ),
-                }
-            })?;
+        let factory = self.factories.get(context_type).ok_or_else(|| {
+            let available = self.registered_types().join(", ");
+            CapsulaError::Configuration {
+                message: format!(
+                    "Unknown context type '{}'. Available types: {}",
+                    context_type, available
+                ),
+            }
+        })?;
 
         factory.create_context(config, project_root).map_err(|e| {
             // Enhance error message with context type information
             match e {
-                CoreError::ContextFailed { .. } => e,
-                _ => CoreError::ContextFailed {
+                CapsulaError::ContextFailed { .. } => e,
+                _ => CapsulaError::ContextFailed {
                     context: context_type.to_string(),
                     message: e.to_string(),
                     source: Box::new(e),

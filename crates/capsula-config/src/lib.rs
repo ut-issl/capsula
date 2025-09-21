@@ -1,4 +1,4 @@
-use capsula_core::error::{CoreError, CoreResult};
+use capsula_core::error::{CapsulaError, CoreResult};
 use serde::{Deserialize, Deserializer};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -9,14 +9,10 @@ pub enum ConfigError {
     TomlParse(#[from] toml::de::Error),
 
     #[error("Configuration file not found: {path}")]
-    FileNotFound {
-        path: PathBuf,
-    },
+    FileNotFound { path: PathBuf },
 
     #[error("Invalid configuration: {message}")]
-    Invalid {
-        message: String,
-    },
+    Invalid { message: String },
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -25,19 +21,20 @@ pub enum ConfigError {
 pub type ConfigResult<T> = Result<T, ConfigError>;
 
 /// Convert ConfigError to CoreError for cross-crate compatibility
-impl From<ConfigError> for CoreError {
+impl From<ConfigError> for CapsulaError {
     fn from(err: ConfigError) -> Self {
         match err {
-            ConfigError::TomlParse(e) => CoreError::Configuration {
+            ConfigError::TomlParse(e) => CapsulaError::Configuration {
                 message: format!("Failed to parse TOML configuration: {}", e),
             },
-            ConfigError::FileNotFound { path } => CoreError::Configuration {
-                message: format!("Configuration file not found at '{}'. Create a 'capsula.toml' file or specify a custom path with --config", path.display()),
+            ConfigError::FileNotFound { path } => CapsulaError::Configuration {
+                message: format!(
+                    "Configuration file not found at '{}'. Create a 'capsula.toml' file or specify a custom path with --config",
+                    path.display()
+                ),
             },
-            ConfigError::Invalid { message } => CoreError::Configuration {
-                message,
-            },
-            ConfigError::Io(e) => CoreError::from(e),
+            ConfigError::Invalid { message } => CapsulaError::Configuration { message },
+            ConfigError::Io(e) => CapsulaError::from(e),
         }
     }
 }

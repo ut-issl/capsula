@@ -1,4 +1,4 @@
-use capsula_core::error::CoreError;
+use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
 /// Git context specific errors
@@ -9,14 +9,14 @@ pub enum GitContextError {
     NotARepository,
 
     /// Repository has uncommitted changes
-    #[error("Repository has uncommitted changes. Commit your changes or set 'allow_dirty = true' in configuration")]
+    #[error(
+        "Repository has uncommitted changes. Commit your changes or set 'allow_dirty = true' in configuration"
+    )]
     DirtyRepository,
 
     /// Failed to get HEAD
     #[error("Failed to get repository HEAD: {message}")]
-    HeadNotFound {
-        message: String,
-    },
+    HeadNotFound { message: String },
 
     /// Git operation failed
     #[error("Git operation failed: {0}")]
@@ -28,9 +28,9 @@ pub enum GitContextError {
 }
 
 /// Convert GitContextError to CoreError
-impl From<GitContextError> for CoreError {
+impl From<GitContextError> for CapsulaError {
     fn from(err: GitContextError) -> Self {
-        CoreError::ContextFailed {
+        CapsulaError::ContextFailed {
             context: "git".to_string(),
             message: err.to_string(),
             source: Box::new(err),

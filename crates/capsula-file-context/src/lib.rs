@@ -5,7 +5,7 @@ use crate::config::FileContextFactory;
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextFactory, RuntimeParams};
-use capsula_core::error::{CoreError, CoreResult};
+use capsula_core::error::{CapsulaError, CoreResult};
 use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -80,10 +80,10 @@ impl Context for FileContext {
         GlobWalkerBuilder::from_patterns(&params.project_root, &[&self.glob])
             .max_depth(1)
             .build()
-            .map_err(|e| CoreError::from(std::io::Error::new(std::io::ErrorKind::Other, e)))?
+            .map_err(|e| CapsulaError::from(std::io::Error::new(std::io::ErrorKind::Other, e)))?
             .filter_map(Result::ok)
             .map(|entry| self.capture_file(entry.path(), &params))
-            .collect::<Result<Vec<_>, CoreError>>()
+            .collect::<Result<Vec<_>, CapsulaError>>()
             .map(|files| FileCaptured { files })
     }
 }
@@ -104,7 +104,7 @@ impl FileContext {
         let copied_path = match self.mode {
             CaptureMode::Copy | CaptureMode::Move => {
                 let run_dir = runtime_params.run_dir.as_ref().ok_or_else(|| {
-                    CoreError::from(std::io::Error::new(
+                    CapsulaError::from(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         "run_dir is required for Copy or Move mode",
                     ))
@@ -112,7 +112,7 @@ impl FileContext {
                 let file_name = path
                     .file_name()
                     .ok_or_else(|| {
-                        CoreError::from(std::io::Error::new(
+                        CapsulaError::from(std::io::Error::new(
                             std::io::ErrorKind::InvalidInput,
                             "Invalid file name",
                         ))

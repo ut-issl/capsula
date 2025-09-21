@@ -1,4 +1,4 @@
-use capsula_core::error::CoreError;
+use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
 /// Command context specific errors
@@ -30,9 +30,9 @@ pub enum CommandContextError {
 }
 
 /// Convert CommandContextError to CoreError
-impl From<CommandContextError> for CoreError {
+impl From<CommandContextError> for CapsulaError {
     fn from(err: CommandContextError) -> Self {
-        CoreError::ContextFailed {
+        CapsulaError::ContextFailed {
             context: "command".to_string(),
             message: err.to_string(),
             source: Box::new(err),

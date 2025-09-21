@@ -1,4 +1,4 @@
-use capsula_core::error::CoreError;
+use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
 /// Machine context specific errors
@@ -6,9 +6,7 @@ use thiserror::Error;
 pub enum MachineContextError {
     /// Failed to collect system information
     #[error("Failed to collect system information: {message}")]
-    SystemInfoError {
-        message: String,
-    },
+    SystemInfoError { message: String },
 
     /// Failed to get OS information
     #[error("Failed to get OS information")]
@@ -32,9 +30,9 @@ pub enum MachineContextError {
 }
 
 /// Convert MachineContextError to CoreError
-impl From<MachineContextError> for CoreError {
+impl From<MachineContextError> for CapsulaError {
     fn from(err: MachineContextError) -> Self {
-        CoreError::ContextFailed {
+        CapsulaError::ContextFailed {
             context: "machine".to_string(),
             message: err.to_string(),
             source: Box::new(err),

@@ -1,4 +1,4 @@
-use capsula_core::error::CoreError;
+use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
 /// Environment variable context specific errors
@@ -6,9 +6,7 @@ use thiserror::Error;
 pub enum EnvContextError {
     /// Environment variable required but not found
     #[error("Required environment variable '{name}' not found")]
-    VariableNotFound {
-        name: String,
-    },
+    VariableNotFound { name: String },
 
     /// Environment variable contains invalid UTF-8
     #[error("Environment variable '{name}' contains invalid UTF-8")]
@@ -24,9 +22,9 @@ pub enum EnvContextError {
 }
 
 /// Convert EnvContextError to CoreError
-impl From<EnvContextError> for CoreError {
+impl From<EnvContextError> for CapsulaError {
     fn from(err: EnvContextError) -> Self {
-        CoreError::ContextFailed {
+        CapsulaError::ContextFailed {
             context: "env".to_string(),
             message: err.to_string(),
             source: Box::new(err),

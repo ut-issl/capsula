@@ -1,4 +1,4 @@
-use capsula_core::error::CoreError;
+use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
 /// Current working directory context specific errors
@@ -17,9 +17,9 @@ pub enum CwdContextError {
 }
 
 /// Convert CwdContextError to CoreError
-impl From<CwdContextError> for CoreError {
+impl From<CwdContextError> for CapsulaError {
     fn from(err: CwdContextError) -> Self {
-        CoreError::ContextFailed {
+        CapsulaError::ContextFailed {
             context: "cwd".to_string(),
             message: err.to_string(),
             source: Box::new(err),
