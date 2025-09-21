@@ -6,6 +6,7 @@ use capsula_core::context::{ContextPhase, RuntimeParams};
 use capsula_core::run::Run;
 use clap::{Parser, Subcommand};
 use names::Generator;
+use serde_json::json;
 use ulid::Ulid;
 
 #[derive(Parser, Debug)]
@@ -36,23 +37,49 @@ fn create_registry() -> capsula_registry::ContextRegistry {
     capsula_registry::standard_registry()
 }
 
+/// Result of running contexts - contains both successful captures and failures
+struct ContextRunResults {
+    successes: Vec<Box<dyn capsula_core::captured::Captured>>,
+    failures: Vec<(String, anyhow::Error)>,  // (context_type, error)
+}
+
 fn build_and_run_contexts(
     runtime_params: &RuntimeParams,
     context_phase_config: &ContextPhaseConfig,
     context_registry: &capsula_registry::ContextRegistry,
     project_root: &std::path::Path,
-) -> Result<Vec<Box<dyn capsula_core::captured::Captured>>> {
+) -> Result<ContextRunResults> {
     let contexts = capsula_config::build_contexts(&context_phase_config, &project_root, &context_registry)
         .context("Failed to build contexts from configuration")?;
 
-    contexts
+    let results: Vec<_> = contexts
         .iter()
-        .map(|ctx| {
+        .enumerate()
+        .map(|(idx, ctx)| {
+            let context_identifier = context_phase_config.contexts
+                .get(idx)
+                .map(|config_ctx| format!("{}[{}]", config_ctx.ty, idx))
+                .unwrap_or_else(|| format!("context[{}]", idx));
+
             ctx.run_erased(&runtime_params)
-                .map_err(|e| anyhow::anyhow!(e))
-                .context("Failed to execute context")
+                .map_err(|e| {
+                    let error = anyhow::anyhow!(e);
+                    eprintln!("Warning: Failed to capture {}: {:#}", context_identifier, error);
+                    (context_identifier, error)
+                })
         })
-        .collect::<Result<Vec<_>>>()
+        .collect();
+
+    // Partition results into successes and failures
+    let successes = results.iter()
+        .filter_map(|r| r.as_ref().ok().cloned())
+        .collect();
+
+    let failures = results.into_iter()
+        .filter_map(|r| r.err())
+        .collect();
+
+    Ok(ContextRunResults { successes, failures })
 }
 
 fn run() -> Result<()> {
@@ -116,17 +143,29 @@ path = \".\"",
                 ContextPhase::Pre => &config.phase.pre,
                 ContextPhase::Post => &config.phase.post,
             };
-            let context_outputs = build_and_run_contexts(
+            let results = build_and_run_contexts(
                 &runtime_params,
                 &context_phase_config,
                 &registry,
                 &project_root,
             )?;
-            let context_outputs_json = context_outputs
+
+            // Include both successes and failures in the output
+            let mut output_json = results.successes
                 .iter()
                 .map(|out| out.to_json())
                 .collect::<Vec<_>>();
-            println!("{}", serde_json::to_string_pretty(&context_outputs_json)?);
+
+            // Add failure information
+            for (ctx_type, err) in &results.failures {
+                output_json.push(json!({
+                    "type": "error",
+                    "context": ctx_type,
+                    "error": format!("{:#}", err)
+                }));
+            }
+
+            println!("{}", serde_json::to_string_pretty(&output_json)?);
         }
 
         Commands::Run { cmd } => {
@@ -157,19 +196,29 @@ path = \".\"",
                 run_dir: Some(run.run_dir.clone()),
                 project_root: project_root.clone(),
             };
-            let pre_outputs = build_and_run_contexts(&pre_params, &config.phase.pre, &registry, &project_root)
+            let pre_results = build_and_run_contexts(&pre_params, &config.phase.pre, &registry, &project_root)
                 .context("Failed to execute pre-phase contexts")?;
-            let pre_json = pre_outputs
+
+            // Create JSON output including both successes and failures
+            let pre_json: Vec<_> = pre_results.successes
                 .iter()
                 .map(|out| out.to_json())
-                .collect::<Vec<_>>();
+                .chain(
+                    pre_results.failures.iter().map(|(ctx, err)| json!({
+                        "type": "error",
+                        "context": ctx,
+                        "error": format!("{:#}", err)
+                    }))
+                )
+                .collect();
+
             // Save pre_json to run_dir/pre.json
             let pre_json_path = run.run_dir.join("pre.json");
             std::fs::write(&pre_json_path, serde_json::to_string_pretty(&pre_json)?)
                 .with_context(|| format!("Failed to write pre-phase results to {}", pre_json_path.display()))?;
 
             // If any of the pre-run contexts requested abort, do not execute the command
-            if pre_outputs.iter().any(|out| out.abort_requested()) {
+            if pre_results.successes.iter().any(|out| out.abort_requested()) {
                 eprintln!("Aborting run due to pre-run context request.");
                 return Ok(());
             }
@@ -188,12 +237,22 @@ path = \".\"",
                 run_dir: Some(run.run_dir.clone()),
                 project_root: project_root.clone(),
             };
-            let post_outputs = build_and_run_contexts(&post_params, &config.phase.post, &registry, &project_root)
+            let post_results = build_and_run_contexts(&post_params, &config.phase.post, &registry, &project_root)
                 .context("Failed to execute post-phase contexts")?;
-            let post_json = post_outputs
+
+            // Create JSON output including both successes and failures
+            let post_json: Vec<_> = post_results.successes
                 .iter()
                 .map(|out| out.to_json())
-                .collect::<Vec<_>>();
+                .chain(
+                    post_results.failures.iter().map(|(ctx, err)| json!({
+                        "type": "error",
+                        "context": ctx,
+                        "error": format!("{:#}", err)
+                    }))
+                )
+                .collect();
+
             // Save post_json to run_dir/post.json
             let post_json_path = run.run_dir.join("post.json");
             std::fs::write(&post_json_path, serde_json::to_string_pretty(&post_json)?)
