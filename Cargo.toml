@@ -15,9 +15,11 @@ repository = "https://github.com/shunichironomura/capsula"
 capsula-cli = { version = "0.2.0", path = "crates/capsula-cli" }
 capsula-config = { version = "0.2.0", path = "crates/capsula-config" }
 capsula-core = { version = "0.2.0", path = "crates/capsula-core" }
+capsula-registry = { version = "0.2.0", path = "crates/capsula-registry" }
+
+# Contexts
 capsula-cwd-context = { version = "0.2.0", path = "crates/capsula-cwd-context" }
 capsula-git-context = { version = "0.2.0", path = "crates/capsula-git-context" }
-capsula-registry = { version = "0.2.0", path = "crates/capsula-registry" }
 capsula-file-context = { version = "0.2.0", path = "crates/capsula-file-context" }
 capsula-env-context = { version = "0.2.0", path = "crates/capsula-env-context" }
 capsula-command-context = { version = "0.2.0", path = "crates/capsula-command-context" }
