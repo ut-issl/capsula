@@ -61,6 +61,7 @@ impl Captured for CommandCaptured {
             "stdout": self.stdout,
             "stderr": self.stderr,
             "status": self.status,
+            "abort_requested": self.abort_requested,
         })
     }
 
