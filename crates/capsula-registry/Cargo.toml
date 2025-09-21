@@ -9,16 +9,18 @@ license.workspace = true
 readme.workspace = true
 
 [features]
-default = ["ctx-cwd", "ctx-git", "ctx-file"]
+default = ["ctx-cwd", "ctx-git", "ctx-file", "ctx-env"]
 ctx-cwd = ["dep:capsula-cwd-context"]
 ctx-git = ["dep:capsula-git-context"]
 ctx-file = ["dep:capsula-file-context"]
+ctx-env = ["dep:capsula-env-context"]
 
 [dependencies]
 capsula-core = { workspace = true }
 capsula-cwd-context = { workspace = true, optional = true }
 capsula-git-context = { workspace = true, optional = true }
 capsula-file-context = { workspace = true, optional = true }
+capsula-env-context = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

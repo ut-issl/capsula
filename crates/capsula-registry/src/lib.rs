@@ -129,5 +129,12 @@ pub fn standard_registry() -> ContextRegistry {
             .expect("Failed to register File context");
     }
 
+    #[cfg(feature = "ctx-env")]
+    {
+        builder = builder
+            .with_factory(capsula_env_context::create_factory())
+            .expect("Failed to register Env context");
+    }
+
     builder.build()
 }

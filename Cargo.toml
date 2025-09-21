@@ -19,6 +19,7 @@ capsula-cwd-context = { version = "0.1.0", path = "crates/capsula-cwd-context" }
 capsula-git-context = { version = "0.1.0", path = "crates/capsula-git-context" }
 capsula-registry = { version = "0.1.0", path = "crates/capsula-registry" }
 capsula-file-context = { version = "0.1.0", path = "crates/capsula-file-context" }
+capsula-env-context = { version = "0.1.0", path = "crates/capsula-env-context" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
