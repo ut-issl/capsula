@@ -50,7 +50,7 @@ fn build_and_run_contexts(
     let results: Vec<_> = contexts
         .iter()
         .enumerate()
-        .filter_map(|(idx, ctx)| {
+        .map(|(idx, ctx)| {
             let context_identifier = context_phase_config
                 .contexts
                 .get(idx)
@@ -70,7 +70,7 @@ fn build_and_run_contexts(
                         });
                         map.insert("__meta".to_string(), metadata);
                     }
-                    Some((json, should_abort))
+                    (json, should_abort)
                 }
                 Err(e) => {
                     let error = anyhow::anyhow!(e);
@@ -78,8 +78,15 @@ fn build_and_run_contexts(
                         "Warning: Failed to capture {} (config index {}): {:#}",
                         context_identifier, idx, error
                     );
-                    // Return None to filter out failed contexts from the JSON output
-                    None
+                    // Only include the metadata with error information
+                    let json = json!({
+                        "__meta": json!({
+                            "success": false,
+                            "index": idx,
+                            "error": format!("{}", error)
+                        })}
+                    );
+                    (json, false) // Do not abort on capture failure
                 }
             }
         })
