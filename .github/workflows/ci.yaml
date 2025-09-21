@@ -12,7 +12,7 @@ env:
 
 jobs:
   checks:
-    name: Check clippy and formatting
+    name: cargo clippy, fmt, doc, check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,4 +24,5 @@ jobs:
       - run: cargo clippy --workspace --all-targets --no-default-features
       - run: cargo fmt --check --all
       - run: cargo doc --workspace --no-deps
+      - run: cargo check --workspace
       - run: git diff --exit-code
