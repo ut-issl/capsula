@@ -145,6 +145,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "capsula-command-context"
+version = "0.1.0"
+dependencies = [
+ "capsula-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "capsula-config"
 version = "0.1.0"
 dependencies = [
@@ -212,6 +221,7 @@ dependencies = [
 name = "capsula-registry"
 version = "0.1.0"
 dependencies = [
+ "capsula-command-context",
  "capsula-core",
  "capsula-cwd-context",
  "capsula-env-context",

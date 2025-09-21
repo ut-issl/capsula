@@ -32,6 +32,15 @@ hash = "sha256"
 type = "env"
 name = "HOME"
 
+[[phase.pre.contexts]]
+type = "command"
+command = ["rustc", "--version"]
+
+[[phase.pre.contexts]]
+type = "command"
+command = ["uv", "run", "python", "-c", "raise SystemExit(1)"]
+abort_on_failure = true
+
 # [[phase.pre.contexts]]
 # type = "file"
 # path = "Cargo.toml"

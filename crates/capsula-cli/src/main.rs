@@ -155,6 +155,12 @@ fn main() -> anyhow::Result<()> {
             let pre_json_path = run.run_dir.join("pre.json");
             std::fs::write(&pre_json_path, serde_json::to_string_pretty(&pre_json)?)?;
 
+            // If any of the pre-run contexts requested abort, do not execute the command
+            if pre_outputs.iter().any(|out| out.abort_requested()) {
+                eprintln!("Aborting run due to pre-run context request.");
+                return Ok(());
+            }
+
             // Execute the command
             if let Ok(run_output) = run.exec() {
                 // Save run_output to run_dir/run.json
