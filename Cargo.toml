@@ -4,7 +4,7 @@ default-members = ["crates/capsula-cli"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 rust-version = "1.89"
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -12,16 +12,16 @@ readme = "README.md"
 repository = "https://github.com/shunichironomura/capsula"
 
 [workspace.dependencies]
-capsula-cli = { version = "0.1.0", path = "crates/capsula-cli" }
-capsula-config = { version = "0.1.0", path = "crates/capsula-config" }
-capsula-core = { version = "0.1.0", path = "crates/capsula-core" }
-capsula-cwd-context = { version = "0.1.0", path = "crates/capsula-cwd-context" }
-capsula-git-context = { version = "0.1.0", path = "crates/capsula-git-context" }
-capsula-registry = { version = "0.1.0", path = "crates/capsula-registry" }
-capsula-file-context = { version = "0.1.0", path = "crates/capsula-file-context" }
-capsula-env-context = { version = "0.1.0", path = "crates/capsula-env-context" }
-capsula-command-context = { version = "0.1.0", path = "crates/capsula-command-context" }
-capsula-machine-context = { version = "0.1.0", path = "crates/capsula-machine-context" }
+capsula-cli = { version = "0.2.0", path = "crates/capsula-cli" }
+capsula-config = { version = "0.2.0", path = "crates/capsula-config" }
+capsula-core = { version = "0.2.0", path = "crates/capsula-core" }
+capsula-cwd-context = { version = "0.2.0", path = "crates/capsula-cwd-context" }
+capsula-git-context = { version = "0.2.0", path = "crates/capsula-git-context" }
+capsula-registry = { version = "0.2.0", path = "crates/capsula-registry" }
+capsula-file-context = { version = "0.2.0", path = "crates/capsula-file-context" }
+capsula-env-context = { version = "0.2.0", path = "crates/capsula-env-context" }
+capsula-command-context = { version = "0.2.0", path = "crates/capsula-command-context" }
+capsula-machine-context = { version = "0.2.0", path = "crates/capsula-machine-context" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
