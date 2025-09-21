@@ -6,6 +6,7 @@ use capsula_core::context::{ContextPhase, RuntimeParams};
 use capsula_core::run::Run;
 use clap::{Parser, Subcommand};
 use names::Generator;
+use serde_json::json;
 use ulid::Ulid;
 
 #[derive(Parser, Debug)]
@@ -60,18 +61,22 @@ fn build_and_run_contexts(
                 Ok(captured) => {
                     let should_abort = captured.abort_requested();
 
-                    // Convert to JSON and add success indicator
+                    // Convert to JSON and add metadata object
                     let mut json = captured.to_json();
                     if let serde_json::Value::Object(ref mut map) = json {
-                        map.insert("success".to_string(), serde_json::Value::Bool(true));
+                        let metadata = json!({
+                            "success": true,
+                            "index": idx
+                        });
+                        map.insert("__meta".to_string(), metadata);
                     }
                     Some((json, should_abort))
                 }
                 Err(e) => {
                     let error = anyhow::anyhow!(e);
                     eprintln!(
-                        "Warning: Failed to capture {}: {:#}",
-                        context_identifier, error
+                        "Warning: Failed to capture {} (config index {}): {:#}",
+                        context_identifier, idx, error
                     );
                     // Return None to filter out failed contexts from the JSON output
                     None
