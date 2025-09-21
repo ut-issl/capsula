@@ -1,0 +1,27 @@
+name: CI
+on:
+  push:
+    branches:
+      - rust
+  pull_request:
+    branches:
+      - rust
+
+env:
+  RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  checks:
+    name: Check clippy and formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.89.0
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets --all-features
+      - run: cargo clippy --workspace --all-targets --no-default-features
+      - run: cargo fmt --check --all
+      - run: cargo doc --workspace --no-deps
+      - run: git diff --exit-code
