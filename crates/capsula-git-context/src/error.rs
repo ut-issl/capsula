@@ -8,11 +8,6 @@ pub enum GitContextError {
     #[error("Not a git repository (or any parent up to mount point)")]
     NotARepository,
 
-    /// Repository has uncommitted changes
-    #[error(
-        "Repository has uncommitted changes. Commit your changes or set 'allow_dirty = true' in configuration"
-    )]
-    DirtyRepository,
 
     /// Failed to get HEAD
     #[error("Failed to get repository HEAD: {message}")]
