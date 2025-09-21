@@ -121,7 +121,7 @@ pub enum WatcherSpec {
 pub struct TimeWatcherSpec {}
 
 impl CapsulaConfig {
-    pub fn from_str(content: &str) -> ConfigResult<Self> {
+    pub fn from_toml_str(content: &str) -> ConfigResult<Self> {
         Ok(toml::from_str(content)?)
     }
 
@@ -136,7 +136,7 @@ impl CapsulaConfig {
                 ConfigError::Io(e)
             }
         })?;
-        Self::from_str(&content)
+        Self::from_toml_str(&content)
     }
 }
 
@@ -189,7 +189,7 @@ type = "env"
 key = "PATH"
 "#;
 
-        let config = CapsulaConfig::from_str(config_str).unwrap();
+        let config = CapsulaConfig::from_toml_str(config_str).unwrap();
 
         assert_eq!(config.vault.name, "capsula");
         assert_eq!(config.vault.path, PathBuf::from(".capsula/capsula"));
@@ -221,7 +221,7 @@ path = "/custom/path/to/vault"
 type = "cwd"
 "#;
 
-        let config = CapsulaConfig::from_str(config_str).unwrap();
+        let config = CapsulaConfig::from_toml_str(config_str).unwrap();
 
         assert_eq!(config.vault.name, "my_vault");
         assert_eq!(config.vault.path, PathBuf::from("/custom/path/to/vault"));
@@ -237,7 +237,7 @@ name = "test_vault"
 type = "cwd"
 "#;
 
-        let config = CapsulaConfig::from_str(config_str).unwrap();
+        let config = CapsulaConfig::from_toml_str(config_str).unwrap();
 
         assert_eq!(config.vault.name, "test_vault");
         assert_eq!(config.vault.path, PathBuf::from(".capsula/test_vault"));

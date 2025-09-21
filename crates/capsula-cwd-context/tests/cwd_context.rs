@@ -8,7 +8,7 @@ use capsula_cwd_context::CwdContext;
 fn cwd_context_captures_current_dir_and_json() {
     // Arrange
     let expected = std::env::current_dir().expect("current_dir");
-    let ctx = CwdContext::default();
+    let ctx = CwdContext;
     let params = RuntimeParams {
         phase: ContextPhase::Pre,
         run_dir: None,

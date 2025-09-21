@@ -44,7 +44,7 @@ fn build_and_run_contexts(
     project_root: &std::path::Path,
 ) -> Result<(Vec<serde_json::Value>, bool)> {
     let contexts =
-        capsula_config::build_contexts(&context_phase_config, &project_root, &context_registry)
+        capsula_config::build_contexts(context_phase_config, project_root, context_registry)
             .context("Failed to build contexts from configuration")?;
 
     let results: Vec<_> = contexts
@@ -54,10 +54,10 @@ fn build_and_run_contexts(
             let context_identifier = context_phase_config
                 .contexts
                 .get(idx)
-                .map(|config_ctx| format!("{}", config_ctx.ty))
+                .map(|config_ctx| config_ctx.ty.clone())
                 .unwrap_or_else(|| format!("context[{}]", idx));
 
-            match ctx.run_erased(&runtime_params) {
+            match ctx.run_erased(runtime_params) {
                 Ok(captured) => {
                     let should_abort = captured.abort_requested();
 
@@ -156,7 +156,7 @@ path = \".\"",
     match cli.command {
         Commands::Capture { phase } => {
             let runtime_params = RuntimeParams {
-                phase: phase,
+                phase,
                 run_dir: None,
                 project_root: project_root.clone(),
             };
@@ -166,7 +166,7 @@ path = \".\"",
             };
             let (output_json, _should_abort) = build_and_run_contexts(
                 &runtime_params,
-                &context_phase_config,
+                context_phase_config,
                 &registry,
                 &project_root,
             )?;

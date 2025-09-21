@@ -12,31 +12,22 @@ use std::path::{Path, PathBuf};
 
 pub const KEY: &str = "file";
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureMode {
+    #[default]
     Copy,
     Move,
     None,
 }
-impl Default for CaptureMode {
-    fn default() -> Self {
-        CaptureMode::Copy
-    }
-}
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum HashAlgorithm {
+    #[default]
     Sha256,
     // Md5,
     None,
-}
-
-impl Default for HashAlgorithm {
-    fn default() -> Self {
-        HashAlgorithm::Sha256
-    }
 }
 
 #[derive(Debug)]
@@ -80,9 +71,9 @@ impl Context for FileContext {
         GlobWalkerBuilder::from_patterns(&params.project_root, &[&self.glob])
             .max_depth(1)
             .build()
-            .map_err(|e| CapsulaError::from(std::io::Error::new(std::io::ErrorKind::Other, e)))?
+            .map_err(|e| CapsulaError::from(std::io::Error::other(e)))?
             .filter_map(Result::ok)
-            .map(|entry| self.capture_file(entry.path(), &params))
+            .map(|entry| self.capture_file(entry.path(), params))
             .collect::<Result<Vec<_>, CapsulaError>>()
             .map(|files| FileCaptured { files })
     }

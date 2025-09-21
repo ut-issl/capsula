@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::{CwdContext, KEY};
 
-/// Configuration for CwdContext
+// Configuration for CwdContext
 // #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 // struct CwdContextConfig {}
 
@@ -25,6 +25,6 @@ impl ContextFactory for CwdContextFactory {
     ) -> CoreResult<Box<dyn ContextErased>> {
         // Config could be deserialized if needed:
         // let _config: CwdContextConfig = serde_json::from_value(config.clone())?;
-        Ok(Box::new(CwdContext::default()))
+        Ok(Box::new(CwdContext))
     }
 }

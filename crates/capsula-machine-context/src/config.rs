@@ -22,6 +22,6 @@ impl ContextFactory for MachineContextFactory {
     ) -> CoreResult<Box<dyn ContextErased>> {
         // Config could be deserialized if needed:
         // let _config: MachineContextConfig = serde_json::from_value(config.clone())?;
-        Ok(Box::new(MachineContext::default()))
+        Ok(Box::new(MachineContext))
     }
 }
