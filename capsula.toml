@@ -28,6 +28,10 @@ glob = "Cargo.*"
 mode = "copy"
 hash = "sha256"
 
+[[phase.pre.contexts]]
+type = "env"
+name = "HOME"
+
 # [[phase.pre.contexts]]
 # type = "file"
 # path = "Cargo.toml"
