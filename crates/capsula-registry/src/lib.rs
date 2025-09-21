@@ -143,5 +143,12 @@ pub fn standard_registry() -> ContextRegistry {
             .expect("Failed to register Command context");
     }
 
+    #[cfg(feature = "ctx-machine")]
+    {
+        builder = builder
+            .with_factory(capsula_machine_context::create_factory())
+            .expect("Failed to register Machine context");
+    }
+
     builder.build()
 }
