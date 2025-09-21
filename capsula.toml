@@ -2,6 +2,9 @@
 name = "capsula" # Should be unique in the storage
 
 [[phase.pre.contexts]]
+type = "machine"
+
+[[phase.pre.contexts]]
 type = "cwd"
 
 [[phase.pre.contexts]]
@@ -39,7 +42,7 @@ command = ["rustc", "--version"]
 [[phase.pre.contexts]]
 type = "command"
 command = ["uv", "run", "python", "-c", "raise SystemExit(1)"]
-abort_on_failure = true
+abort_on_failure = false
 
 # [[phase.pre.contexts]]
 # type = "file"
