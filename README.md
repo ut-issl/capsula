@@ -1,5 +1,8 @@
 # Capsula
 
+> [!WARNING]
+> This project is in early development. The CLI interface and configuration format may change in future releases.
+
 A powerful CLI tool for capturing and preserving the context of your command executions. Capsula automatically records the state of your project environment before and after running commands, making your workflows reproducible and auditable.
 
 ## Features
@@ -34,19 +37,17 @@ name = "my-project"
 
 [[phase.pre.contexts]]
 type = "git"
-name = "git-state"
+name = "repo-name"
 path = "."
 
 [[phase.pre.contexts]]
 type = "cwd"
-name = "working-directory"
 
 [[phase.pre.contexts]]
 type = "file"
-name = "config-file"
-path = "config.json"
-copy = true
-hash = true
+glob = "config.json"
+mode = "copy"
+hash = "sha256"
 ```
 
 2. **Run a command with context capture**:
@@ -66,6 +67,7 @@ capsula capture --phase pre
 ### Basic Structure
 
 The `capsula.toml` configuration file defines:
+
 - **Vault**: Where to store captured data
 - **Phases**: When to capture context (before/after command execution)
 - **Contexts**: What information to capture
@@ -89,22 +91,24 @@ type = "file"
 ### Available Context Types
 
 #### Git Context
+
 Captures git repository state including commit hash and cleanliness check.
 
 ```toml
 [[phase.pre.contexts]]
 type = "git"
-name = "repo-state"
+name = "repo-name"          # Context name
 path = "."                  # Repository path
 allow_dirty = false         # Allow uncommitted changes (default: false)
 ```
 
 **Output Example:**
+
 ```json
 {
   "__meta": { "success": true, "index": 0 },
   "type": "git",
-  "name": "repo-state",
+  "name": "repo-name",
   "working_dir": "/path/to/repo",
   "sha": "abc123...",
   "is_dirty": false,
@@ -113,15 +117,16 @@ allow_dirty = false         # Allow uncommitted changes (default: false)
 ```
 
 #### Current Working Directory Context
+
 Captures the current working directory path.
 
 ```toml
 [[phase.pre.contexts]]
 type = "cwd"
-name = "working-dir"
 ```
 
 **Output Example:**
+
 ```json
 {
   "__meta": { "success": true, "index": 1 },
@@ -131,70 +136,74 @@ name = "working-dir"
 ```
 
 #### File Context
+
 Captures file contents and/or metadata.
 
 ```toml
 [[phase.pre.contexts]]
 type = "file"
-name = "config-snapshot"
-path = "config.json"        # File to capture
-copy = true                 # Copy file contents (default: false)
-hash = true                 # Calculate file hash (default: false)
+glob = "config.json"        # File pattern to capture
+mode = "copy"               # Capture mode ("copy", "move", or "none". default: "copy")
+hash = "sha256"             # Calculate file hash ("sha256" or "none". default: "sha256")
 ```
 
 **Output Example:**
+
 ```json
 {
   "__meta": { "success": true, "index": 2 },
   "type": "file",
-  "name": "config-snapshot",
-  "path": "config.json",
-  "content": "{ \"setting\": \"value\" }",
-  "hash": "sha256:abc123..."
+  "files": [
+    {
+      "path": "/path/to/config.json",
+      "copied_path": "/vault/run-dir/config.json",
+      "hash": "sha256:abc123..."
+    }
+  ]
 }
 ```
 
+**Note:** Copy and move modes require a run directory and only work during `capsula run` command, not standalone `capsula capture`.
+
 #### Environment Variables Context
+
 Captures specified environment variables.
 
 ```toml
 [[phase.pre.contexts]]
 type = "env"
-name = "environment"
-vars = ["HOME", "USER", "PATH"]  # Variables to capture
+name = "HOME"                 # Variable name to capture
 ```
 
 **Output Example:**
+
 ```json
 {
   "__meta": { "success": true, "index": 3 },
   "type": "env",
-  "name": "environment",
-  "value": {
-    "HOME": "/home/user",
-    "USER": "username",
-    "PATH": "/usr/bin:/bin"
-  }
+  "name": "HOME",
+  "value": "/home/user"
 }
 ```
 
 #### Command Context
+
 Captures output of shell commands.
 
 ```toml
 [[phase.pre.contexts]]
 type = "command"
-name = "system-info"
 command = ["uname", "-a"]
+abort_on_failure  = false  # Abort if command fails (default: false)
 ```
 
 #### Machine Context
+
 Captures system information like CPU, memory, and OS details.
 
 ```toml
 [[phase.pre.contexts]]
 type = "machine"
-name = "system-specs"
 ```
 
 ## CLI Usage
@@ -202,6 +211,7 @@ name = "system-specs"
 ### Commands
 
 #### `capsula run <command>`
+
 Execute a command with full context capture.
 
 ```bash
@@ -216,13 +226,14 @@ capsula run python train.py --epochs 100 --lr 0.01
 ```
 
 **Behavior:**
-1. Captures pre-phase contexts
+
+1. Captures pre-phase contexts and saves to vault
 2. Checks for abort conditions (e.g., dirty git repo)
-3. Executes the command if safe
-4. Captures post-phase contexts
-5. Saves all data to vault
+3. Executes the command if safe, aborts otherwise
+4. Captures post-phase contexts and saves to vault
 
 #### `capsula capture`
+
 Capture context without running a command.
 
 ```bash
@@ -241,139 +252,30 @@ capsula capture --phase post
 ## Output Structure
 
 ### Metadata
+
 Every context output includes metadata for traceability:
 
 ```json
 {
   "__meta": {
-    "success": true,    // Capture success status
-    "index": 0         // Position in configuration (0-based)
-  },
+    "success": true, // Capture success status
+    "index": 0 // Position in configuration (0-based)
+  }
   // ... context-specific data
 }
 ```
 
-### Error Handling
-Failed contexts are:
-- **Excluded** from JSON output (keeps data clean)
-- **Reported** via console warnings with config index
-- **Non-blocking** (other contexts still execute)
-
-Example:
-```bash
-Warning: Failed to capture git (config index 1): Not a git repository
-[
-  {
-    "__meta": { "success": true, "index": 0 },
-    "type": "cwd",
-    "cwd": "/path"
-  },
-  {
-    "__meta": { "success": true, "index": 2 },
-    "type": "file",
-    "name": "config"
-  }
-]
-```
-
 ### Vault Structure
+
 Captured data is organized in the vault:
 
 ```
 .capsula/
-└── project-name/
-    └── 2024-01-15/
-        └── 143022-example-run--01HKJM2K3L4M5N6P7Q8R9S/
+└── vault-name/
+    └── 2024-01-15/ # Date-based directory (YYYY-MM-DD, UTC)
+        └── 143022-example-run--01HKJM2K3L4M5N6P7Q8R9S/ # Unique run directory (timestamp + run name + ULID)
             ├── metadata.json    # Run metadata
             ├── pre.json        # Pre-phase contexts
-            ├── run.json        # Command output
+            ├── run.json        # Command output, exit code, duration
             └── post.json       # Post-phase contexts
 ```
-
-## Safety Features
-
-### Dirty Repository Protection
-Git contexts can prevent execution on uncommitted changes:
-
-```toml
-[[phase.pre.contexts]]
-type = "git"
-allow_dirty = false  # Abort if repository is dirty
-```
-
-When `allow_dirty = false` and repository has uncommitted changes:
-- Context is still captured with `"abort_on_dirty": true`
-- Run is aborted before command execution
-- Warning message is displayed
-
-### Error Isolation
-- Individual context failures don't stop the entire process
-- Failed contexts are clearly reported with their configuration index
-- Successful contexts continue to be captured and saved
-
-## Examples
-
-### Machine Learning Project
-```toml
-[vault]
-name = "ml-experiments"
-
-[[phase.pre.contexts]]
-type = "git"
-name = "code-state"
-path = "."
-allow_dirty = false
-
-[[phase.pre.contexts]]
-type = "file"
-name = "config"
-path = "config.yaml"
-copy = true
-hash = true
-
-[[phase.pre.contexts]]
-type = "env"
-name = "environment"
-vars = ["CUDA_VISIBLE_DEVICES", "PYTHONPATH"]
-
-[[phase.post.contexts]]
-type = "file"
-name = "results"
-path = "output/results.json"
-copy = true
-```
-
-### Web Development
-```toml
-[vault]
-name = "web-deploys"
-
-[[phase.pre.contexts]]
-type = "git"
-name = "deployment-commit"
-path = "."
-
-[[phase.pre.contexts]]
-type = "file"
-name = "package-lock"
-path = "package-lock.json"
-hash = true
-
-[[phase.pre.contexts]]
-type = "command"
-name = "node-version"
-command = ["node", "--version"]
-```
-
-## Environment Variables
-
-- `RUST_BACKTRACE=1`: Show detailed error backtraces
-- `CAPSULA_VERBOSE=1`: Enable verbose output
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
-
-## License
-
-Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT License](LICENSE-MIT) at your option.
