@@ -1,12 +1,12 @@
 use crate::{KEY, MachineContext};
 use capsula_core::context::{ContextErased, ContextFactory};
 use capsula_core::error::CoreResult;
-use serde::{Deserialize, Serialize};
+// use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-struct MachineContextConfig {}
+// #[derive(Debug, Clone, Default, Deserialize, Serialize)]
+// struct MachineContextConfig {}
 
 pub struct MachineContextFactory;
 
