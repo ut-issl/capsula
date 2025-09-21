@@ -1,8 +1,12 @@
 [package]
 name = "capsula-core"
+description = "The core library for Capsula."
 version.workspace = true
-edition.workspace = true
 rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
 
 [dependencies]
 serde = { workspace = true }

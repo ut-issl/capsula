@@ -1,8 +1,13 @@
 [package]
 name = "capsula-config"
+description = "Configuration management for Capsula."
+keywords = ["capsula", "config"]
 version.workspace = true
-edition.workspace = true
 rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
 
 [dependencies]
 capsula-core = { workspace = true }

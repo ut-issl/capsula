@@ -1,8 +1,13 @@
 [package]
 name = "capsula-cli"
+description = "The command line interface for Capsula."
+keywords = ["capsula", "cli"]
 version.workspace = true
-edition.workspace = true
 rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
 
 [[bin]]
 name = "capsula"

@@ -1,8 +1,12 @@
 [package]
 name = "capsula-registry"
+description = "A Capsula contexts registry."
 version.workspace = true
-edition.workspace = true
 rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
 
 [features]
 default = ["ctx-cwd", "ctx-git", "ctx-file"]
