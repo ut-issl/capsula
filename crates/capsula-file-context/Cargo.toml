@@ -1,8 +1,13 @@
 [package]
 name = "capsula-file-context"
+description = "A Capsula context that captures files."
+keywords = ["capsula", "capsula-context"]
 version.workspace = true
-edition.workspace = true
 rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
 
 [dependencies]
 capsula-core = { workspace = true }

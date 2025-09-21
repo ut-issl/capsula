@@ -1,8 +1,13 @@
 [package]
 name = "capsula-git-context"
+description = "A Capsula context that captures Git repository information."
+keywords = ["capsula", "capsula-context"]
 version.workspace = true
-edition.workspace = true
 rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
 
 [dependencies]
 capsula-core = { workspace = true }
