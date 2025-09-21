@@ -1,5 +1,6 @@
 [package]
 name = "capsula-machine-context"
+description = "A Capsula context that captures machine information."
 version.workspace = true
 rust-version.workspace = true
 edition.workspace = true
