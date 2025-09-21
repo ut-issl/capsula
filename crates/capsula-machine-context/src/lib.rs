@@ -1,11 +1,11 @@
 mod config;
 mod error;
 
+use crate::error::MachineContextError;
 use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;
 use config::MachineContextFactory;
-use crate::error::MachineContextError;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 pub const KEY: &str = "machine";
@@ -69,7 +69,7 @@ impl Context for MachineContext {
             architecture,
             cpus,
             total_memory: total_memory as usize,
-            hostname: hostname,
+            hostname,
         })
     }
 }

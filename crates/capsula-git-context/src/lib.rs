@@ -76,7 +76,9 @@ impl Context for GitContext {
         // If dirty and not allowed, we'll signal abort through the Captured trait
         // rather than returning an error, so other contexts can still be captured
         if is_dirty && !self.allow_dirty {
-            eprintln!("Warning: Repository has uncommitted changes. Run will be aborted after context capture.");
+            eprintln!(
+                "Warning: Repository has uncommitted changes. Run will be aborted after context capture."
+            );
         }
 
         Ok(GitCaptured {

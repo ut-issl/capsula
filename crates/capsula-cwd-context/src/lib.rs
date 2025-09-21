@@ -23,7 +23,8 @@ impl Context for CwdContext {
     type Output = CwdCaptured;
 
     fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
-        let cwd_abs = std::env::current_dir().map_err(|source| CwdContextError::CurrentDirError { source })?;
+        let cwd_abs = std::env::current_dir()
+            .map_err(|source| CwdContextError::CurrentDirError { source })?;
         Ok(CwdCaptured { cwd_abs })
     }
 }
