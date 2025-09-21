@@ -12,6 +12,7 @@ fn cwd_context_captures_current_dir_and_json() {
     let params = RuntimeParams {
         phase: ContextPhase::Pre,
         run_dir: None,
+        project_root: expected.clone(),
     };
 
     // Act
