@@ -1,6 +1,8 @@
 mod config;
+mod error;
 
 use crate::config::CommandContextFactory;
+use crate::error::CommandContextError;
 use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;
@@ -29,7 +31,7 @@ impl Context for CommandContext {
         use std::process::Command;
 
         if self.command.is_empty() {
-            todo!()
+            return Err(CommandContextError::EmptyCommand.into());
         }
 
         let mut cmd = Command::new(&self.command[0]);
@@ -37,7 +39,10 @@ impl Context for CommandContext {
             cmd.args(&self.command[1..]);
         }
 
-        let output = cmd.output()?;
+        let output = cmd.output().map_err(|source| CommandContextError::ExecutionFailed {
+            command: self.command.join(" "),
+            source,
+        })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();

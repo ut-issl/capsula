@@ -1,4 +1,7 @@
 mod config;
+mod error;
+
+use crate::error::GitContextError;
 
 use crate::config::GitContextFactory;
 use capsula_core::captured::Captured;
@@ -45,26 +48,23 @@ impl Context for GitContext {
             self.working_dir.clone()
         };
 
-        let repo = Repository::discover(&repo_path)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.message()))?;
+        let repo = Repository::discover(&repo_path).map_err(|e| {
+            if e.code() == git2::ErrorCode::NotFound {
+                GitContextError::NotARepository
+            } else {
+                GitContextError::GitOperation(e)
+            }
+        })?;
 
-        let head = repo
-            .head()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.message()))?;
-        let oid = head.target().ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::Other, "Failed to get HEAD target")
+        let head = repo.head().map_err(GitContextError::from)?;
+        let oid = head.target().ok_or_else(|| GitContextError::HeadNotFound {
+            message: "HEAD does not point to a valid commit".to_string(),
         })?;
 
         if !self.allow_dirty {
-            let statuses = repo
-                .statuses(None)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.message()))?;
+            let statuses = repo.statuses(None).map_err(GitContextError::from)?;
             if !statuses.is_empty() {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Repository has uncommitted changes",
-                )
-                .into());
+                return Err(GitContextError::DirtyRepository.into());
             }
         }
 

@@ -146,8 +146,10 @@ impl Run<PathBuf> {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        let mut child_stdout = child.stdout.take().expect("piped stdout");
-        let mut child_stderr = child.stderr.take().expect("piped stderr");
+        let mut child_stdout = child.stdout.take()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to capture stdout"))?;
+        let mut child_stderr = child.stderr.take()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to capture stderr"))?;
 
         let t_out = thread::spawn(move || -> io::Result<Vec<u8>> {
             let mut cap = Vec::with_capacity(8 * 1024);
@@ -185,8 +187,10 @@ impl Run<PathBuf> {
 
         let status = child.wait()?;
         let duration = start.elapsed();
-        let cap_out = t_out.join().unwrap()?;
-        let cap_err = t_err.join().unwrap()?;
+        let cap_out = t_out.join()
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "stdout capture thread panicked"))??;
+        let cap_err = t_err.join()
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "stderr capture thread panicked"))??;
 
         let exit_code = exit_code_from_status(status);
 

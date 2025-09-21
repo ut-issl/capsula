@@ -1,9 +1,11 @@
 mod config;
+mod error;
 
 use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;
 use config::MachineContextFactory;
+use crate::error::MachineContextError;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 pub const KEY: &str = "machine";
@@ -36,9 +38,9 @@ impl Context for MachineContext {
     type Output = MachineCaptured;
 
     fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
-        let os = System::name().unwrap_or("Unknown".to_string());
-        let os_version = System::os_version().unwrap_or("Unknown".to_string());
-        let kernel_version = System::kernel_version().unwrap_or("Unknown".to_string());
+        let os = System::name().ok_or(MachineContextError::OsInfoError)?;
+        let os_version = System::os_version().ok_or(MachineContextError::OsInfoError)?;
+        let kernel_version = System::kernel_version().ok_or(MachineContextError::OsInfoError)?;
         let architecture = std::env::consts::ARCH.to_string();
 
         let system = System::new_with_specifics(
@@ -58,7 +60,7 @@ impl Context for MachineContext {
             .collect::<Vec<_>>();
 
         let total_memory = system.total_memory();
-        let hostname = System::host_name().unwrap_or("Unknown".to_string());
+        let hostname = System::host_name().ok_or(MachineContextError::HostnameError)?;
 
         Ok(MachineCaptured {
             os,

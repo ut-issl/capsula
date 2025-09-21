@@ -1,6 +1,9 @@
 mod config;
+mod error;
 
 use crate::config::EnvVarContextFactory;
+#[allow(unused_imports)]
+use crate::error::EnvContextError;
 use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;

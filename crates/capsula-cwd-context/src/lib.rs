@@ -1,6 +1,8 @@
 mod config;
+mod error;
 
 use crate::config::CwdContextFactory;
+use crate::error::CwdContextError;
 use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;
@@ -21,7 +23,7 @@ impl Context for CwdContext {
     type Output = CwdCaptured;
 
     fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
-        let cwd_abs = std::env::current_dir()?;
+        let cwd_abs = std::env::current_dir().map_err(|source| CwdContextError::CurrentDirError { source })?;
         Ok(CwdCaptured { cwd_abs })
     }
 }

@@ -151,6 +151,7 @@ dependencies = [
  "capsula-core",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -185,6 +186,7 @@ dependencies = [
  "capsula-core",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -194,6 +196,7 @@ dependencies = [
  "capsula-core",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -205,6 +208,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "thiserror",
 ]
 
 [[package]]
@@ -215,6 +219,7 @@ dependencies = [
  "git2",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -225,6 +230,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sysinfo",
+ "thiserror",
 ]
 
 [[package]]
