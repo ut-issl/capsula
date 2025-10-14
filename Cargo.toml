@@ -1,43 +1,39 @@
 [workspace]
+resolver = "3"
 members = ["crates/*"]
 default-members = ["crates/capsula-cli"]
-resolver = "3"
 
 [workspace.package]
 version = "0.2.0"
-rust-version = "1.89"
 edition = "2024"
-license = "MIT OR Apache-2.0"
+rust-version = "1.89"
 readme = "README.md"
 repository = "https://github.com/shunichironomura/capsula"
+license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-capsula-cli = { version = "0.2.0", path = "crates/capsula-cli" }
-capsula-config = { version = "0.2.0", path = "crates/capsula-config" }
-capsula-core = { version = "0.2.0", path = "crates/capsula-core" }
-capsula-registry = { version = "0.2.0", path = "crates/capsula-registry" }
-
-# Contexts
-capsula-cwd-context = { version = "0.2.0", path = "crates/capsula-cwd-context" }
-capsula-git-context = { version = "0.2.0", path = "crates/capsula-git-context" }
-capsula-file-context = { version = "0.2.0", path = "crates/capsula-file-context" }
-capsula-env-context = { version = "0.2.0", path = "crates/capsula-env-context" }
-capsula-command-context = { version = "0.2.0", path = "crates/capsula-command-context" }
-capsula-machine-context = { version = "0.2.0", path = "crates/capsula-machine-context" }
-
+anyhow = "1"
+capsula-cli = { path = "crates/capsula-cli", version = "0.2.0" }
+capsula-command-context = { path = "crates/capsula-command-context", version = "0.2.0" }
+capsula-config = { path = "crates/capsula-config", version = "0.2.0" }
+capsula-core = { path = "crates/capsula-core", version = "0.2.0" }
+capsula-cwd-context = { path = "crates/capsula-cwd-context", version = "0.2.0" }
+capsula-env-context = { path = "crates/capsula-env-context", version = "0.2.0" }
+capsula-file-context = { path = "crates/capsula-file-context", version = "0.2.0" }
+capsula-git-context = { path = "crates/capsula-git-context", version = "0.2.0" }
+capsula-machine-context = { path = "crates/capsula-machine-context", version = "0.2.0" }
+capsula-registry = { path = "crates/capsula-registry", version = "0.2.0" }
+chrono = "0.4"
+clap = { version = "4", features = ["derive"] }
+globwalk = "0.9"
+names = { version = "0.14", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-thiserror = "2"
-anyhow = "1"
-clap = { version = "4", features = ["derive"] }
-ulid = { version = "1", features = ["serde"] }
-chrono = "0.4"
-names = "0.14"
-shlex = "1"
 sha2 = "0.10"
-globwalk = "0.9"
+shlex = "1"
 sysinfo = "0.37"
+thiserror = "2"
+ulid = { version = "1", features = ["serde"] }
 # whoami = "1"
-
 
 [workspace.lints.rust]
