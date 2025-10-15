@@ -19,6 +19,12 @@ pub enum GitContextError {
     /// Serialization failed
     #[error("Failed to serialize git context: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    #[error("Run directory not specified and current directory could not be determined: {message}")]
+    RunDirNotSpecified { message: String },
+
+    #[error("I/O error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 /// Convert GitContextError to CoreError
