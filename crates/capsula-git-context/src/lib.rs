@@ -49,7 +49,7 @@ impl Captured for GitCaptured {
 impl Context for GitContext {
     type Output = GitCaptured;
 
-    fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
+    fn run(&self, params: &RuntimeParams) -> CoreResult<Self::Output> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {
             std::env::current_dir()?
         } else {
@@ -81,6 +81,21 @@ impl Context for GitContext {
             );
         }
 
+        // Output diff content if dirty
+        if is_dirty {
+            let run_dir =
+                params
+                    .run_dir
+                    .as_ref()
+                    .ok_or_else(|| GitContextError::RunDirNotSpecified {
+                        message: "Run directory is not specified in runtime parameters".to_string(),
+                    })?;
+            let diff_content = GitContext::diff_content(&repo)?;
+            // Output to a patch file in the run directory
+            let patch_file_path = run_dir.join(format!("{}.patch", self.name));
+            std::fs::write(&patch_file_path, diff_content).map_err(GitContextError::IoError)?;
+        }
+
         Ok(GitCaptured {
             name: self.name.clone(),
             working_dir: repo_path,
@@ -88,6 +103,25 @@ impl Context for GitContext {
             is_dirty,
             abort_on_dirty: !self.allow_dirty,
         })
+    }
+}
+
+impl GitContext {
+    fn diff_content(repo: &Repository) -> CoreResult<String> {
+        let mut diff_opts = git2::DiffOptions::new();
+        diff_opts.include_untracked(true);
+        let diff = repo
+            .diff_index_to_workdir(None, Some(&mut diff_opts))
+            .map_err(GitContextError::from)?;
+
+        let mut diff_content = String::new();
+        diff.print(git2::DiffFormat::Patch, |_, _, line| {
+            diff_content.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
+            true
+        })
+        .map_err(GitContextError::from)?;
+
+        Ok(diff_content)
     }
 }
 
