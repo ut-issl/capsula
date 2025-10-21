@@ -32,7 +32,7 @@ pub struct GitCaptured {
 impl Captured for GitCaptured {
     fn to_json(&self) -> serde_json::Value {
         json!({
-            "type": KEY.to_string(),
+            "id": KEY.to_string(),
             "name": self.name,
             "working_dir": self.working_dir.to_string_lossy(),
             "sha": self.sha,

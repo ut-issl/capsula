@@ -1,57 +1,45 @@
 [vault]
-name = "capsula" # Should be unique in the storage
+name = "capsula"  # Should be unique in the storage
 
 [[phase.pre.contexts]]
-type = "machine"
+id = "machine"
 
 [[phase.pre.contexts]]
-type = "cwd"
+id = "cwd"
 
 [[phase.pre.contexts]]
-type = "git"
+id = "git"
 name = "capsula"
-path = "." # Relative to the project root.
+path = "."  # Relative to the project root.
 allow_dirty = true
 
 [[phase.pre.contexts]]
-type = "git"
+id = "git"
 name = "capsula"
-path = "." # Relative to the project root.
+path = "."  # Relative to the project root.
 allow_dirty = true
 
 [[phase.pre.contexts]]
-type = "file"
+id = "file"
 glob = "capsula.toml"
 mode = "copy"
 hash = "sha256"
 
 [[phase.pre.contexts]]
-type = "file"
+id = "file"
 glob = "Cargo.*"
 mode = "copy"
 hash = "sha256"
 
 [[phase.pre.contexts]]
-type = "env"
+id = "env"
 name = "HOME"
 
 [[phase.pre.contexts]]
-type = "command"
+id = "command"
 command = ["rustc", "--version"]
 
 [[phase.pre.contexts]]
-type = "command"
+id = "command"
 command = ["uv", "run", "python", "-c", "raise SystemExit(1)"]
 abort_on_failure = false
-
-# [[phase.pre.contexts]]
-# type = "file"
-# path = "Cargo.toml"
-# hash = true
-
-# [[phase.in.watchers]]
-# type = "time"
-
-# [[phase.post.contexts]]
-# type = "env"
-# key = "PATH"

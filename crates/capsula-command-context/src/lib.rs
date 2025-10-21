@@ -63,7 +63,7 @@ impl Context for CommandContext {
 impl Captured for CommandCaptured {
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "type": KEY,
+            "id": KEY,
             "command": self.command,
             "stdout": self.stdout,
             "stderr": self.stderr,

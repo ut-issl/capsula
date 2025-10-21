@@ -54,7 +54,7 @@ fn build_and_run_contexts(
             let context_identifier = context_phase_config
                 .contexts
                 .get(idx)
-                .map(|config_ctx| config_ctx.ty.clone())
+                .map(|config_ctx| config_ctx.id.clone())
                 .unwrap_or_else(|| format!("context[{}]", idx));
 
             match ctx.run_erased(runtime_params) {
