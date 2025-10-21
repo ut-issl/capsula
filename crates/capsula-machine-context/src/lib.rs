@@ -77,7 +77,7 @@ impl Context for MachineContext {
 impl Captured for MachineCaptured {
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "type": KEY,
+            "id": KEY,
             "os": self.os,
             "os_version": self.os_version,
             "kernel_version": self.kernel_version,

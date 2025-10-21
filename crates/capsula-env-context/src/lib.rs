@@ -36,7 +36,7 @@ impl Context for EnvVarContext {
 impl Captured for EnvVarCaptured {
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "type": KEY,
+            "id": KEY,
             "name": self.name,
             "value": self.value,
         })

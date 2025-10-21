@@ -52,7 +52,7 @@ pub struct FileCaptured {
 impl Captured for FileCaptured {
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "type": KEY.to_string(),
+            "id": KEY.to_string(),
             "files": self.files.iter().map(|f| {
                 serde_json::json!({
                     "path": f.path.to_string_lossy(),

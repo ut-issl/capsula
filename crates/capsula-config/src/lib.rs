@@ -105,8 +105,7 @@ pub type InPhaseConfig = WatcherPhaseConfig;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ContextEnvelope {
-    #[serde(rename = "type")]
-    pub ty: String,
+    pub id: String,
     #[serde(flatten)]
     pub rest: serde_json::Value,
 }
@@ -149,7 +148,7 @@ pub fn build_contexts(
     phase
         .contexts
         .iter()
-        .map(|envelope| registry.create_context(&envelope.ty, &envelope.rest, project_root))
+        .map(|envelope| registry.create_context(&envelope.id, &envelope.rest, project_root))
         .collect()
 }
 
@@ -195,10 +194,10 @@ key = "PATH"
         assert_eq!(config.vault.path, PathBuf::from(".capsula/capsula"));
 
         assert_eq!(config.phase.pre.contexts.len(), 4);
-        assert_eq!(config.phase.pre.contexts[0].ty, "cwd");
-        assert_eq!(config.phase.pre.contexts[1].ty, "git");
-        assert_eq!(config.phase.pre.contexts[2].ty, "file");
-        assert_eq!(config.phase.pre.contexts[3].ty, "file");
+        assert_eq!(config.phase.pre.contexts[0].id, "cwd");
+        assert_eq!(config.phase.pre.contexts[1].id, "git");
+        assert_eq!(config.phase.pre.contexts[2].id, "file");
+        assert_eq!(config.phase.pre.contexts[3].id, "file");
 
         assert_eq!(config.phase.in_phase.watchers.len(), 1);
         assert!(matches!(
@@ -207,7 +206,7 @@ key = "PATH"
         ));
 
         assert_eq!(config.phase.post.contexts.len(), 1);
-        assert_eq!(config.phase.post.contexts[0].ty, "env");
+        assert_eq!(config.phase.post.contexts[0].id, "env");
     }
 
     #[test]

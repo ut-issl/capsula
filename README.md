@@ -39,15 +39,15 @@ cargo install --git https://github.com/shunichironomura/capsula --branch rust --
 name = "my-project"
 
 [[phase.pre.contexts]]
-type = "git"
+id = "git"
 name = "repo-name"
 path = "."
 
 [[phase.pre.contexts]]
-type = "cwd"
+id = "cwd"
 
 [[phase.pre.contexts]]
-type = "file"
+id = "file"
 glob = "config.json"
 mode = "copy"
 hash = "sha256"
@@ -82,12 +82,12 @@ path = ".capsula"           # Storage path (optional, defaults to .capsula/{name
 
 [phase.pre]                 # Pre-execution contexts
 [[phase.pre.contexts]]
-type = "git"
+id = "git"
 # ... context configuration
 
 [phase.post]                # Post-execution contexts
 [[phase.post.contexts]]
-type = "file"
+id = "file"
 # ... context configuration
 ```
 
@@ -99,7 +99,7 @@ Captures git repository state including commit hash and cleanliness check.
 
 ```toml
 [[phase.pre.contexts]]
-type = "git"
+id = "git"
 name = "repo-name"          # Context name
 path = "."                  # Repository path
 allow_dirty = false         # Allow uncommitted changes (default: false)
@@ -110,7 +110,7 @@ allow_dirty = false         # Allow uncommitted changes (default: false)
 ```json
 {
   "__meta": { "success": true, "index": 0 },
-  "type": "git",
+  "id": "git",
   "name": "repo-name",
   "working_dir": "/path/to/repo",
   "sha": "abc123...",
@@ -125,7 +125,7 @@ Captures the current working directory path.
 
 ```toml
 [[phase.pre.contexts]]
-type = "cwd"
+id = "cwd"
 ```
 
 **Output Example:**
@@ -133,7 +133,7 @@ type = "cwd"
 ```json
 {
   "__meta": { "success": true, "index": 1 },
-  "type": "cwd",
+  "id": "cwd",
   "cwd": "/current/working/directory"
 }
 ```
@@ -144,7 +144,7 @@ Captures file contents and/or metadata.
 
 ```toml
 [[phase.pre.contexts]]
-type = "file"
+id = "file"
 glob = "config.json"        # File pattern to capture
 mode = "copy"               # Capture mode ("copy", "move", or "none". default: "copy")
 hash = "sha256"             # Calculate file hash ("sha256" or "none". default: "sha256")
@@ -155,7 +155,7 @@ hash = "sha256"             # Calculate file hash ("sha256" or "none". default: 
 ```json
 {
   "__meta": { "success": true, "index": 2 },
-  "type": "file",
+  "id": "file",
   "files": [
     {
       "path": "/path/to/config.json",
@@ -174,7 +174,7 @@ Captures specified environment variables.
 
 ```toml
 [[phase.pre.contexts]]
-type = "env"
+id = "env"
 name = "HOME"                 # Variable name to capture
 ```
 
@@ -183,7 +183,7 @@ name = "HOME"                 # Variable name to capture
 ```json
 {
   "__meta": { "success": true, "index": 3 },
-  "type": "env",
+  "id": "env",
   "name": "HOME",
   "value": "/home/user"
 }
@@ -195,7 +195,7 @@ Captures output of shell commands.
 
 ```toml
 [[phase.pre.contexts]]
-type = "command"
+id = "command"
 command = ["uname", "-a"]
 abort_on_failure  = false  # Abort if command fails (default: false)
 ```
@@ -206,7 +206,7 @@ Captures system information like CPU, memory, and OS details.
 
 ```toml
 [[phase.pre.contexts]]
-type = "machine"
+id = "machine"
 ```
 
 ## CLI Usage

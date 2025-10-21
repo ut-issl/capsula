@@ -32,7 +32,7 @@ impl Context for CwdContext {
 impl Captured for CwdCaptured {
     fn to_json(&self) -> serde_json::Value {
         json!({
-            "type": KEY.to_string(),
+            "id": KEY.to_string(),
             "cwd": self.cwd_abs.to_string_lossy(),
         })
     }
