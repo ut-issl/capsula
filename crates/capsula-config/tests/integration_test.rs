@@ -9,8 +9,8 @@ fn test_parse_actual_config_file() {
 
         assert_eq!(config.vault.name, "capsula");
 
-        assert_eq!(config.phase.pre.hooks.len(), 9);
-        assert_eq!(config.phase.post.hooks.len(), 0);
+        assert_eq!(config.pre_run.hooks.len(), 9);
+        assert_eq!(config.post_run.hooks.len(), 0);
 
         println!("Successfully parsed capsula.toml:");
         println!("{:#?}", config);
