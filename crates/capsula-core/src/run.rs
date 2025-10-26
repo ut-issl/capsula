@@ -28,7 +28,7 @@ impl<Dir> Run<Dir> {
         dt
     }
 
-    pub fn run_dir(&self, vault_dir: impl AsRef<Path>) -> PathBuf {
+    pub fn gen_run_dir(&self, vault_dir: impl AsRef<Path>) -> PathBuf {
         let timestamp = self.timestamp();
         let date_str = timestamp.format("%Y-%m-%d").to_string();
         let time_str = timestamp.format("%H%M%S").to_string();
@@ -40,7 +40,7 @@ impl<Dir> Run<Dir> {
         // 2. 01K5K4571FGKBFTTRJCG1J3DCZ
         // which is not the correct chronological order.
         // By adding time prefix, it will be sorted correctly.
-        let run_dir_name = format!("{}-{}--{}", time_str, self.name, self.id.to_string());
+        let run_dir_name = format!("{}-{}", time_str, self.name);
         vault_dir.as_ref().join(date_str).join(&run_dir_name)
     }
 }
@@ -49,9 +49,35 @@ impl Run<()> {
     pub fn setup_run_dir(
         &self,
         vault_dir: impl AsRef<std::path::Path>,
+        max_retries: usize,
     ) -> io::Result<Run<PathBuf>> {
         setup_vault(&vault_dir)?;
-        let run_dir = self.run_dir(&vault_dir);
+
+        // TODO: Consider removing retries as it is too conservative?
+        let run_dir = {
+            let mut attempt = 0;
+            loop {
+                let candidate = self.gen_run_dir(&vault_dir);
+                if candidate.exists() {
+                    // Slight delay before retrying
+                    thread::sleep(Duration::from_millis(10 * (attempt as u64 + 1)));
+                    attempt += 1;
+                    if attempt >= max_retries {
+                        return Err(io::Error::new(
+                            io::ErrorKind::AlreadyExists,
+                            format!(
+                                "Failed to create unique run directory after {} attempts",
+                                max_retries
+                            ),
+                        ));
+                    }
+                    continue;
+                } else {
+                    break candidate;
+                }
+            }
+        };
+
         std::fs::create_dir_all(&run_dir)?;
         Ok(Run {
             id: self.id,
