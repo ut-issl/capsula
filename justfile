@@ -1,7 +1,7 @@
 publish:
     cargo publish -p capsula-core
 
-    # Context crates
+    # Hook crates
     cargo publish -p capsula-capture-cwd
     cargo publish -p capsula-capture-file
     cargo publish -p capsula-capture-git
@@ -9,7 +9,7 @@ publish:
     cargo publish -p capsula-capture-command
     cargo publish -p capsula-capture-machine
 
-    # Crates dependent on context crates
+    # Crates dependent on hook crates
     cargo publish -p capsula-registry
     cargo publish -p capsula-config
     cargo publish -p capsula-cli

@@ -162,29 +162,26 @@ mod tests {
 [vault]
 name = "capsula"
 
-[[phase.pre.contexts]]
-type = "cwd"
+[[phase.pre.hooks]]
+id = "capture-cwd"
 
-[[phase.pre.contexts]]
-type = "git"
+[[phase.pre.hooks]]
+id = "capture-git-repo"
 path = "."
 
-[[phase.pre.contexts]]
-type = "file"
+[[phase.pre.hooks]]
+id = "capture-file"
 path = "capsula.toml"
 copy = true
 hash = true
 
-[[phase.pre.contexts]]
-type = "file"
+[[phase.pre.hooks]]
+id = "capture-file"
 path = "Cargo.toml"
 hash = true
 
-[[phase.in.watchers]]
-type = "time"
-
-[[phase.post.contexts]]
-type = "env"
+[[phase.post.hooks]]
+id = "capture-env"
 key = "PATH"
 "#;
 
@@ -194,19 +191,13 @@ key = "PATH"
         assert_eq!(config.vault.path, PathBuf::from(".capsula/capsula"));
 
         assert_eq!(config.phase.pre.hooks.len(), 4);
-        assert_eq!(config.phase.pre.hooks[0].id, "cwd");
-        assert_eq!(config.phase.pre.hooks[1].id, "git");
-        assert_eq!(config.phase.pre.hooks[2].id, "file");
-        assert_eq!(config.phase.pre.hooks[3].id, "file");
-
-        assert_eq!(config.phase.in_phase.watchers.len(), 1);
-        assert!(matches!(
-            &config.phase.in_phase.watchers[0],
-            WatcherSpec::Time(_)
-        ));
+        assert_eq!(config.phase.pre.hooks[0].id, "capture-cwd");
+        assert_eq!(config.phase.pre.hooks[1].id, "capture-git-repo");
+        assert_eq!(config.phase.pre.hooks[2].id, "capture-file");
+        assert_eq!(config.phase.pre.hooks[3].id, "capture-file");
 
         assert_eq!(config.phase.post.hooks.len(), 1);
-        assert_eq!(config.phase.post.hooks[0].id, "env");
+        assert_eq!(config.phase.post.hooks[0].id, "capture-env");
     }
 
     #[test]
@@ -216,8 +207,8 @@ key = "PATH"
 name = "my_vault"
 path = "/custom/path/to/vault"
 
-[[phase.pre.contexts]]
-type = "cwd"
+[[phase.pre.hooks]]
+id = "capture-cwd"
 "#;
 
         let config = CapsulaConfig::from_toml_str(config_str).unwrap();
@@ -232,8 +223,8 @@ type = "cwd"
 [vault]
 name = "test_vault"
 
-[[phase.pre.contexts]]
-type = "cwd"
+[[phase.pre.hooks]]
+id = "capture-cwd"
 "#;
 
         let config = CapsulaConfig::from_toml_str(config_str).unwrap();

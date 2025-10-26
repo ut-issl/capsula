@@ -117,7 +117,7 @@ Example minimal configuration:
 [vault]
 name = \"capsula\"
 
-[[phase.pre.contexts]]
+[[phase.pre.hooks]]
 type = \"git\"
 path = \".\"",
             config_file_path.display()
