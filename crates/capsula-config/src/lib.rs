@@ -77,11 +77,9 @@ impl<'de> Deserialize<'de> for VaultConfig {
 #[derive(Deserialize, Debug, Clone, Default)]
 pub struct PhaseConfig {
     #[serde(default)]
-    pub pre: PrePhaseConfig,
-    #[serde(rename = "in", default)]
-    pub in_phase: InPhaseConfig,
+    pub pre: HookPhaseConfig,
     #[serde(default)]
-    pub post: PostPhaseConfig,
+    pub post: HookPhaseConfig,
 }
 
 /// A phase configuration that contains hooks
@@ -91,33 +89,12 @@ pub struct HookPhaseConfig {
     pub hooks: Vec<HookEnvelope>,
 }
 
-/// A phase configuration that contains watchers
-#[derive(Deserialize, Debug, Clone, Default)]
-pub struct WatcherPhaseConfig {
-    #[serde(default)]
-    pub watchers: Vec<WatcherSpec>,
-}
-
-// Type aliases for semantic clarity
-pub type PrePhaseConfig = HookPhaseConfig;
-pub type PostPhaseConfig = HookPhaseConfig;
-pub type InPhaseConfig = WatcherPhaseConfig;
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct HookEnvelope {
     pub id: String,
     #[serde(flatten)]
     pub rest: serde_json::Value,
 }
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum WatcherSpec {
-    Time(TimeWatcherSpec),
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-pub struct TimeWatcherSpec {}
 
 impl CapsulaConfig {
     pub fn from_toml_str(content: &str) -> ConfigResult<Self> {
