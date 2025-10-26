@@ -3,11 +3,11 @@ name = "capsula-capture-cwd"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "A context provider that uses the current working directory."
+description = "A Capsula hook that captures the current working directory."
 readme.workspace = true
 repository.workspace = true
 license.workspace = true
-keywords = ["capsula", "capsula-context"]
+keywords = ["capsula", "capsula-hook"]
 
 [dependencies]
 capsula-core = { workspace = true }

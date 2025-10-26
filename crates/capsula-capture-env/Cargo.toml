@@ -3,10 +3,11 @@ name = "capsula-capture-env"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "A Capsula context that captures environment variables."
+description = "A Capsula hook that captures an environment variable."
 readme.workspace = true
 repository.workspace = true
 license.workspace = true
+keywords = ["capsula", "capsula-hook"]
 
 [dependencies]
 capsula-core = { workspace = true }
