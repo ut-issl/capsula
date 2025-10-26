@@ -1,0 +1,19 @@
+[package]
+name = "capsula-capture-cwd"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "A Capsula hook that captures the current working directory."
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords = ["capsula", "capsula-hook"]
+
+[dependencies]
+capsula-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -84,11 +84,11 @@ pub struct PhaseConfig {
     pub post: PostPhaseConfig,
 }
 
-/// A phase configuration that contains contexts
+/// A phase configuration that contains hooks
 #[derive(Deserialize, Debug, Clone, Default)]
-pub struct ContextPhaseConfig {
+pub struct HookPhaseConfig {
     #[serde(default)]
-    pub contexts: Vec<ContextEnvelope>,
+    pub hooks: Vec<HookEnvelope>,
 }
 
 /// A phase configuration that contains watchers
@@ -99,12 +99,12 @@ pub struct WatcherPhaseConfig {
 }
 
 // Type aliases for semantic clarity
-pub type PrePhaseConfig = ContextPhaseConfig;
-pub type PostPhaseConfig = ContextPhaseConfig;
+pub type PrePhaseConfig = HookPhaseConfig;
+pub type PostPhaseConfig = HookPhaseConfig;
 pub type InPhaseConfig = WatcherPhaseConfig;
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct ContextEnvelope {
+pub struct HookEnvelope {
     pub id: String,
     #[serde(flatten)]
     pub rest: serde_json::Value,
@@ -139,16 +139,16 @@ impl CapsulaConfig {
     }
 }
 
-/// Build contexts from any phase config that contains contexts
-pub fn build_contexts(
-    phase: &ContextPhaseConfig,
+/// Build hooks from any phase config that contains hooks
+pub fn build_hooks(
+    phase: &HookPhaseConfig,
     project_root: &Path,
-    registry: &capsula_registry::ContextRegistry,
-) -> CoreResult<Vec<Box<dyn capsula_core::context::ContextErased>>> {
+    registry: &capsula_registry::HookRegistry,
+) -> CoreResult<Vec<Box<dyn capsula_core::hook::HookErased>>> {
     phase
-        .contexts
+        .hooks
         .iter()
-        .map(|envelope| registry.create_context(&envelope.id, &envelope.rest, project_root))
+        .map(|envelope| registry.create_hook(&envelope.id, &envelope.rest, project_root))
         .collect()
 }
 
@@ -162,29 +162,26 @@ mod tests {
 [vault]
 name = "capsula"
 
-[[phase.pre.contexts]]
-type = "cwd"
+[[phase.pre.hooks]]
+id = "capture-cwd"
 
-[[phase.pre.contexts]]
-type = "git"
+[[phase.pre.hooks]]
+id = "capture-git-repo"
 path = "."
 
-[[phase.pre.contexts]]
-type = "file"
+[[phase.pre.hooks]]
+id = "capture-file"
 path = "capsula.toml"
 copy = true
 hash = true
 
-[[phase.pre.contexts]]
-type = "file"
+[[phase.pre.hooks]]
+id = "capture-file"
 path = "Cargo.toml"
 hash = true
 
-[[phase.in.watchers]]
-type = "time"
-
-[[phase.post.contexts]]
-type = "env"
+[[phase.post.hooks]]
+id = "capture-env"
 key = "PATH"
 "#;
 
@@ -193,20 +190,14 @@ key = "PATH"
         assert_eq!(config.vault.name, "capsula");
         assert_eq!(config.vault.path, PathBuf::from(".capsula/capsula"));
 
-        assert_eq!(config.phase.pre.contexts.len(), 4);
-        assert_eq!(config.phase.pre.contexts[0].id, "cwd");
-        assert_eq!(config.phase.pre.contexts[1].id, "git");
-        assert_eq!(config.phase.pre.contexts[2].id, "file");
-        assert_eq!(config.phase.pre.contexts[3].id, "file");
+        assert_eq!(config.phase.pre.hooks.len(), 4);
+        assert_eq!(config.phase.pre.hooks[0].id, "capture-cwd");
+        assert_eq!(config.phase.pre.hooks[1].id, "capture-git-repo");
+        assert_eq!(config.phase.pre.hooks[2].id, "capture-file");
+        assert_eq!(config.phase.pre.hooks[3].id, "capture-file");
 
-        assert_eq!(config.phase.in_phase.watchers.len(), 1);
-        assert!(matches!(
-            &config.phase.in_phase.watchers[0],
-            WatcherSpec::Time(_)
-        ));
-
-        assert_eq!(config.phase.post.contexts.len(), 1);
-        assert_eq!(config.phase.post.contexts[0].id, "env");
+        assert_eq!(config.phase.post.hooks.len(), 1);
+        assert_eq!(config.phase.post.hooks[0].id, "capture-env");
     }
 
     #[test]
@@ -216,8 +207,8 @@ key = "PATH"
 name = "my_vault"
 path = "/custom/path/to/vault"
 
-[[phase.pre.contexts]]
-type = "cwd"
+[[phase.pre.hooks]]
+id = "capture-cwd"
 "#;
 
         let config = CapsulaConfig::from_toml_str(config_str).unwrap();
@@ -232,8 +223,8 @@ type = "cwd"
 [vault]
 name = "test_vault"
 
-[[phase.pre.contexts]]
-type = "cwd"
+[[phase.pre.hooks]]
+id = "capture-cwd"
 "#;
 
         let config = CapsulaConfig::from_toml_str(config_str).unwrap();

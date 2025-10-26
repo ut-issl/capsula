@@ -114,6 +114,70 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
+name = "capsula-capture-command"
+version = "0.2.0"
+dependencies = [
+ "capsula-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "capsula-capture-cwd"
+version = "0.2.0"
+dependencies = [
+ "capsula-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "capsula-capture-env"
+version = "0.2.0"
+dependencies = [
+ "capsula-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "capsula-capture-file"
+version = "0.2.0"
+dependencies = [
+ "capsula-core",
+ "globwalk",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
+name = "capsula-capture-git-repo"
+version = "0.2.0"
+dependencies = [
+ "capsula-core",
+ "git2",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "capsula-capture-machine"
+version = "0.2.0"
+dependencies = [
+ "capsula-core",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "thiserror",
+]
+
+[[package]]
 name = "capsula-cli"
 version = "0.2.0"
 dependencies = [
@@ -125,16 +189,6 @@ dependencies = [
  "names",
  "serde_json",
  "ulid",
-]
-
-[[package]]
-name = "capsula-command-context"
-version = "0.2.0"
-dependencies = [
- "capsula-core",
- "serde",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]
@@ -163,70 +217,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "capsula-cwd-context"
-version = "0.2.0"
-dependencies = [
- "capsula-core",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "capsula-env-context"
-version = "0.2.0"
-dependencies = [
- "capsula-core",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "capsula-file-context"
-version = "0.2.0"
-dependencies = [
- "capsula-core",
- "globwalk",
- "serde",
- "serde_json",
- "sha2",
- "thiserror",
-]
-
-[[package]]
-name = "capsula-git-context"
-version = "0.2.0"
-dependencies = [
- "capsula-core",
- "git2",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "capsula-machine-context"
-version = "0.2.0"
-dependencies = [
- "capsula-core",
- "serde",
- "serde_json",
- "sysinfo",
- "thiserror",
-]
-
-[[package]]
 name = "capsula-registry"
 version = "0.2.0"
 dependencies = [
- "capsula-command-context",
+ "capsula-capture-command",
+ "capsula-capture-cwd",
+ "capsula-capture-env",
+ "capsula-capture-file",
+ "capsula-capture-git-repo",
+ "capsula-capture-machine",
  "capsula-core",
- "capsula-cwd-context",
- "capsula-env-context",
- "capsula-file-context",
- "capsula-git-context",
- "capsula-machine-context",
  "serde",
  "serde_json",
  "thiserror",

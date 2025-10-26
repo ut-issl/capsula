@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use capsula_config::{CapsulaConfig, ContextPhaseConfig};
-use capsula_core::context::{ContextPhase, RuntimeParams};
+use capsula_config::{CapsulaConfig, HookPhaseConfig};
+use capsula_core::hook::{HookPhase, RuntimeParams};
 use capsula_core::run::Run;
 use clap::{Parser, Subcommand};
 use names::Generator;
@@ -23,7 +23,7 @@ struct Cli {
 enum Commands {
     Capture {
         #[arg(short, long, default_value = "pre")]
-        phase: ContextPhase,
+        phase: HookPhase,
     },
 
     Run {
@@ -32,32 +32,31 @@ enum Commands {
     },
 }
 
-fn create_registry() -> capsula_registry::ContextRegistry {
-    // Use the standard registry with all built-in context types
+fn create_registry() -> capsula_registry::HookRegistry {
+    // Use the standard registry with all built-in hook types
     capsula_registry::standard_registry()
 }
 
-fn build_and_run_contexts(
+fn build_and_run_hooks(
     runtime_params: &RuntimeParams,
-    context_phase_config: &ContextPhaseConfig,
-    context_registry: &capsula_registry::ContextRegistry,
+    hook_phase_config: &HookPhaseConfig,
+    hook_registry: &capsula_registry::HookRegistry,
     project_root: &std::path::Path,
 ) -> Result<(Vec<serde_json::Value>, bool)> {
-    let contexts =
-        capsula_config::build_contexts(context_phase_config, project_root, context_registry)
-            .context("Failed to build contexts from configuration")?;
+    let hooks = capsula_config::build_hooks(hook_phase_config, project_root, hook_registry)
+        .context("Failed to build hooks from configuration")?;
 
-    let results: Vec<_> = contexts
+    let results: Vec<_> = hooks
         .iter()
         .enumerate()
-        .map(|(idx, ctx)| {
-            let context_identifier = context_phase_config
-                .contexts
+        .map(|(idx, hook)| {
+            let hook_identifier = hook_phase_config
+                .hooks
                 .get(idx)
-                .map(|config_ctx| config_ctx.id.clone())
-                .unwrap_or_else(|| format!("context[{}]", idx));
+                .map(|config_hook| config_hook.id.clone())
+                .unwrap_or_else(|| format!("hook[{}]", idx));
 
-            match ctx.run_erased(runtime_params) {
+            match hook.run_erased(runtime_params) {
                 Ok(captured) => {
                     let should_abort = captured.abort_requested();
 
@@ -76,7 +75,7 @@ fn build_and_run_contexts(
                     let error = anyhow::anyhow!(e);
                     eprintln!(
                         "Warning: Failed to capture {} (config index {}): {:#}",
-                        context_identifier, idx, error
+                        hook_identifier, idx, error
                     );
                     // Only include the metadata with error information
                     let json = json!({
@@ -99,7 +98,7 @@ fn build_and_run_contexts(
 }
 
 fn run() -> Result<()> {
-    // Create the registry with all available context types
+    // Create the registry with all available hook types
     let registry = create_registry();
 
     let cli = Cli::parse();
@@ -118,7 +117,7 @@ Example minimal configuration:
 [vault]
 name = \"capsula\"
 
-[[phase.pre.contexts]]
+[[phase.pre.hooks]]
 type = \"git\"
 path = \".\"",
             config_file_path.display()
@@ -160,16 +159,12 @@ path = \".\"",
                 run_dir: None,
                 project_root: project_root.clone(),
             };
-            let context_phase_config = match phase {
-                ContextPhase::Pre => &config.phase.pre,
-                ContextPhase::Post => &config.phase.post,
+            let hook_phase_config = match phase {
+                HookPhase::Pre => &config.phase.pre,
+                HookPhase::Post => &config.phase.post,
             };
-            let (output_json, _should_abort) = build_and_run_contexts(
-                &runtime_params,
-                context_phase_config,
-                &registry,
-                &project_root,
-            )?;
+            let (output_json, _should_abort) =
+                build_and_run_hooks(&runtime_params, hook_phase_config, &registry, &project_root)?;
 
             println!("{}", serde_json::to_string_pretty(&output_json)?);
         }
@@ -204,15 +199,15 @@ path = \".\"",
                 },
             )?;
 
-            // Pre-run contexts capture
+            // Pre-run hooks capture
             let pre_params = RuntimeParams {
-                phase: ContextPhase::Pre,
+                phase: HookPhase::Pre,
                 run_dir: Some(run.run_dir.clone()),
                 project_root: project_root.clone(),
             };
             let (pre_json, should_abort) =
-                build_and_run_contexts(&pre_params, &config.phase.pre, &registry, &project_root)
-                    .context("Failed to execute pre-phase contexts")?;
+                build_and_run_hooks(&pre_params, &config.phase.pre, &registry, &project_root)
+                    .context("Failed to execute pre-phase hooks")?;
 
             // Save pre_json to run_dir/pre.json
             let pre_json_path = run.run_dir.join("pre.json");
@@ -226,7 +221,7 @@ path = \".\"",
             )?;
 
             if should_abort {
-                eprintln!("Aborting run due to pre-run context request.");
+                eprintln!("Aborting run due to pre-run hook request.");
                 return Ok(());
             }
 
@@ -239,15 +234,15 @@ path = \".\"",
                     format!("Failed to write run output to {}", run_json_path.display())
                 })?;
 
-            // Post-run contexts capture
+            // Post-run hooks capture
             let post_params = RuntimeParams {
-                phase: ContextPhase::Post,
+                phase: HookPhase::Post,
                 run_dir: Some(run.run_dir.clone()),
                 project_root: project_root.clone(),
             };
             let (post_json, _should_abort) =
-                build_and_run_contexts(&post_params, &config.phase.post, &registry, &project_root)
-                    .context("Failed to execute post-phase contexts")?;
+                build_and_run_hooks(&post_params, &config.phase.post, &registry, &project_root)
+                    .context("Failed to execute post-run hooks")?;
 
             // Save post_json to run_dir/post.json
             let post_json_path = run.run_dir.join("post.json");

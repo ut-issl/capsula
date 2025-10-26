@@ -13,15 +13,15 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 anyhow = "1"
+capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.2.0" }
+capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.2.0" }
+capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.2.0" }
+capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.2.0" }
+capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.2.0" }
+capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.2.0" }
 capsula-cli = { path = "crates/capsula-cli", version = "0.2.0" }
-capsula-command-context = { path = "crates/capsula-command-context", version = "0.2.0" }
 capsula-config = { path = "crates/capsula-config", version = "0.2.0" }
 capsula-core = { path = "crates/capsula-core", version = "0.2.0" }
-capsula-cwd-context = { path = "crates/capsula-cwd-context", version = "0.2.0" }
-capsula-env-context = { path = "crates/capsula-env-context", version = "0.2.0" }
-capsula-file-context = { path = "crates/capsula-file-context", version = "0.2.0" }
-capsula-git-context = { path = "crates/capsula-git-context", version = "0.2.0" }
-capsula-machine-context = { path = "crates/capsula-machine-context", version = "0.2.0" }
 capsula-registry = { path = "crates/capsula-registry", version = "0.2.0" }
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
