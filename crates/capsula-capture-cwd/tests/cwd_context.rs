@@ -6,7 +6,7 @@ use capsula_core::hook::{Hook, HookPhase, RuntimeParams};
 fn cwd_hook_captures_current_dir_and_json() {
     // Arrange
     let expected = std::env::current_dir().expect("current_dir");
-    let ctx = CwdHook;
+    let hook = CwdHook;
     let params = RuntimeParams {
         phase: HookPhase::Pre,
         run_dir: None,
@@ -14,7 +14,7 @@ fn cwd_hook_captures_current_dir_and_json() {
     };
 
     // Act
-    let captured = ctx.run(&params).expect("CwdHook::run ok");
+    let captured = hook.run(&params).expect("CwdHook::run ok");
     let json = captured.to_json();
     let json_cwd = json
         .get("cwd")

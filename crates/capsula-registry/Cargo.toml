@@ -22,19 +22,19 @@ thiserror = { workspace = true }
 
 [features]
 default = [
-  "ctx-command",
-  "ctx-cwd",
-  "ctx-env",
-  "ctx-file",
-  "ctx-git",
-  "ctx-machine"
+  "hook-command",
+  "hook-cwd",
+  "hook-env",
+  "hook-file",
+  "hook-git",
+  "hook-machine"
 ]
-ctx-command = ["dep:capsula-capture-command"]
-ctx-cwd = ["dep:capsula-capture-cwd"]
-ctx-env = ["dep:capsula-capture-env"]
-ctx-file = ["dep:capsula-capture-file"]
-ctx-git = ["dep:capsula-capture-git-repo"]
-ctx-machine = ["dep:capsula-capture-machine"]
+hook-command = ["dep:capsula-capture-command"]
+hook-cwd = ["dep:capsula-capture-cwd"]
+hook-env = ["dep:capsula-capture-env"]
+hook-file = ["dep:capsula-capture-file"]
+hook-git = ["dep:capsula-capture-git-repo"]
+hook-machine = ["dep:capsula-capture-machine"]
 
 [lints]
 workspace = true

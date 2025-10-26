@@ -49,14 +49,14 @@ fn build_and_run_hooks(
     let results: Vec<_> = hooks
         .iter()
         .enumerate()
-        .map(|(idx, ctx)| {
+        .map(|(idx, hook)| {
             let hook_identifier = hook_phase_config
                 .hooks
                 .get(idx)
-                .map(|config_ctx| config_ctx.id.clone())
+                .map(|config_hook| config_hook.id.clone())
                 .unwrap_or_else(|| format!("hook[{}]", idx));
 
-            match ctx.run_erased(runtime_params) {
+            match hook.run_erased(runtime_params) {
                 Ok(captured) => {
                     let should_abort = captured.abort_requested();
 

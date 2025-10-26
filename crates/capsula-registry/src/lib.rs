@@ -133,49 +133,49 @@ impl Default for RegistryBuilder {
 /// Create a standard registry with all built-in hook types
 ///
 /// This is feature-gated so only enabled hooks are included:
-/// - "ctx-cwd": includes CWD hook
-/// - "ctx-git": includes Git hook
+/// - "hook-cwd": includes CWD hook
+/// - "hook-git": includes Git hook
 ///
 /// You can disable hooks by turning off features in Cargo.toml
 pub fn standard_registry() -> HookRegistry {
     let mut builder = RegistryBuilder::new();
 
-    #[cfg(feature = "ctx-cwd")]
+    #[cfg(feature = "hook-cwd")]
     {
         builder = builder
             .with_factory(capsula_capture_cwd::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {}", e));
     }
 
-    #[cfg(feature = "ctx-git")]
+    #[cfg(feature = "hook-git")]
     {
         builder = builder
             .with_factory(capsula_capture_git_repo::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {}", e));
     }
 
-    #[cfg(feature = "ctx-file")]
+    #[cfg(feature = "hook-file")]
     {
         builder = builder
             .with_factory(capsula_capture_file::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {}", e));
     }
 
-    #[cfg(feature = "ctx-env")]
+    #[cfg(feature = "hook-env")]
     {
         builder = builder
             .with_factory(capsula_capture_env::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {}", e));
     }
 
-    #[cfg(feature = "ctx-command")]
+    #[cfg(feature = "hook-command")]
     {
         builder = builder
             .with_factory(capsula_capture_command::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {}", e));
     }
 
-    #[cfg(feature = "ctx-machine")]
+    #[cfg(feature = "hook-machine")]
     {
         builder = builder
             .with_factory(capsula_capture_machine::create_factory())
