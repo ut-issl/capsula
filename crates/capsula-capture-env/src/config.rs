@@ -1,6 +1,6 @@
 use crate::{EnvVarContext, KEY};
-use capsula_core::context::{ContextErased, ContextFactory};
 use capsula_core::error::CoreResult;
+use capsula_core::hook::{ContextErased, ContextFactory};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;

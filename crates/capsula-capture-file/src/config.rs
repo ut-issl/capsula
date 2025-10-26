@@ -1,7 +1,7 @@
 use crate::{CaptureMode, FileContext, HashAlgorithm, KEY};
-use capsula_core::context::ContextErased;
-use capsula_core::context::ContextFactory;
 use capsula_core::error::CoreResult;
+use capsula_core::hook::ContextErased;
+use capsula_core::hook::ContextFactory;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;

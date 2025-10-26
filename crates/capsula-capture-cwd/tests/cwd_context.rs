@@ -2,7 +2,7 @@
 
 use capsula_capture_cwd::CwdContext;
 use capsula_core::captured::Captured;
-use capsula_core::context::{Context, ContextPhase, RuntimeParams};
+use capsula_core::hook::{Context, ContextPhase, RuntimeParams};
 
 #[test]
 fn cwd_context_captures_current_dir_and_json() {

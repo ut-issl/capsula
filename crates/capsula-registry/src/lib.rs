@@ -1,5 +1,5 @@
-use capsula_core::context::{ContextErased, ContextFactory};
 use capsula_core::error::{CapsulaError, CoreResult};
+use capsula_core::hook::{ContextErased, ContextFactory};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;

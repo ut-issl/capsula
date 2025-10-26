@@ -144,7 +144,7 @@ pub fn build_contexts(
     phase: &ContextPhaseConfig,
     project_root: &Path,
     registry: &capsula_registry::ContextRegistry,
-) -> CoreResult<Vec<Box<dyn capsula_core::context::ContextErased>>> {
+) -> CoreResult<Vec<Box<dyn capsula_core::hook::ContextErased>>> {
     phase
         .contexts
         .iter()

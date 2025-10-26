@@ -4,8 +4,8 @@ mod error;
 use crate::config::CwdContextFactory;
 use crate::error::CwdContextError;
 use capsula_core::captured::Captured;
-use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;
+use capsula_core::hook::{Context, ContextFactory, RuntimeParams};
 use serde_json::json;
 use std::path::PathBuf;
 

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use capsula_config::{CapsulaConfig, ContextPhaseConfig};
-use capsula_core::context::{ContextPhase, RuntimeParams};
+use capsula_core::hook::{ContextPhase, RuntimeParams};
 use capsula_core::run::Run;
 use clap::{Parser, Subcommand};
 use names::Generator;

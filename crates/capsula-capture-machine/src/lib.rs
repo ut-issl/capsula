@@ -3,8 +3,8 @@ mod error;
 
 use crate::error::MachineContextError;
 use capsula_core::captured::Captured;
-use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;
+use capsula_core::hook::{Context, ContextFactory, RuntimeParams};
 use config::MachineContextFactory;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
