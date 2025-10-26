@@ -150,7 +150,6 @@ path = \".\"",
     } else {
         project_root.join(&config.vault.path)
     };
-    // dbg!(&vault_dir);
 
     match cli.command {
         Commands::Capture { phase } => {
@@ -186,7 +185,7 @@ path = \".\"",
             };
             // Display run ID and name
             eprintln!("Run ID: {}, Name: {}", run.id, run.name);
-            let run = run.setup_run_dir(&vault_dir)?;
+            let run = run.setup_run_dir(&vault_dir, 5)?;
             eprintln!("Run directory: {}", run.run_dir.to_string_lossy());
             // Save run metadata to run_dir/metadata.json
             let run_metadata_path = run.run_dir.join("metadata.json");
