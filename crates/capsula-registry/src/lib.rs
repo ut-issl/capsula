@@ -145,42 +145,42 @@ pub fn standard_registry() -> ContextRegistry {
     #[cfg(feature = "ctx-cwd")]
     {
         builder = builder
-            .with_factory(capsula_cwd_context::create_factory())
+            .with_factory(capsula_capture_cwd::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register CWD context: {}", e));
     }
 
     #[cfg(feature = "ctx-git")]
     {
         builder = builder
-            .with_factory(capsula_git_context::create_factory())
+            .with_factory(capsula_capture_git::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register Git context: {}", e));
     }
 
     #[cfg(feature = "ctx-file")]
     {
         builder = builder
-            .with_factory(capsula_file_context::create_factory())
+            .with_factory(capsula_capture_file::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register File context: {}", e));
     }
 
     #[cfg(feature = "ctx-env")]
     {
         builder = builder
-            .with_factory(capsula_env_context::create_factory())
+            .with_factory(capsula_capture_env::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register Env context: {}", e));
     }
 
     #[cfg(feature = "ctx-command")]
     {
         builder = builder
-            .with_factory(capsula_command_context::create_factory())
+            .with_factory(capsula_capture_command::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register Command context: {}", e));
     }
 
     #[cfg(feature = "ctx-machine")]
     {
         builder = builder
-            .with_factory(capsula_machine_context::create_factory())
+            .with_factory(capsula_capture_machine::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register Machine context: {}", e));
     }
 

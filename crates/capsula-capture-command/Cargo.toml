@@ -1,12 +1,12 @@
 [package]
-name = "capsula-env-context"
-description = "A Capsula context that captures environment variables."
+name = "capsula-capture-command"
 version.workspace = true
-rust-version.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "A Capsula context that captures command execution output."
 readme.workspace = true
 repository.workspace = true
+license.workspace = true
 
 [dependencies]
 capsula-core = { workspace = true }

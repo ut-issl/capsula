@@ -1,6 +1,6 @@
 [package]
-name = "capsula-command-context"
-description = "A Capsula context that captures command execution output."
+name = "capsula-capture-machine"
+description = "A Capsula context that captures machine information."
 version.workspace = true
 rust-version.workspace = true
 edition.workspace = true
@@ -12,7 +12,9 @@ repository.workspace = true
 capsula-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sysinfo = { workspace = true }
 thiserror = { workspace = true }
+# whoami = { workspace = true }
 
 [lints]
 workspace = true

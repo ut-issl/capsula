@@ -1,8 +1,8 @@
 // tests/cwd_context.rs
 
+use capsula_capture_cwd::CwdContext;
 use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextPhase, RuntimeParams};
-use capsula_cwd_context::CwdContext;
 
 #[test]
 fn cwd_context_captures_current_dir_and_json() {

@@ -1,20 +1,19 @@
 [package]
-name = "capsula-machine-context"
-description = "A Capsula context that captures machine information."
+name = "capsula-capture-cwd"
 version.workspace = true
-rust-version.workspace = true
 edition.workspace = true
-license.workspace = true
+rust-version.workspace = true
+description = "A context provider that uses the current working directory."
 readme.workspace = true
 repository.workspace = true
+license.workspace = true
+keywords = ["capsula", "capsula-context"]
 
 [dependencies]
 capsula-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-sysinfo = { workspace = true }
 thiserror = { workspace = true }
-# whoami = { workspace = true }
 
 [lints]
 workspace = true

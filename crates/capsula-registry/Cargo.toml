@@ -1,34 +1,40 @@
 [package]
 name = "capsula-registry"
-description = "A Capsula contexts registry."
 version.workspace = true
-rust-version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+description = "A Capsula contexts registry."
+readme.workspace = true
 repository.workspace = true
 license.workspace = true
-readme.workspace = true
-
-[features]
-default = ["ctx-cwd", "ctx-git", "ctx-file", "ctx-env", "ctx-command", "ctx-machine"]
-ctx-cwd = ["dep:capsula-cwd-context"]
-ctx-git = ["dep:capsula-git-context"]
-ctx-file = ["dep:capsula-file-context"]
-ctx-env = ["dep:capsula-env-context"]
-ctx-command = ["dep:capsula-command-context"]
-ctx-machine = ["dep:capsula-machine-context"]
 
 [dependencies]
+capsula-capture-command = { workspace = true, optional = true }
+capsula-capture-cwd = { workspace = true, optional = true }
+capsula-capture-env = { workspace = true, optional = true }
+capsula-capture-file = { workspace = true, optional = true }
+capsula-capture-git = { workspace = true, optional = true }
+capsula-capture-machine = { workspace = true, optional = true }
 capsula-core = { workspace = true }
-capsula-cwd-context = { workspace = true, optional = true }
-capsula-git-context = { workspace = true, optional = true }
-capsula-file-context = { workspace = true, optional = true }
-capsula-env-context = { workspace = true, optional = true }
-capsula-command-context = { workspace = true, optional = true }
-capsula-machine-context = { workspace = true, optional = true }
-
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+
+[features]
+default = [
+  "ctx-command",
+  "ctx-cwd",
+  "ctx-env",
+  "ctx-file",
+  "ctx-git",
+  "ctx-machine"
+]
+ctx-command = ["dep:capsula-capture-command"]
+ctx-cwd = ["dep:capsula-capture-cwd"]
+ctx-env = ["dep:capsula-capture-env"]
+ctx-file = ["dep:capsula-capture-file"]
+ctx-git = ["dep:capsula-capture-git"]
+ctx-machine = ["dep:capsula-capture-machine"]
 
 [lints]
 workspace = true
