@@ -8,7 +8,7 @@ use capsula_core::error::CoreResult;
 use config::MachineContextFactory;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
-pub const KEY: &str = "machine";
+pub const KEY: &str = "capture-machine";
 
 #[derive(Debug, Default)]
 pub struct MachineContext;

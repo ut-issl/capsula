@@ -11,7 +11,7 @@ use git2::Repository;
 use serde_json::json;
 use std::path::PathBuf;
 
-pub const KEY: &str = "git";
+pub const KEY: &str = "capture-git";
 
 #[derive(Debug)]
 pub struct GitContext {
