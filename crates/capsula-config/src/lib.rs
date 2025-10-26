@@ -40,9 +40,13 @@ impl From<ConfigError> for CapsulaError {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "kebab-case")]
 pub struct CapsulaConfig {
     pub vault: VaultConfig,
-    pub phase: PhaseConfig,
+    #[serde(default)]
+    pub pre_run: HookPhaseConfig,
+    #[serde(default)]
+    pub post_run: HookPhaseConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -72,14 +76,6 @@ impl<'de> Deserialize<'de> for VaultConfig {
             path,
         })
     }
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-pub struct PhaseConfig {
-    #[serde(default)]
-    pub pre: HookPhaseConfig,
-    #[serde(default)]
-    pub post: HookPhaseConfig,
 }
 
 /// A phase configuration that contains hooks
@@ -139,25 +135,25 @@ mod tests {
 [vault]
 name = "capsula"
 
-[[phase.pre.hooks]]
+[[pre-run.hooks]]
 id = "capture-cwd"
 
-[[phase.pre.hooks]]
+[[pre-run.hooks]]
 id = "capture-git-repo"
 path = "."
 
-[[phase.pre.hooks]]
+[[pre-run.hooks]]
 id = "capture-file"
 path = "capsula.toml"
 copy = true
 hash = true
 
-[[phase.pre.hooks]]
+[[pre-run.hooks]]
 id = "capture-file"
 path = "Cargo.toml"
 hash = true
 
-[[phase.post.hooks]]
+[[post-run.hooks]]
 id = "capture-env"
 key = "PATH"
 "#;
@@ -167,14 +163,14 @@ key = "PATH"
         assert_eq!(config.vault.name, "capsula");
         assert_eq!(config.vault.path, PathBuf::from(".capsula/capsula"));
 
-        assert_eq!(config.phase.pre.hooks.len(), 4);
-        assert_eq!(config.phase.pre.hooks[0].id, "capture-cwd");
-        assert_eq!(config.phase.pre.hooks[1].id, "capture-git-repo");
-        assert_eq!(config.phase.pre.hooks[2].id, "capture-file");
-        assert_eq!(config.phase.pre.hooks[3].id, "capture-file");
+        assert_eq!(config.pre_run.hooks.len(), 4);
+        assert_eq!(config.pre_run.hooks[0].id, "capture-cwd");
+        assert_eq!(config.pre_run.hooks[1].id, "capture-git-repo");
+        assert_eq!(config.pre_run.hooks[2].id, "capture-file");
+        assert_eq!(config.pre_run.hooks[3].id, "capture-file");
 
-        assert_eq!(config.phase.post.hooks.len(), 1);
-        assert_eq!(config.phase.post.hooks[0].id, "capture-env");
+        assert_eq!(config.post_run.hooks.len(), 1);
+        assert_eq!(config.post_run.hooks[0].id, "capture-env");
     }
 
     #[test]
@@ -184,7 +180,7 @@ key = "PATH"
 name = "my_vault"
 path = "/custom/path/to/vault"
 
-[[phase.pre.hooks]]
+[[pre-run.hooks]]
 id = "capture-cwd"
 "#;
 
@@ -200,7 +196,7 @@ id = "capture-cwd"
 [vault]
 name = "test_vault"
 
-[[phase.pre.hooks]]
+[[pre-run.hooks]]
 id = "capture-cwd"
 "#;
 

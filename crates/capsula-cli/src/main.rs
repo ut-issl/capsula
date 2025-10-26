@@ -160,8 +160,8 @@ path = \".\"",
                 project_root: project_root.clone(),
             };
             let hook_phase_config = match phase {
-                HookPhase::Pre => &config.phase.pre,
-                HookPhase::Post => &config.phase.post,
+                HookPhase::Pre => &config.pre_run,
+                HookPhase::Post => &config.post_run,
             };
             let (output_json, _should_abort) =
                 build_and_run_hooks(&runtime_params, hook_phase_config, &registry, &project_root)?;
@@ -206,7 +206,7 @@ path = \".\"",
                 project_root: project_root.clone(),
             };
             let (pre_json, should_abort) =
-                build_and_run_hooks(&pre_params, &config.phase.pre, &registry, &project_root)
+                build_and_run_hooks(&pre_params, &config.pre_run, &registry, &project_root)
                     .context("Failed to execute pre-phase hooks")?;
 
             // Save pre_json to run_dir/pre.json
@@ -241,7 +241,7 @@ path = \".\"",
                 project_root: project_root.clone(),
             };
             let (post_json, _should_abort) =
-                build_and_run_hooks(&post_params, &config.phase.post, &registry, &project_root)
+                build_and_run_hooks(&post_params, &config.post_run, &registry, &project_root)
                     .context("Failed to execute post-run hooks")?;
 
             // Save post_json to run_dir/post.json
