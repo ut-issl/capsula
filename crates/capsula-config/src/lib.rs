@@ -77,9 +77,9 @@ impl<'de> Deserialize<'de> for VaultConfig {
 #[derive(Deserialize, Debug, Clone, Default)]
 pub struct PhaseConfig {
     #[serde(default)]
-    pub pre: PrePhaseConfig,
+    pub pre: HookPhaseConfig,
     #[serde(default)]
-    pub post: PostPhaseConfig,
+    pub post: HookPhaseConfig,
 }
 
 /// A phase configuration that contains hooks
@@ -88,10 +88,6 @@ pub struct HookPhaseConfig {
     #[serde(default)]
     pub hooks: Vec<HookEnvelope>,
 }
-
-// Type aliases for semantic clarity
-pub type PrePhaseConfig = HookPhaseConfig;
-pub type PostPhaseConfig = HookPhaseConfig;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct HookEnvelope {
