@@ -9,7 +9,7 @@ use capsula_core::error::CoreResult;
 use serde_json::json;
 use std::path::PathBuf;
 
-pub const KEY: &str = "cwd";
+pub const KEY: &str = "capture-cwd";
 
 #[derive(Debug, Default)]
 pub struct CwdContext;

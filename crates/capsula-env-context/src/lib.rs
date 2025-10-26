@@ -8,7 +8,7 @@ use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;
 
-pub const KEY: &str = "env";
+pub const KEY: &str = "capture-env";
 
 #[derive(Debug)]
 pub struct EnvVarContext {

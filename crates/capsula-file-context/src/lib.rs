@@ -10,7 +10,7 @@ use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-pub const KEY: &str = "file";
+pub const KEY: &str = "capture-file";
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]

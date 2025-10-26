@@ -7,7 +7,7 @@ use capsula_core::captured::Captured;
 use capsula_core::context::{Context, ContextFactory, RuntimeParams};
 use capsula_core::error::CoreResult;
 
-pub const KEY: &str = "command";
+pub const KEY: &str = "capture-command";
 
 #[derive(Debug)]
 pub struct CommandContext {
