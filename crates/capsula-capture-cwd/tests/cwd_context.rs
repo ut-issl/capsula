@@ -1,22 +1,20 @@
-// tests/cwd_context.rs
-
-use capsula_capture_cwd::CwdContext;
+use capsula_capture_cwd::CwdHook;
 use capsula_core::captured::Captured;
-use capsula_core::hook::{Context, ContextPhase, RuntimeParams};
+use capsula_core::hook::{Hook, HookPhase, RuntimeParams};
 
 #[test]
-fn cwd_context_captures_current_dir_and_json() {
+fn cwd_hook_captures_current_dir_and_json() {
     // Arrange
     let expected = std::env::current_dir().expect("current_dir");
-    let ctx = CwdContext;
+    let ctx = CwdHook;
     let params = RuntimeParams {
-        phase: ContextPhase::Pre,
+        phase: HookPhase::Pre,
         run_dir: None,
         project_root: expected.clone(),
     };
 
     // Act
-    let captured = ctx.run(&params).expect("CwdContext::run ok");
+    let captured = ctx.run(&params).expect("CwdHook::run ok");
     let json = captured.to_json();
     let json_cwd = json
         .get("cwd")

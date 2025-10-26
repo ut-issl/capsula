@@ -1,30 +1,30 @@
 mod config;
 mod error;
 
-use crate::config::CwdContextFactory;
-use crate::error::CwdContextError;
+use crate::config::CwdHookFactory;
+use crate::error::CwdHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CoreResult;
-use capsula_core::hook::{Context, ContextFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 use serde_json::json;
 use std::path::PathBuf;
 
 pub const KEY: &str = "capture-cwd";
 
 #[derive(Debug, Default)]
-pub struct CwdContext;
+pub struct CwdHook;
 
 #[derive(Debug)]
 pub struct CwdCaptured {
     pub cwd_abs: PathBuf,
 }
 
-impl Context for CwdContext {
+impl Hook for CwdHook {
     type Output = CwdCaptured;
 
     fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
-        let cwd_abs = std::env::current_dir()
-            .map_err(|source| CwdContextError::CurrentDirError { source })?;
+        let cwd_abs =
+            std::env::current_dir().map_err(|source| CwdHookError::CurrentDirError { source })?;
         Ok(CwdCaptured { cwd_abs })
     }
 }
@@ -38,7 +38,7 @@ impl Captured for CwdCaptured {
     }
 }
 
-/// Create a factory for CwdContext
-pub fn create_factory() -> Box<dyn ContextFactory> {
-    Box::new(CwdContextFactory)
+/// Create a factory for CwdHook
+pub fn create_factory() -> Box<dyn HookFactory> {
+    Box::new(CwdHookFactory)
 }

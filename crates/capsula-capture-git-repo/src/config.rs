@@ -1,36 +1,32 @@
-use crate::{GitContext, KEY};
+use crate::{GitHook, KEY};
 use capsula_core::error::CoreResult;
-use capsula_core::hook::ContextErased;
-use capsula_core::hook::ContextFactory;
+use capsula_core::hook::HookErased;
+use capsula_core::hook::HookFactory;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-/// Configuration for GitContext
+/// Configuration for GitHook
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct GitContextConfig {
+struct GitHookConfig {
     pub name: String,
     pub path: PathBuf,
     #[serde(default)]
     pub allow_dirty: bool,
 }
 
-/// Factory for creating GitContext instances
-pub struct GitContextFactory;
+/// Factory for creating GitHook instances
+pub struct GitHookFactory;
 
-impl ContextFactory for GitContextFactory {
+impl HookFactory for GitHookFactory {
     fn key(&self) -> &'static str {
         KEY
     }
 
-    fn create_context(
-        &self,
-        config: &Value,
-        project_root: &Path,
-    ) -> CoreResult<Box<dyn ContextErased>> {
-        let config: GitContextConfig = serde_json::from_value(config.clone()).map_err(|e| {
+    fn create_hook(&self, config: &Value, project_root: &Path) -> CoreResult<Box<dyn HookErased>> {
+        let config: GitHookConfig = serde_json::from_value(config.clone()).map_err(|e| {
             capsula_core::error::CapsulaError::Configuration {
-                message: format!("Invalid git context configuration: {}", e),
+                message: format!("Invalid git hook configuration: {}", e),
             }
         })?;
 
@@ -48,12 +44,12 @@ impl ContextFactory for GitContextFactory {
                 })?
         };
 
-        let context = GitContext {
+        let hook = GitHook {
             name: config.name,
             working_dir,
             allow_dirty: config.allow_dirty,
         };
 
-        Ok(Box::new(context))
+        Ok(Box::new(hook))
     }
 }

@@ -6,9 +6,9 @@ pub type CoreResult<T> = Result<T, CapsulaError>;
 
 /// Core error type for the Capsula library
 ///
-/// This enum defines common infrastructure errors. Context-specific errors
+/// This enum defines common infrastructure errors. Hook-specific errors
 /// should be defined in their respective crates and converted to CoreError
-/// via the ContextFailed variant.
+/// via the HookFailed variant.
 #[derive(Debug, Error)]
 pub enum CapsulaError {
     /// I/O operation failed
@@ -27,11 +27,11 @@ pub enum CapsulaError {
     #[error("Configuration error: {message}")]
     Configuration { message: String },
 
-    /// Context execution failed
-    /// This variant wraps context-specific errors while preserving the error chain
-    #[error("Context '{context}' failed: {message}")]
-    ContextFailed {
-        context: String,
+    /// Hook execution failed
+    /// This variant wraps hook-specific errors while preserving the error chain
+    #[error("Hook '{hook}' failed: {message}")]
+    HookFailed {
+        hook: String,
         message: String,
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,

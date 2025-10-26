@@ -1,9 +1,9 @@
 use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
-/// Command context specific errors
+/// Command hook specific errors
 #[derive(Debug, Error)]
-pub enum CommandContextError {
+pub enum CommandHookError {
     /// Command list is empty
     #[error("Command cannot be empty")]
     EmptyCommand,
@@ -25,15 +25,15 @@ pub enum CommandContextError {
     NonZeroExit { command: String, status: i32 },
 
     /// Serialization failed
-    #[error("Failed to serialize command context: {0}")]
+    #[error("Failed to serialize command hook: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert CommandContextError to CoreError
-impl From<CommandContextError> for CapsulaError {
-    fn from(err: CommandContextError) -> Self {
-        CapsulaError::ContextFailed {
-            context: "command".to_string(),
+/// Convert CommandHookError to CoreError
+impl From<CommandHookError> for CapsulaError {
+    fn from(err: CommandHookError) -> Self {
+        CapsulaError::HookFailed {
+            hook: "command".to_string(),
             message: err.to_string(),
             source: Box::new(err),
         }

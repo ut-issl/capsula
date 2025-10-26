@@ -1,9 +1,9 @@
 use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
-/// Current working directory context specific errors
+/// Current working directory hook specific errors
 #[derive(Debug, Error)]
-pub enum CwdContextError {
+pub enum CwdHookError {
     /// Failed to get current working directory
     #[error("Failed to get current working directory: {source}")]
     CurrentDirError {
@@ -12,15 +12,15 @@ pub enum CwdContextError {
     },
 
     /// Serialization failed
-    #[error("Failed to serialize cwd context: {0}")]
+    #[error("Failed to serialize cwd hook: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert CwdContextError to CoreError
-impl From<CwdContextError> for CapsulaError {
-    fn from(err: CwdContextError) -> Self {
-        CapsulaError::ContextFailed {
-            context: "cwd".to_string(),
+/// Convert CwdHookError to CoreError
+impl From<CwdHookError> for CapsulaError {
+    fn from(err: CwdHookError) -> Self {
+        CapsulaError::HookFailed {
+            hook: "cwd".to_string(),
             message: err.to_string(),
             source: Box::new(err),
         }

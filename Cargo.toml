@@ -17,7 +17,7 @@ capsula-capture-command = { path = "crates/capsula-capture-command", version = "
 capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.2.0" }
 capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.2.0" }
 capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.2.0" }
-capsula-capture-git = { path = "crates/capsula-capture-git", version = "0.2.0" }
+capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.2.0" }
 capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.2.0" }
 capsula-cli = { path = "crates/capsula-cli", version = "0.2.0" }
 capsula-config = { path = "crates/capsula-config", version = "0.2.0" }

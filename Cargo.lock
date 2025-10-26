@@ -156,7 +156,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "capsula-capture-git"
+name = "capsula-capture-git-repo"
 version = "0.2.0"
 dependencies = [
  "capsula-core",
@@ -224,7 +224,7 @@ dependencies = [
  "capsula-capture-cwd",
  "capsula-capture-env",
  "capsula-capture-file",
- "capsula-capture-git",
+ "capsula-capture-git-repo",
  "capsula-capture-machine",
  "capsula-core",
  "serde",

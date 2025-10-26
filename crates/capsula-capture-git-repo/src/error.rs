@@ -1,9 +1,9 @@
 use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
-/// Git context specific errors
+/// Git hook specific errors
 #[derive(Debug, Error)]
-pub enum GitContextError {
+pub enum GitHookError {
     /// Repository not found
     #[error("Not a git repository (or any parent up to mount point)")]
     NotARepository,
@@ -17,7 +17,7 @@ pub enum GitContextError {
     GitOperation(#[from] git2::Error),
 
     /// Serialization failed
-    #[error("Failed to serialize git context: {0}")]
+    #[error("Failed to serialize git hook: {0}")]
     Serialization(#[from] serde_json::Error),
 
     #[error("Run directory not specified and current directory could not be determined: {message}")]
@@ -27,11 +27,11 @@ pub enum GitContextError {
     IoError(#[from] std::io::Error),
 }
 
-/// Convert GitContextError to CoreError
-impl From<GitContextError> for CapsulaError {
-    fn from(err: GitContextError) -> Self {
-        CapsulaError::ContextFailed {
-            context: "git".to_string(),
+/// Convert GitHookError to CoreError
+impl From<GitHookError> for CapsulaError {
+    fn from(err: GitHookError) -> Self {
+        CapsulaError::HookFailed {
+            hook: "git".to_string(),
             message: err.to_string(),
             source: Box::new(err),
         }

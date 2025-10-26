@@ -2,20 +2,16 @@ use capsula_core::error::CoreError;
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// File context specific errors
+/// File hook specific errors
 #[derive(Debug, Error)]
-pub enum FileContextError {
+pub enum FileHookError {
     /// File not found
     #[error("File not found: {path}")]
-    FileNotFound {
-        path: PathBuf,
-    },
+    FileNotFound { path: PathBuf },
 
     /// No files matched the pattern
     #[error("No files matched the pattern: {pattern}")]
-    NoFilesMatched {
-        pattern: String,
-    },
+    NoFilesMatched { pattern: String },
 
     /// Pattern is invalid
     #[error("Invalid file pattern: {pattern}")]
@@ -35,32 +31,28 @@ pub enum FileContextError {
 
     /// Failed to compute hash
     #[error("Failed to compute hash for {path}: {message}")]
-    HashError {
-        path: PathBuf,
-        message: String,
-    },
+    HashError { path: PathBuf, message: String },
 
     /// Serialization failed
-    #[error("Failed to serialize file context: {0}")]
+    #[error("Failed to serialize file hook: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert FileContextError to CoreError
-impl From<FileContextError> for CoreError {
-    fn from(err: FileContextError) -> Self {
+/// Convert FileHookError to CoreError
+impl From<FileHookError> for CoreError {
+    fn from(err: FileHookError) -> Self {
         match &err {
-            FileContextError::FileNotFound { path } |
-            FileContextError::ReadError { path, .. } => {
+            FileHookError::FileNotFound { path } | FileHookError::ReadError { path, .. } => {
                 CoreError::io_with_path(
                     path.clone(),
                     std::io::Error::new(std::io::ErrorKind::NotFound, err.to_string()),
                 )
             }
-            _ => CoreError::ContextFailed {
-                context: "file".to_string(),
+            _ => CoreError::HookFailed {
+                hook: "file".to_string(),
                 message: err.to_string(),
                 source: Box::new(err),
-            }
+            },
         }
     }
 }

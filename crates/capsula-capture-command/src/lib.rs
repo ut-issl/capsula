@@ -1,16 +1,16 @@
 mod config;
 mod error;
 
-use crate::config::CommandContextFactory;
-use crate::error::CommandContextError;
+use crate::config::CommandHookFactory;
+use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CoreResult;
-use capsula_core::hook::{Context, ContextFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 
 pub const KEY: &str = "capture-command";
 
 #[derive(Debug)]
-pub struct CommandContext {
+pub struct CommandHook {
     pub command: Vec<String>,
     pub abort_on_failure: bool,
 }
@@ -24,14 +24,14 @@ pub struct CommandCaptured {
     pub abort_requested: bool,
 }
 
-impl Context for CommandContext {
+impl Hook for CommandHook {
     type Output = CommandCaptured;
 
     fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
         use std::process::Command;
 
         if self.command.is_empty() {
-            return Err(CommandContextError::EmptyCommand.into());
+            return Err(CommandHookError::EmptyCommand.into());
         }
 
         let mut cmd = Command::new(&self.command[0]);
@@ -41,7 +41,7 @@ impl Context for CommandContext {
 
         let output = cmd
             .output()
-            .map_err(|source| CommandContextError::ExecutionFailed {
+            .map_err(|source| CommandHookError::ExecutionFailed {
                 command: self.command.join(" "),
                 source,
             })?;
@@ -77,6 +77,6 @@ impl Captured for CommandCaptured {
     }
 }
 
-pub fn create_factory() -> Box<dyn ContextFactory> {
-    Box::new(CommandContextFactory)
+pub fn create_factory() -> Box<dyn HookFactory> {
+    Box::new(CommandHookFactory)
 }

@@ -1,17 +1,17 @@
 mod config;
 mod error;
 
-use crate::error::MachineContextError;
+use crate::error::MachineHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CoreResult;
-use capsula_core::hook::{Context, ContextFactory, RuntimeParams};
-use config::MachineContextFactory;
+use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use config::MachineHookFactory;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 pub const KEY: &str = "capture-machine";
 
 #[derive(Debug, Default)]
-pub struct MachineContext;
+pub struct MachineHook;
 
 #[derive(Debug)]
 pub struct CpuInfo {
@@ -34,13 +34,13 @@ pub struct MachineCaptured {
     pub hostname: String,
 }
 
-impl Context for MachineContext {
+impl Hook for MachineHook {
     type Output = MachineCaptured;
 
     fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
-        let os = System::name().ok_or(MachineContextError::OsInfoError)?;
-        let os_version = System::os_version().ok_or(MachineContextError::OsInfoError)?;
-        let kernel_version = System::kernel_version().ok_or(MachineContextError::OsInfoError)?;
+        let os = System::name().ok_or(MachineHookError::OsInfoError)?;
+        let os_version = System::os_version().ok_or(MachineHookError::OsInfoError)?;
+        let kernel_version = System::kernel_version().ok_or(MachineHookError::OsInfoError)?;
         let architecture = std::env::consts::ARCH.to_string();
 
         let system = System::new_with_specifics(
@@ -60,7 +60,7 @@ impl Context for MachineContext {
             .collect::<Vec<_>>();
 
         let total_memory = system.total_memory();
-        let hostname = System::host_name().ok_or(MachineContextError::HostnameError)?;
+        let hostname = System::host_name().ok_or(MachineHookError::HostnameError)?;
 
         Ok(MachineCaptured {
             os,
@@ -96,6 +96,6 @@ impl Captured for MachineCaptured {
     }
 }
 
-pub fn create_factory() -> Box<dyn ContextFactory> {
-    Box::new(MachineContextFactory)
+pub fn create_factory() -> Box<dyn HookFactory> {
+    Box::new(MachineHookFactory)
 }

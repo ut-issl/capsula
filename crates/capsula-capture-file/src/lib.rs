@@ -1,11 +1,11 @@
 mod config;
 mod hash;
 
-use crate::config::FileContextFactory;
+use crate::config::FileHookFactory;
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CoreResult};
-use capsula_core::hook::{Context, ContextFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -31,7 +31,7 @@ pub enum HashAlgorithm {
 }
 
 #[derive(Debug)]
-pub struct FileContext {
+pub struct FileHook {
     pub glob: String,
     pub mode: CaptureMode,
     pub hash: HashAlgorithm,
@@ -64,7 +64,7 @@ impl Captured for FileCaptured {
     }
 }
 
-impl Context for FileContext {
+impl Hook for FileHook {
     type Output = FileCaptured;
 
     fn run(&self, params: &RuntimeParams) -> CoreResult<Self::Output> {
@@ -79,7 +79,7 @@ impl Context for FileContext {
     }
 }
 
-impl FileContext {
+impl FileHook {
     fn capture_file(
         &self,
         path: &Path,
@@ -132,6 +132,6 @@ impl FileContext {
     }
 }
 
-pub fn create_factory() -> Box<dyn ContextFactory> {
-    Box::new(FileContextFactory)
+pub fn create_factory() -> Box<dyn HookFactory> {
+    Box::new(FileHookFactory)
 }

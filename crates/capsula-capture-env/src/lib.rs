@@ -1,17 +1,17 @@
 mod config;
 mod error;
 
-use crate::config::EnvVarContextFactory;
+use crate::config::EnvVarHookFactory;
 #[allow(unused_imports)]
-use crate::error::EnvContextError;
+use crate::error::EnvHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CoreResult;
-use capsula_core::hook::{Context, ContextFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 
 pub const KEY: &str = "capture-env";
 
 #[derive(Debug)]
-pub struct EnvVarContext {
+pub struct EnvVarHook {
     pub name: String,
 }
 
@@ -21,7 +21,7 @@ pub struct EnvVarCaptured {
     pub value: Option<String>,
 }
 
-impl Context for EnvVarContext {
+impl Hook for EnvVarHook {
     type Output = EnvVarCaptured;
 
     fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
@@ -43,6 +43,6 @@ impl Captured for EnvVarCaptured {
     }
 }
 
-pub fn create_factory() -> Box<dyn ContextFactory> {
-    Box::new(EnvVarContextFactory)
+pub fn create_factory() -> Box<dyn HookFactory> {
+    Box::new(EnvVarHookFactory)
 }

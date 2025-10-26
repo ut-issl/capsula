@@ -1,9 +1,9 @@
 use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
-/// Environment variable context specific errors
+/// Environment variable hook specific errors
 #[derive(Debug, Error)]
-pub enum EnvContextError {
+pub enum EnvHookError {
     /// Environment variable required but not found
     #[error("Required environment variable '{name}' not found")]
     VariableNotFound { name: String },
@@ -17,15 +17,15 @@ pub enum EnvContextError {
     },
 
     /// Serialization failed
-    #[error("Failed to serialize environment context: {0}")]
+    #[error("Failed to serialize environment hook: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert EnvContextError to CoreError
-impl From<EnvContextError> for CapsulaError {
-    fn from(err: EnvContextError) -> Self {
-        CapsulaError::ContextFailed {
-            context: "env".to_string(),
+/// Convert EnvHookError to CoreError
+impl From<EnvHookError> for CapsulaError {
+    fn from(err: EnvHookError) -> Self {
+        CapsulaError::HookFailed {
+            hook: "env".to_string(),
             message: err.to_string(),
             source: Box::new(err),
         }

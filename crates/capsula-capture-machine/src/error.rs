@@ -1,9 +1,9 @@
 use capsula_core::error::CapsulaError;
 use thiserror::Error;
 
-/// Machine context specific errors
+/// Machine hook specific errors
 #[derive(Debug, Error)]
-pub enum MachineContextError {
+pub enum MachineHookError {
     /// Failed to collect system information
     #[error("Failed to collect system information: {message}")]
     SystemInfoError { message: String },
@@ -25,15 +25,15 @@ pub enum MachineContextError {
     HostnameError,
 
     /// Serialization failed
-    #[error("Failed to serialize machine context: {0}")]
+    #[error("Failed to serialize machine hook: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert MachineContextError to CoreError
-impl From<MachineContextError> for CapsulaError {
-    fn from(err: MachineContextError) -> Self {
-        CapsulaError::ContextFailed {
-            context: "machine".to_string(),
+/// Convert MachineHookError to CoreError
+impl From<MachineHookError> for CapsulaError {
+    fn from(err: MachineHookError) -> Self {
+        CapsulaError::HookFailed {
+            hook: "machine".to_string(),
             message: err.to_string(),
             source: Box::new(err),
         }

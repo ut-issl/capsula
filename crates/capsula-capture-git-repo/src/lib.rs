@@ -1,20 +1,20 @@
 mod config;
 mod error;
 
-use crate::error::GitContextError;
+use crate::error::GitHookError;
 
-use crate::config::GitContextFactory;
+use crate::config::GitHookFactory;
 use capsula_core::captured::Captured;
 use capsula_core::error::CoreResult;
-use capsula_core::hook::{Context, ContextFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 use git2::Repository;
 use serde_json::json;
 use std::path::PathBuf;
 
-pub const KEY: &str = "capture-git";
+pub const KEY: &str = "capture-git-repo";
 
 #[derive(Debug)]
-pub struct GitContext {
+pub struct GitHook {
     pub name: String,
     pub working_dir: PathBuf,
     pub allow_dirty: bool,
@@ -46,7 +46,7 @@ impl Captured for GitCaptured {
     }
 }
 
-impl Context for GitContext {
+impl Hook for GitHook {
     type Output = GitCaptured;
 
     fn run(&self, params: &RuntimeParams) -> CoreResult<Self::Output> {
@@ -58,26 +58,26 @@ impl Context for GitContext {
 
         let repo = Repository::discover(&repo_path).map_err(|e| {
             if e.code() == git2::ErrorCode::NotFound {
-                GitContextError::NotARepository
+                GitHookError::NotARepository
             } else {
-                GitContextError::GitOperation(e)
+                GitHookError::GitOperation(e)
             }
         })?;
 
-        let head = repo.head().map_err(GitContextError::from)?;
-        let oid = head.target().ok_or_else(|| GitContextError::HeadNotFound {
+        let head = repo.head().map_err(GitHookError::from)?;
+        let oid = head.target().ok_or_else(|| GitHookError::HeadNotFound {
             message: "HEAD does not point to a valid commit".to_string(),
         })?;
 
         // Check if repository is dirty
-        let statuses = repo.statuses(None).map_err(GitContextError::from)?;
+        let statuses = repo.statuses(None).map_err(GitHookError::from)?;
         let is_dirty = !statuses.is_empty();
 
         // If dirty and not allowed, we'll signal abort through the Captured trait
-        // rather than returning an error, so other contexts can still be captured
+        // rather than returning an error, so other hooks can still be captured
         if is_dirty && !self.allow_dirty {
             eprintln!(
-                "Warning: Repository has uncommitted changes. Run will be aborted after context capture."
+                "Warning: Repository has uncommitted changes. Run will be aborted after hooks capture."
             );
         }
 
@@ -87,13 +87,13 @@ impl Context for GitContext {
                 params
                     .run_dir
                     .as_ref()
-                    .ok_or_else(|| GitContextError::RunDirNotSpecified {
+                    .ok_or_else(|| GitHookError::RunDirNotSpecified {
                         message: "Run directory is not specified in runtime parameters".to_string(),
                     })?;
-            let diff_content = GitContext::diff_content(&repo)?;
+            let diff_content = GitHook::diff_content(&repo)?;
             // Output to a patch file in the run directory
             let patch_file_path = run_dir.join(format!("{}.patch", self.name));
-            std::fs::write(&patch_file_path, diff_content).map_err(GitContextError::IoError)?;
+            std::fs::write(&patch_file_path, diff_content).map_err(GitHookError::IoError)?;
         }
 
         Ok(GitCaptured {
@@ -106,26 +106,26 @@ impl Context for GitContext {
     }
 }
 
-impl GitContext {
+impl GitHook {
     fn diff_content(repo: &Repository) -> CoreResult<String> {
         let mut diff_opts = git2::DiffOptions::new();
         diff_opts.include_untracked(true);
         let diff = repo
             .diff_index_to_workdir(None, Some(&mut diff_opts))
-            .map_err(GitContextError::from)?;
+            .map_err(GitHookError::from)?;
 
         let mut diff_content = String::new();
         diff.print(git2::DiffFormat::Patch, |_, _, line| {
             diff_content.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
             true
         })
-        .map_err(GitContextError::from)?;
+        .map_err(GitHookError::from)?;
 
         Ok(diff_content)
     }
 }
 
-/// Create a factory for GitContext
-pub fn create_factory() -> Box<dyn ContextFactory> {
-    Box::new(GitContextFactory)
+/// Create a factory for GitHook
+pub fn create_factory() -> Box<dyn HookFactory> {
+    Box::new(GitHookFactory)
 }

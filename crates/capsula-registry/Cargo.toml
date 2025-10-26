@@ -13,7 +13,7 @@ capsula-capture-command = { workspace = true, optional = true }
 capsula-capture-cwd = { workspace = true, optional = true }
 capsula-capture-env = { workspace = true, optional = true }
 capsula-capture-file = { workspace = true, optional = true }
-capsula-capture-git = { workspace = true, optional = true }
+capsula-capture-git-repo = { workspace = true, optional = true }
 capsula-capture-machine = { workspace = true, optional = true }
 capsula-core = { workspace = true }
 serde = { workspace = true }
@@ -33,7 +33,7 @@ ctx-command = ["dep:capsula-capture-command"]
 ctx-cwd = ["dep:capsula-capture-cwd"]
 ctx-env = ["dep:capsula-capture-env"]
 ctx-file = ["dep:capsula-capture-file"]
-ctx-git = ["dep:capsula-capture-git"]
+ctx-git = ["dep:capsula-capture-git-repo"]
 ctx-machine = ["dep:capsula-capture-machine"]
 
 [lints]
