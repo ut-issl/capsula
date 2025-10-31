@@ -26,6 +26,12 @@ mode = "copy"
 hash = "sha256"
 
 [[pre-run.hooks]]
+id = "capture-file"
+glob = "NON_EXISTENT_FILE"
+mode = "copy"
+hash = "sha256"
+
+[[pre-run.hooks]]
 id = "capture-env"
 name = "HOME"
 
