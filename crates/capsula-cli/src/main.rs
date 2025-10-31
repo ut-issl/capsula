@@ -246,12 +246,11 @@ path = \".\"",
                 return Ok(());
             }
 
+            let command_width = 70;
+
             // Print header
-            println!(
-                "{:<19}  {:<20}  {:<50}",
-                "TIMESTAMP (UTC)", "NAME", "COMMAND"
-            );
-            println!("{}", "-".repeat(19 + 2 + 20 + 2 + 50));
+            println!("{:<19}  {:<20}  COMMAND", "TIMESTAMP (UTC)", "NAME");
+            println!("{}", "-".repeat(19 + 2 + 20 + 2 + command_width));
 
             for run in runs {
                 // Parse timestamp for display
@@ -262,8 +261,8 @@ path = \".\"",
                 // Format command for display (truncate if too long)
                 let command_display = shlex::try_join(run.command.iter().map(|s| s.as_str()))
                     .unwrap_or_else(|_| run.command.join(" "));
-                let command_truncated = if command_display.len() > 50 {
-                    format!("{}...", &command_display[..47])
+                let command_truncated = if command_display.len() > command_width {
+                    format!("{}...", &command_display[..command_width - 3])
                 } else {
                     command_display
                 };
