@@ -103,9 +103,15 @@ allow_dirty = false         # Allow uncommitted changes (default: false)
 
 ```json
 {
-  "__meta": { "success": true, "index": 0 },
-  "id": "capture-git-repo",
-  "name": "repo-name",
+  "__meta": {
+    "config": {
+      "name": "repo-name",
+      "path": ".",
+      "allow_dirty": false
+    },
+    "id": "capture-git-repo",
+    "success": true
+  },
   "working_dir": "/path/to/repo",
   "sha": "abc123...",
   "is_dirty": false,
@@ -126,8 +132,11 @@ id = "capture-cwd"
 
 ```json
 {
-  "__meta": { "success": true, "index": 1 },
-  "id": "capture-cwd",
+  "__meta": {
+    "config": {},
+    "id": "capture-cwd",
+    "success": true
+  },
   "cwd": "/current/working/directory"
 }
 ```
@@ -148,8 +157,15 @@ hash = "sha256"             # Calculate file hash ("sha256" or "none". default: 
 
 ```json
 {
-  "__meta": { "success": true, "index": 2 },
-  "id": "capture-file",
+  "__meta": {
+    "config": {
+      "glob": "config.json",
+      "mode": "copy",
+      "hash": "sha256"
+    },
+    "id": "capture-file",
+    "success": true
+  },
   "files": [
     {
       "path": "/path/to/config.json",
@@ -174,9 +190,13 @@ name = "HOME"                 # Variable name to capture
 
 ```json
 {
-  "__meta": { "success": true, "index": 3 },
-  "id": "capture-env",
-  "name": "HOME",
+  "__meta": {
+    "config": {
+      "name": "HOME"
+    },
+    "id": "capture-env",
+    "success": true
+  },
   "value": "/home/user"
 }
 ```
@@ -192,6 +212,25 @@ command = ["uname", "-a"]
 abort_on_failure  = false  # Abort if command fails (default: false)
 ```
 
+**Output Example:**
+
+```json
+{
+  "__meta": {
+    "config": {
+      "command": ["rustc", "--version"],
+      "abort_on_failure": false
+    },
+    "id": "capture-command",
+    "success": true
+  },
+  "status": 0,
+  "stdout": "rustc 1.91.0 (f8297e351 2025-10-28)\n",
+  "stderr": "",
+  "abort_requested": false
+}
+```
+
 #### Machine Hook
 
 Captures system information like CPU, memory, and OS details.
@@ -199,6 +238,32 @@ Captures system information like CPU, memory, and OS details.
 ```toml
 [[pre-run.hooks]]
 id = "capture-machine"
+```
+
+**Output Example:**
+
+```json
+{
+  "__meta": {
+    "config": {},
+    "id": "capture-machine",
+    "success": true
+  },
+  "hostname": "hostname.local",
+  "os": "Darwin",
+  "os_version": "26.0.1",
+  "kernel_version": "25.0.0",
+  "architecture": "aarch64",
+  "total_memory": 137438953472,
+  "cpus": [
+    {
+      "name": "1",
+      "brand": "Apple M3 Max",
+      "vender_id": "Apple",
+      "frequency_mhz": 4056
+    }
+  ]
+}
 ```
 
 ## CLI Usage
@@ -237,8 +302,9 @@ Every hook output includes metadata for traceability:
 ```json
 {
   "__meta": {
-    "success": true, // Capture success status
-    "index": 0 // Position in configuration (0-based)
+    "config": {},    // Configuration used for this hook
+    "id": "capture-cwd",  // Hook ID from configuration
+    "success": true  // Capture success status
   }
   // ... hook-specific data
 }
@@ -251,10 +317,38 @@ Captured data is organized in the vault:
 ```
 .capsula/
 └── vault-name/
-    └── 2024-01-15/ # Date-based directory (YYYY-MM-DD, UTC)
-        └── 143022-example-run/ # Unique run directory (timestamp + run name)
-            ├── metadata.json    # Run metadata
-            ├── pre.json        # Pre-phase hooks
-            ├── run.json        # Command output, exit code, duration
-            └── post.json       # Post-phase hooks
+    └── 2025-10-31/                    # Date-based directory (YYYY-MM-DD, UTC)
+        └── 093525-chubby-back/        # Unique run directory (HHMMSS-run-name)
+            ├── _capsula/              # Capsula metadata directory
+            │   ├── metadata.json      # Run metadata (ID, name, command, timestamp)
+            │   ├── pre-run.json       # Pre-phase hook outputs (array)
+            │   ├── command.json       # Command execution results
+            │   └── post-run.json      # Post-phase hook outputs (array)
+            └── [captured files]       # Files copied by file hooks
+```
+
+**metadata.json** contains run information:
+
+```json
+{
+  "id": "01K8WSYC91YAE21R7CWHQ4KYN2",
+  "name": "chubby-back",
+  "command": ["echo", "hello"],
+  "timestamp": "2025-10-31T09:35:25.473+00:00",
+  "run_dir": "/path/to/.capsula/vault-name/2025-10-31/093525-chubby-back"
+}
+```
+
+**command.json** contains command execution results:
+
+```json
+{
+  "exit_code": 0,
+  "stdout": "hello\n",
+  "stderr": "",
+  "duration": {
+    "secs": 0,
+    "nanos": 1986042
+  }
+}
 ```
