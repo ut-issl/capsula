@@ -26,3 +26,14 @@ jobs:
       - run: cargo doc --workspace --no-deps
       - run: cargo check --workspace
       - run: git diff --exit-code
+
+  tests:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.89.0
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
