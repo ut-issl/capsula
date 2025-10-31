@@ -1,3 +1,6 @@
+default:
+    just --list
+
 publish:
     cargo publish -p capsula-core
 
