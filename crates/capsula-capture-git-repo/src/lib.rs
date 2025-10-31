@@ -51,6 +51,10 @@ impl Hook for GitHook {
     type Config = GitHookConfig;
     type Output = GitCaptured;
 
+    fn id(&self) -> String {
+        KEY.to_string()
+    }
+
     fn config(&self) -> &Self::Config {
         &self.config
     }

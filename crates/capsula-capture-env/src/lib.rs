@@ -24,6 +24,10 @@ impl Hook for EnvVarHook {
     type Config = EnvVarHookConfig;
     type Output = EnvVarCaptured;
 
+    fn id(&self) -> String {
+        KEY.to_string()
+    }
+
     fn config(&self) -> &Self::Config {
         &self.config
     }

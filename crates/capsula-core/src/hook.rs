@@ -20,6 +20,7 @@ pub struct RuntimeParams {
 pub trait Hook {
     type Output: super::captured::Captured;
     type Config: Serialize + for<'de> Deserialize<'de>;
+    fn id(&self) -> String;
     fn config(&self) -> &Self::Config;
     fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error> {
         serde_json::to_value(self.config())
@@ -29,6 +30,8 @@ pub trait Hook {
 
 /// Engine-facing trait (object-safe, heterogenous)
 pub trait HookErased: Send + Sync {
+    fn id(&self) -> String;
+    fn config_as_json_erased(&self) -> Result<serde_json::Value, serde_json::Error>;
     fn run_erased(
         &self,
         parmas: &RuntimeParams,
@@ -39,6 +42,13 @@ impl<T> HookErased for T
 where
     T: Hook + Send + Sync + 'static,
 {
+    fn id(&self) -> String {
+        <T as Hook>::id(self)
+    }
+    fn config_as_json_erased(&self) -> Result<serde_json::Value, serde_json::Error> {
+        self.config_as_json()
+    }
+
     fn run_erased(
         &self,
         params: &RuntimeParams,

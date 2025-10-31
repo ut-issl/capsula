@@ -23,6 +23,10 @@ impl Hook for CwdHook {
     type Config = CwdHookConfig;
     type Output = CwdCaptured;
 
+    fn id(&self) -> String {
+        KEY.to_string()
+    }
+
     fn config(&self) -> &Self::Config {
         &CwdHookConfig {}
     }

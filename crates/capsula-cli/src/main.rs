@@ -51,6 +51,10 @@ fn build_and_run_hooks(
                 .map(|config_hook| config_hook.id.clone())
                 .unwrap_or_else(|| format!("hook[{}]", idx));
 
+            let hook_config_json = hook
+                .config_as_json_erased()
+                .unwrap_or_else(|_| json!({ "__error": "Failed to serialize hook config" }));
+
             match hook.run_erased(runtime_params) {
                 Ok(captured) => {
                     let should_abort = captured.abort_requested();
@@ -59,8 +63,9 @@ fn build_and_run_hooks(
                     let mut json = captured.to_json();
                     if let serde_json::Value::Object(ref mut map) = json {
                         let metadata = json!({
+                            "id": hook.id(),
+                            "config": hook_config_json,
                             "success": true,
-                            "index": idx
                         });
                         map.insert("__meta".to_string(), metadata);
                     }
@@ -75,8 +80,8 @@ fn build_and_run_hooks(
                     // Only include the metadata with error information
                     let json = json!({
                         "__meta": json!({
+                            "config": hook_config_json,
                             "success": false,
-                            "index": idx,
                             "error": format!("{}", error)
                         })}
                     );

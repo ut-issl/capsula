@@ -38,6 +38,10 @@ impl Hook for MachineHook {
     type Config = MachineHookConfig;
     type Output = MachineCaptured;
 
+    fn id(&self) -> String {
+        KEY.to_string()
+    }
+
     fn config(&self) -> &Self::Config {
         &MachineHookConfig {}
     }

@@ -72,6 +72,10 @@ impl Hook for FileHook {
     type Config = FileHookConfig;
     type Output = FileCaptured;
 
+    fn id(&self) -> String {
+        KEY.to_string()
+    }
+
     fn config(&self) -> &Self::Config {
         &self.config
     }

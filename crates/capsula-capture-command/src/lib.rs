@@ -29,6 +29,10 @@ impl Hook for CommandHook {
     type Config = CommandHookConfig;
     type Output = CommandCaptured;
 
+    fn id(&self) -> String {
+        KEY.to_string()
+    }
+
     fn config(&self) -> &Self::Config {
         &self.config
     }
