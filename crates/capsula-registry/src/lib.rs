@@ -1,4 +1,4 @@
-use capsula_core::error::{CapsulaError, CoreResult};
+use capsula_core::error::{CapsulaError, CapsulaResult};
 use capsula_core::hook::{HookErased, HookFactory};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -66,7 +66,7 @@ impl HookRegistry {
         hook_id: &str,
         config: &Value,
         project_root: &Path,
-    ) -> CoreResult<Box<dyn HookErased>> {
+    ) -> CapsulaResult<Box<dyn HookErased>> {
         let factory = self.factories.get(hook_id).ok_or_else(|| {
             let available = self.registered_types().join(", ");
             CapsulaError::Configuration {

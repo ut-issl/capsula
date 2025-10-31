@@ -1,4 +1,4 @@
-use capsula_core::error::{CapsulaError, CoreResult};
+use capsula_core::error::{CapsulaError, CapsulaResult};
 use serde::{Deserialize, Deserializer};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -117,7 +117,7 @@ pub fn build_hooks(
     phase: &HookPhaseConfig,
     project_root: &Path,
     registry: &capsula_registry::HookRegistry,
-) -> CoreResult<Vec<Box<dyn capsula_core::hook::HookErased>>> {
+) -> CapsulaResult<Vec<Box<dyn capsula_core::hook::HookErased>>> {
     phase
         .hooks
         .iter()

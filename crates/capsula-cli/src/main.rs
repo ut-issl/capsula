@@ -21,11 +21,6 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    Capture {
-        #[arg(short, long, default_value = "pre")]
-        phase: HookPhase,
-    },
-
     Run {
         #[arg(trailing_var_arg = true)]
         cmd: Vec<String>,
@@ -152,22 +147,6 @@ path = \".\"",
     };
 
     match cli.command {
-        Commands::Capture { phase } => {
-            let runtime_params = RuntimeParams {
-                phase,
-                run_dir: None,
-                project_root: project_root.clone(),
-            };
-            let hook_phase_config = match phase {
-                HookPhase::Pre => &config.pre_run,
-                HookPhase::Post => &config.post_run,
-            };
-            let (output_json, _should_abort) =
-                build_and_run_hooks(&runtime_params, hook_phase_config, &registry, &project_root)?;
-
-            println!("{}", serde_json::to_string_pretty(&output_json)?);
-        }
-
         Commands::Run { cmd } => {
             // Sanity check
             if cmd.is_empty() {
@@ -183,10 +162,12 @@ path = \".\"",
                 command: cmd,
                 run_dir: (),
             };
+
             // Display run ID and name
             eprintln!("Run ID: {}, Name: {}", run.id, run.name);
             let run = run.setup_run_dir(&vault_dir, 5)?;
             eprintln!("Run directory: {}", run.run_dir.to_string_lossy());
+
             // Save run metadata to run_dir/metadata.json
             let run_metadata_path = run.run_dir.join("metadata.json");
             std::fs::write(&run_metadata_path, serde_json::to_string_pretty(&run)?).with_context(

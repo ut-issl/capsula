@@ -4,7 +4,7 @@ mod error;
 use crate::config::CommandHookFactory;
 use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
-use capsula_core::error::CoreResult;
+use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 
 pub const KEY: &str = "capture-command";
@@ -27,7 +27,7 @@ pub struct CommandCaptured {
 impl Hook for CommandHook {
     type Output = CommandCaptured;
 
-    fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
+    fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         use std::process::Command;
 
         if self.command.is_empty() {

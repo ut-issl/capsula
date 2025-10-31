@@ -2,10 +2,8 @@ mod config;
 mod error;
 
 use crate::config::EnvVarHookFactory;
-#[allow(unused_imports)]
-use crate::error::EnvHookError;
 use capsula_core::captured::Captured;
-use capsula_core::error::CoreResult;
+use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 
 pub const KEY: &str = "capture-env";
@@ -24,7 +22,7 @@ pub struct EnvVarCaptured {
 impl Hook for EnvVarHook {
     type Output = EnvVarCaptured;
 
-    fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
+    fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let value = std::env::var(&self.name).ok();
         Ok(EnvVarCaptured {
             name: self.name.clone(),

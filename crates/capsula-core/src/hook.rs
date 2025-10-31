@@ -1,4 +1,4 @@
-use crate::error::{CapsulaError, CoreResult};
+use crate::error::{CapsulaError, CapsulaResult};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -20,7 +20,7 @@ pub struct RuntimeParams {
 
 pub trait Hook {
     type Output: super::captured::Captured;
-    fn run(&self, params: &RuntimeParams) -> CoreResult<Self::Output>;
+    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output>;
 }
 
 /// Engine-facing trait (object-safe, heterogenous)
@@ -54,5 +54,5 @@ pub trait HookFactory: Send + Sync {
         &self,
         config: &Value,
         project_root: &std::path::Path,
-    ) -> CoreResult<Box<dyn HookErased>>;
+    ) -> CapsulaResult<Box<dyn HookErased>>;
 }
