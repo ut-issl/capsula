@@ -23,6 +23,9 @@ serde_json = { workspace = true }
 clap = { workspace = true }
 ulid = { workspace = true }
 names = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+shlex = { workspace = true }
 
 [lints]
 workspace = true

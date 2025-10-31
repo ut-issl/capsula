@@ -185,9 +185,12 @@ dependencies = [
  "capsula-config",
  "capsula-core",
  "capsula-registry",
+ "chrono",
  "clap",
  "names",
+ "serde",
  "serde_json",
+ "shlex",
  "ulid",
 ]
 

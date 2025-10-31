@@ -94,6 +94,7 @@ impl FileHook {
             .collect::<Result<Vec<_>, FileHookError>>()
             .map(|files| FileCaptured { files })
     }
+
     fn capture_file(
         &self,
         path: &Path,
