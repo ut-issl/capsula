@@ -1,14 +1,17 @@
 mod config;
+mod error;
 mod hash;
-
 use crate::config::FileHookFactory;
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
-use capsula_core::error::{CapsulaError, CoreResult};
+use capsula_core::error::{CapsulaError, CapsulaResult};
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+
 use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+
+use error::FileHookError;
 
 pub const KEY: &str = "capture-file";
 
@@ -67,24 +70,26 @@ impl Captured for FileCaptured {
 impl Hook for FileHook {
     type Output = FileCaptured;
 
-    fn run(&self, params: &RuntimeParams) -> CoreResult<Self::Output> {
-        GlobWalkerBuilder::from_patterns(&params.project_root, &[&self.glob])
-            .max_depth(1)
-            .build()
-            .map_err(|e| CapsulaError::from(std::io::Error::other(e)))?
-            .filter_map(Result::ok)
-            .map(|entry| self.capture_file(entry.path(), params))
-            .collect::<Result<Vec<_>, CapsulaError>>()
-            .map(|files| FileCaptured { files })
+    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+        self.run(params).map_err(CapsulaError::from)
     }
 }
 
 impl FileHook {
+    fn run(&self, params: &RuntimeParams) -> Result<FileCaptured, FileHookError> {
+        GlobWalkerBuilder::from_patterns(&params.project_root, &[&self.glob])
+            .max_depth(1)
+            .build()?
+            .filter_map(Result::ok)
+            .map(|entry| self.capture_file(entry.path(), params))
+            .collect::<Result<Vec<_>, FileHookError>>()
+            .map(|files| FileCaptured { files })
+    }
     fn capture_file(
         &self,
         path: &Path,
         runtime_params: &RuntimeParams,
-    ) -> CoreResult<FileCapturedPerFile> {
+    ) -> Result<FileCapturedPerFile, FileHookError> {
         // Compute hash if needed
         let hash = match self.hash {
             HashAlgorithm::Sha256 => Some(format!("sha256:{}", file_digest_sha256(path)?)),
@@ -94,26 +99,19 @@ impl FileHook {
         // Copy or move file if needed
         let copied_path = match self.mode {
             CaptureMode::Copy | CaptureMode::Move => {
-                let run_dir = runtime_params.run_dir.as_ref().ok_or_else(|| {
-                    CapsulaError::from(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "run_dir is required for Copy or Move mode",
-                    ))
-                })?;
+                let run_dir = runtime_params
+                    .run_dir
+                    .as_ref()
+                    .ok_or(FileHookError::RunDirNotSet)?;
                 let file_name = path
                     .file_name()
-                    .ok_or_else(|| {
-                        CapsulaError::from(std::io::Error::new(
-                            std::io::ErrorKind::InvalidInput,
-                            "Invalid file name",
-                        ))
+                    .ok_or_else(|| FileHookError::InvalidRunDir {
+                        path: path.to_path_buf(),
                     })?
                     .to_os_string();
                 let dest_path = run_dir.join(file_name);
                 match self.mode {
-                    CaptureMode::Copy => {
-                        std::fs::copy(path, &dest_path)?;
-                    }
+                    CaptureMode::Copy => std::fs::copy(path, &dest_path).map(|_| ())?,
                     CaptureMode::Move => {
                         std::fs::rename(path, &dest_path)?;
                     }

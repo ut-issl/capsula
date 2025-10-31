@@ -1,5 +1,5 @@
 use crate::{KEY, MachineHook};
-use capsula_core::error::CoreResult;
+use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{HookErased, HookFactory};
 // use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -16,7 +16,7 @@ impl HookFactory for MachineHookFactory {
         &self,
         _config: &Value,
         _project_root: &Path,
-    ) -> CoreResult<Box<dyn HookErased>> {
+    ) -> CapsulaResult<Box<dyn HookErased>> {
         // Config could be deserialized if needed:
         // let _config: MachineHookConfig = serde_json::from_value(config.clone())?;
         Ok(Box::new(MachineHook))

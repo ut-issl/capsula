@@ -1,5 +1,5 @@
 use crate::{GitHook, KEY};
-use capsula_core::error::CoreResult;
+use capsula_core::error::CapsulaResult;
 use capsula_core::hook::HookErased;
 use capsula_core::hook::HookFactory;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,11 @@ impl HookFactory for GitHookFactory {
         KEY
     }
 
-    fn create_hook(&self, config: &Value, project_root: &Path) -> CoreResult<Box<dyn HookErased>> {
+    fn create_hook(
+        &self,
+        config: &Value,
+        project_root: &Path,
+    ) -> CapsulaResult<Box<dyn HookErased>> {
         let config: GitHookConfig = serde_json::from_value(config.clone()).map_err(|e| {
             capsula_core::error::CapsulaError::Configuration {
                 message: format!("Invalid git hook configuration: {}", e),
@@ -33,15 +37,7 @@ impl HookFactory for GitHookFactory {
         let working_dir = if config.path.is_absolute() {
             config.path
         } else {
-            project_root
-                .join(&config.path)
-                .canonicalize()
-                .map_err(|e| {
-                    capsula_core::error::CapsulaError::io_with_path(
-                        project_root.join(&config.path),
-                        e,
-                    )
-                })?
+            project_root.join(&config.path).canonicalize()?
         };
 
         let hook = GitHook {

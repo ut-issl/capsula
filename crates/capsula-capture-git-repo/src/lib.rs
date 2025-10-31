@@ -5,7 +5,7 @@ use crate::error::GitHookError;
 
 use crate::config::GitHookFactory;
 use capsula_core::captured::Captured;
-use capsula_core::error::CoreResult;
+use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 use git2::Repository;
 use serde_json::json;
@@ -49,7 +49,7 @@ impl Captured for GitCaptured {
 impl Hook for GitHook {
     type Output = GitCaptured;
 
-    fn run(&self, params: &RuntimeParams) -> CoreResult<Self::Output> {
+    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {
             std::env::current_dir()?
         } else {
@@ -107,7 +107,7 @@ impl Hook for GitHook {
 }
 
 impl GitHook {
-    fn diff_content(repo: &Repository) -> CoreResult<String> {
+    fn diff_content(repo: &Repository) -> CapsulaResult<String> {
         let mut diff_opts = git2::DiffOptions::new();
         diff_opts.include_untracked(true);
         let diff = repo

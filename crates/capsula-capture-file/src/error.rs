@@ -1,4 +1,4 @@
-use capsula_core::error::CoreError;
+use capsula_core::error::CapsulaError;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -14,12 +14,14 @@ pub enum FileHookError {
     NoFilesMatched { pattern: String },
 
     /// Pattern is invalid
-    #[error("Invalid file pattern: {pattern}")]
-    InvalidPattern {
-        pattern: String,
-        #[source]
-        source: globwalk::GlobError,
-    },
+    #[error(transparent)]
+    InvalidPattern(#[from] globwalk::GlobError),
+
+    #[error("Run directory is not set")]
+    RunDirNotSet,
+
+    #[error("Invalid run directory: {path}")]
+    InvalidRunDir { path: PathBuf },
 
     /// Failed to read file
     #[error("Failed to read file {path}: {source}")]
@@ -36,23 +38,18 @@ pub enum FileHookError {
     /// Serialization failed
     #[error("Failed to serialize file hook: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 /// Convert FileHookError to CoreError
-impl From<FileHookError> for CoreError {
+impl From<FileHookError> for CapsulaError {
     fn from(err: FileHookError) -> Self {
-        match &err {
-            FileHookError::FileNotFound { path } | FileHookError::ReadError { path, .. } => {
-                CoreError::io_with_path(
-                    path.clone(),
-                    std::io::Error::new(std::io::ErrorKind::NotFound, err.to_string()),
-                )
-            }
-            _ => CoreError::HookFailed {
-                hook: "file".to_string(),
-                message: err.to_string(),
-                source: Box::new(err),
-            },
+        CapsulaError::HookFailed {
+            hook: "file".to_string(),
+            message: err.to_string(),
+            source: Box::new(err),
         }
     }
 }

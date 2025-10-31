@@ -1,5 +1,5 @@
 use crate::{CommandHook, KEY};
-use capsula_core::error::CoreResult;
+use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{HookErased, HookFactory};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -19,9 +19,12 @@ impl HookFactory for CommandHookFactory {
         KEY
     }
 
-    fn create_hook(&self, config: &Value, _project_root: &Path) -> CoreResult<Box<dyn HookErased>> {
-        let config: CommandHookConfig = serde_json::from_value(config.clone())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    fn create_hook(
+        &self,
+        config: &Value,
+        _project_root: &Path,
+    ) -> CapsulaResult<Box<dyn HookErased>> {
+        let config: CommandHookConfig = serde_json::from_value(config.clone())?;
 
         let hook = CommandHook {
             command: config.command,

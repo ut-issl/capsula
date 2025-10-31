@@ -4,7 +4,7 @@ mod error;
 use crate::config::CwdHookFactory;
 use crate::error::CwdHookError;
 use capsula_core::captured::Captured;
-use capsula_core::error::CoreResult;
+use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
 use serde_json::json;
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ pub struct CwdCaptured {
 impl Hook for CwdHook {
     type Output = CwdCaptured;
 
-    fn run(&self, _params: &RuntimeParams) -> CoreResult<Self::Output> {
+    fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let cwd_abs =
             std::env::current_dir().map_err(|source| CwdHookError::CurrentDirError { source })?;
         Ok(CwdCaptured { cwd_abs })

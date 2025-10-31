@@ -1,8 +1,7 @@
-use std::{io, path::PathBuf};
 use thiserror::Error;
 
 /// Library-wide result alias
-pub type CoreResult<T> = Result<T, CapsulaError>;
+pub type CapsulaResult<T> = Result<T, CapsulaError>;
 
 /// Core error type for the Capsula library
 ///
@@ -12,12 +11,8 @@ pub type CoreResult<T> = Result<T, CapsulaError>;
 #[derive(Debug, Error)]
 pub enum CapsulaError {
     /// I/O operation failed
-    #[error("I/O error at {path:?}: {source}")]
-    Io {
-        path: Option<PathBuf>,
-        #[source]
-        source: io::Error,
-    },
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 
     /// Serialization/deserialization failed
     #[error("Serialization failed: {0}")]
@@ -40,23 +35,4 @@ pub enum CapsulaError {
     /// Generic error for unexpected conditions
     #[error("{0}")]
     Other(String),
-}
-
-impl From<std::io::Error> for CapsulaError {
-    fn from(e: std::io::Error) -> Self {
-        CapsulaError::Io {
-            path: None,
-            source: e,
-        }
-    }
-}
-
-/// Helper to create I/O errors with path context
-impl CapsulaError {
-    pub fn io_with_path(path: impl Into<PathBuf>, source: io::Error) -> Self {
-        CapsulaError::Io {
-            path: Some(path.into()),
-            source,
-        }
-    }
 }

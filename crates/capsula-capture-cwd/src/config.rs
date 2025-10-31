@@ -1,4 +1,4 @@
-use capsula_core::error::CoreResult;
+use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{HookErased, HookFactory};
 // use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -18,7 +18,7 @@ impl HookFactory for CwdHookFactory {
         &self,
         _config: &Value,
         _project_root: &Path,
-    ) -> CoreResult<Box<dyn HookErased>> {
+    ) -> CapsulaResult<Box<dyn HookErased>> {
         Ok(Box::new(CwdHook))
     }
 }
