@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::path::Path;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct FileHookConfig {
+pub struct FileHookConfig {
     pub glob: String,
     #[serde(default)]
     pub mode: CaptureMode,
@@ -30,6 +30,7 @@ impl HookFactory for FileHookFactory {
         let config: FileHookConfig = serde_json::from_value(config.clone())?;
 
         let hook = FileHook {
+            config: config.clone(),
             glob: config.glob,
             mode: config.mode,
             hash: config.hash,

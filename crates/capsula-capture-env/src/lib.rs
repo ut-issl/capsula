@@ -1,7 +1,7 @@
 mod config;
 mod error;
 
-use crate::config::EnvVarHookFactory;
+use crate::config::{EnvVarHookConfig, EnvVarHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
@@ -10,6 +10,7 @@ pub const KEY: &str = "capture-env";
 
 #[derive(Debug)]
 pub struct EnvVarHook {
+    pub config: EnvVarHookConfig,
     pub name: String,
 }
 
@@ -20,7 +21,12 @@ pub struct EnvVarCaptured {
 }
 
 impl Hook for EnvVarHook {
+    type Config = EnvVarHookConfig;
     type Output = EnvVarCaptured;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
 
     fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let value = std::env::var(&self.name).ok();

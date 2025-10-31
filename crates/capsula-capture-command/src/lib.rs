@@ -1,7 +1,7 @@
 mod config;
 mod error;
 
-use crate::config::CommandHookFactory;
+use crate::config::{CommandHookConfig, CommandHookFactory};
 use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
@@ -11,6 +11,7 @@ pub const KEY: &str = "capture-command";
 
 #[derive(Debug)]
 pub struct CommandHook {
+    pub config: CommandHookConfig,
     pub command: Vec<String>,
     pub abort_on_failure: bool,
 }
@@ -25,7 +26,12 @@ pub struct CommandCaptured {
 }
 
 impl Hook for CommandHook {
+    type Config = CommandHookConfig;
     type Output = CommandCaptured;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
 
     fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         use std::process::Command;

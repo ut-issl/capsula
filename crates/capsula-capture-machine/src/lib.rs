@@ -5,7 +5,7 @@ use crate::error::MachineHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
-use config::MachineHookFactory;
+use config::{MachineHookConfig, MachineHookFactory};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 pub const KEY: &str = "capture-machine";
@@ -35,7 +35,12 @@ pub struct MachineCaptured {
 }
 
 impl Hook for MachineHook {
+    type Config = MachineHookConfig;
     type Output = MachineCaptured;
+
+    fn config(&self) -> &Self::Config {
+        &MachineHookConfig {}
+    }
 
     fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let os = System::name().ok_or(MachineHookError::OsInfoError)?;

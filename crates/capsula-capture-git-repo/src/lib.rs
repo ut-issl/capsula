@@ -3,7 +3,7 @@ mod error;
 
 use crate::error::GitHookError;
 
-use crate::config::GitHookFactory;
+use crate::config::{GitHookConfig, GitHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
@@ -15,6 +15,7 @@ pub const KEY: &str = "capture-git-repo";
 
 #[derive(Debug)]
 pub struct GitHook {
+    pub config: GitHookConfig,
     pub name: String,
     pub working_dir: PathBuf,
     pub allow_dirty: bool,
@@ -47,7 +48,12 @@ impl Captured for GitCaptured {
 }
 
 impl Hook for GitHook {
+    type Config = GitHookConfig;
     type Output = GitCaptured;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
 
     fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {

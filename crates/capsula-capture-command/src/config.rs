@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::path::Path;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct CommandHookConfig {
+pub struct CommandHookConfig {
     pub command: Vec<String>,
     #[serde(default)]
     pub abort_on_failure: bool,
@@ -27,6 +27,7 @@ impl HookFactory for CommandHookFactory {
         let config: CommandHookConfig = serde_json::from_value(config.clone())?;
 
         let hook = CommandHook {
+            config: config.clone(),
             command: config.command,
             abort_on_failure: config.abort_on_failure,
         };
