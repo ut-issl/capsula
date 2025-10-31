@@ -7,7 +7,7 @@ publish:
     # Hook crates
     cargo publish -p capsula-capture-cwd
     cargo publish -p capsula-capture-file
-    cargo publish -p capsula-capture-git
+    cargo publish -p capsula-capture-git-repo
     cargo publish -p capsula-capture-env
     cargo publish -p capsula-capture-command
     cargo publish -p capsula-capture-machine
