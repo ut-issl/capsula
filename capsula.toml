@@ -14,12 +14,6 @@ path = "."  # Relative to the project root.
 allow_dirty = true
 
 [[pre-run.hooks]]
-id = "capture-git-repo"
-name = "capsula"
-path = "."  # Relative to the project root.
-allow_dirty = true
-
-[[pre-run.hooks]]
 id = "capture-file"
 glob = "capsula.toml"
 mode = "copy"
