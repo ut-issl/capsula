@@ -4,8 +4,10 @@ use anyhow::{Context, Result};
 use capsula_config::{CapsulaConfig, HookPhaseConfig};
 use capsula_core::hook::{HookPhase, RuntimeParams};
 use capsula_core::run::Run;
+use chrono::DateTime;
 use clap::{Parser, Subcommand};
 use names::Generator;
+use serde::Deserialize;
 use serde_json::json;
 use ulid::Ulid;
 
@@ -25,6 +27,7 @@ enum Commands {
         #[arg(trailing_var_arg = true)]
         cmd: Vec<String>,
     },
+    List,
 }
 
 fn create_registry() -> capsula_registry::HookRegistry {
@@ -97,6 +100,90 @@ fn build_and_run_hooks(
     Ok((json_results, should_abort))
 }
 
+#[derive(Debug, Deserialize)]
+struct RunMetadata {
+    id: Ulid,
+    name: String,
+    command: Vec<String>,
+    timestamp: String,
+}
+
+fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
+    let mut runs = Vec::new();
+
+    // Check if vault directory exists
+    if !vault_dir.exists() {
+        return Ok(runs);
+    }
+
+    // Iterate through date directories
+    for date_entry in std::fs::read_dir(vault_dir)
+        .with_context(|| format!("Failed to read vault directory: {}", vault_dir.display()))?
+    {
+        let date_entry = date_entry?;
+        let date_path = date_entry.path();
+
+        // Skip if not a directory or is .gitignore
+        if !date_path.is_dir() {
+            continue;
+        }
+
+        // Iterate through run directories within each date
+        for run_entry in std::fs::read_dir(&date_path)
+            .with_context(|| format!("Failed to read date directory: {}", date_path.display()))?
+        {
+            let run_entry = run_entry?;
+            let run_path = run_entry.path();
+
+            // Skip if not a directory
+            if !run_path.is_dir() {
+                continue;
+            }
+
+            // Look for _capsula/metadata.json
+            let metadata_path = run_path.join("_capsula").join("metadata.json");
+            if metadata_path.exists() {
+                // Read and parse metadata
+                match std::fs::read_to_string(&metadata_path) {
+                    Ok(content) => match serde_json::from_str::<RunMetadata>(&content) {
+                        Ok(metadata) => runs.push(metadata),
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: Failed to parse metadata from {}: {}",
+                                metadata_path.display(),
+                                e
+                            );
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: Failed to read metadata from {}: {}",
+                            metadata_path.display(),
+                            e
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort by timestamp (newest first)
+    runs.sort_by(|a, b| {
+        // Parse timestamps and compare
+        let time_a = DateTime::parse_from_rfc3339(&a.timestamp).ok();
+        let time_b = DateTime::parse_from_rfc3339(&b.timestamp).ok();
+
+        match (time_a, time_b) {
+            (Some(a), Some(b)) => b.cmp(&a), // Reverse order for newest first
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+    });
+
+    Ok(runs)
+}
+
 fn run() -> Result<()> {
     // Create the registry with all available hook types
     let registry = create_registry();
@@ -152,6 +239,42 @@ path = \".\"",
     };
 
     match cli.command {
+        Commands::List => {
+            let runs = list_runs(&vault_dir)?;
+
+            if runs.is_empty() {
+                println!("No runs found in vault: {}", vault_dir.display());
+                return Ok(());
+            }
+
+            // Print header
+            println!(
+                "{:<19}  {:<20}  {:<26}  {:<50}",
+                "TIMESTAMP (UTC)", "NAME", "ID", "COMMAND"
+            );
+            println!("{}", "-".repeat(19 + 2 + 20 + 2 + 26 + 2 + 50));
+
+            for run in runs {
+                // Parse timestamp for display
+                let timestamp_display = DateTime::parse_from_rfc3339(&run.timestamp)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .unwrap_or_else(|_| run.timestamp.clone());
+
+                // Format command for display (truncate if too long)
+                let command_display = shlex::try_join(run.command.iter().map(|s| s.as_str()))
+                    .unwrap_or_else(|_| run.command.join(" "));
+                let command_truncated = if command_display.len() > 50 {
+                    format!("{}...", &command_display[..47])
+                } else {
+                    command_display
+                };
+
+                println!(
+                    "{:<19}  {:<20}  {:<26}  {}",
+                    timestamp_display, run.name, run.id, command_truncated
+                );
+            }
+        }
         Commands::Run { cmd } => {
             // Sanity check
             if cmd.is_empty() {
