@@ -102,7 +102,6 @@ fn build_and_run_hooks(
 
 #[derive(Debug, Deserialize)]
 struct RunMetadata {
-    id: Ulid,
     name: String,
     command: Vec<String>,
     timestamp: String,
@@ -249,10 +248,10 @@ path = \".\"",
 
             // Print header
             println!(
-                "{:<19}  {:<20}  {:<26}  {:<50}",
-                "TIMESTAMP (UTC)", "NAME", "ID", "COMMAND"
+                "{:<19}  {:<20}  {:<50}",
+                "TIMESTAMP (UTC)", "NAME", "COMMAND"
             );
-            println!("{}", "-".repeat(19 + 2 + 20 + 2 + 26 + 2 + 50));
+            println!("{}", "-".repeat(19 + 2 + 20 + 2 + 50));
 
             for run in runs {
                 // Parse timestamp for display
@@ -270,8 +269,8 @@ path = \".\"",
                 };
 
                 println!(
-                    "{:<19}  {:<20}  {:<26}  {}",
-                    timestamp_display, run.name, run.id, command_truncated
+                    "{:<19}  {:<20}  {}",
+                    timestamp_display, run.name, command_truncated
                 );
             }
         }
