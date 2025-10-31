@@ -73,8 +73,6 @@ impl Hook for CommandHook {
 impl Captured for CommandCaptured {
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "id": KEY,
-            "command": self.command,
             "stdout": self.stdout,
             "stderr": self.stderr,
             "status": self.status,

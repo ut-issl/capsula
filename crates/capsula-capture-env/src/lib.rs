@@ -44,8 +44,6 @@ impl Hook for EnvVarHook {
 impl Captured for EnvVarCaptured {
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "id": KEY,
-            "name": self.name,
             "value": self.value,
         })
     }

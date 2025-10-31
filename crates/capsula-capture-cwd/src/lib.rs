@@ -41,7 +41,6 @@ impl Hook for CwdHook {
 impl Captured for CwdCaptured {
     fn to_json(&self) -> serde_json::Value {
         json!({
-            "id": KEY.to_string(),
             "cwd": self.cwd_abs.to_string_lossy(),
         })
     }
