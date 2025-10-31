@@ -1,7 +1,7 @@
 mod config;
 mod error;
 mod hash;
-use crate::config::FileHookFactory;
+use crate::config::{FileHookConfig, FileHookFactory};
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
@@ -35,6 +35,7 @@ pub enum HashAlgorithm {
 
 #[derive(Debug)]
 pub struct FileHook {
+    pub config: FileHookConfig,
     pub glob: String,
     pub mode: CaptureMode,
     pub hash: HashAlgorithm,
@@ -55,7 +56,6 @@ pub struct FileCaptured {
 impl Captured for FileCaptured {
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "id": KEY.to_string(),
             "files": self.files.iter().map(|f| {
                 serde_json::json!({
                     "path": f.path.to_string_lossy(),
@@ -68,7 +68,16 @@ impl Captured for FileCaptured {
 }
 
 impl Hook for FileHook {
+    type Config = FileHookConfig;
     type Output = FileCaptured;
+
+    fn id(&self) -> String {
+        KEY.to_string()
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
 
     fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         self.run(params).map_err(CapsulaError::from)

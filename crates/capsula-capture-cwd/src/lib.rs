@@ -1,7 +1,7 @@
 mod config;
 mod error;
 
-use crate::config::CwdHookFactory;
+use crate::config::{CwdHookConfig, CwdHookFactory};
 use crate::error::CwdHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
@@ -20,7 +20,16 @@ pub struct CwdCaptured {
 }
 
 impl Hook for CwdHook {
+    type Config = CwdHookConfig;
     type Output = CwdCaptured;
+
+    fn id(&self) -> String {
+        KEY.to_string()
+    }
+
+    fn config(&self) -> &Self::Config {
+        &CwdHookConfig {}
+    }
 
     fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let cwd_abs =
@@ -32,7 +41,6 @@ impl Hook for CwdHook {
 impl Captured for CwdCaptured {
     fn to_json(&self) -> serde_json::Value {
         json!({
-            "id": KEY.to_string(),
             "cwd": self.cwd_abs.to_string_lossy(),
         })
     }

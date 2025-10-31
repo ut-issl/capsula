@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 /// Configuration for GitHook
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct GitHookConfig {
+pub struct GitHookConfig {
     pub name: String,
     pub path: PathBuf,
     #[serde(default)]
@@ -35,12 +35,13 @@ impl HookFactory for GitHookFactory {
         })?;
 
         let working_dir = if config.path.is_absolute() {
-            config.path
+            config.path.clone()
         } else {
             project_root.join(&config.path).canonicalize()?
         };
 
         let hook = GitHook {
+            config: config.clone(),
             name: config.name,
             working_dir,
             allow_dirty: config.allow_dirty,

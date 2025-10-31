@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::path::Path;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct EnvVarHookConfig {
+pub struct EnvVarHookConfig {
     pub name: String,
 }
 
@@ -24,7 +24,10 @@ impl HookFactory for EnvVarHookFactory {
     ) -> CapsulaResult<Box<dyn HookErased>> {
         let config: EnvVarHookConfig = serde_json::from_value(config.clone())?;
 
-        let hook = EnvVarHook { name: config.name };
+        let hook = EnvVarHook {
+            config: config.clone(),
+            name: config.name,
+        };
 
         Ok(Box::new(hook))
     }

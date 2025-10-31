@@ -1,7 +1,6 @@
 use crate::error::{CapsulaError, CapsulaResult};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -20,11 +19,19 @@ pub struct RuntimeParams {
 
 pub trait Hook {
     type Output: super::captured::Captured;
+    type Config: Serialize + for<'de> Deserialize<'de>;
+    fn id(&self) -> String;
+    fn config(&self) -> &Self::Config;
+    fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self.config())
+    }
     fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output>;
 }
 
 /// Engine-facing trait (object-safe, heterogenous)
 pub trait HookErased: Send + Sync {
+    fn id(&self) -> String;
+    fn config_as_json_erased(&self) -> Result<serde_json::Value, serde_json::Error>;
     fn run_erased(
         &self,
         parmas: &RuntimeParams,
@@ -35,6 +42,13 @@ impl<T> HookErased for T
 where
     T: Hook + Send + Sync + 'static,
 {
+    fn id(&self) -> String {
+        <T as Hook>::id(self)
+    }
+    fn config_as_json_erased(&self) -> Result<serde_json::Value, serde_json::Error> {
+        self.config_as_json()
+    }
+
     fn run_erased(
         &self,
         params: &RuntimeParams,
@@ -52,7 +66,7 @@ pub trait HookFactory: Send + Sync {
     /// Create a hook instance from JSON configuration
     fn create_hook(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         project_root: &std::path::Path,
     ) -> CapsulaResult<Box<dyn HookErased>>;
 }

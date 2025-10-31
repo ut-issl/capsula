@@ -51,6 +51,10 @@ fn build_and_run_hooks(
                 .map(|config_hook| config_hook.id.clone())
                 .unwrap_or_else(|| format!("hook[{}]", idx));
 
+            let hook_config_json = hook
+                .config_as_json_erased()
+                .unwrap_or_else(|_| json!({ "__error": "Failed to serialize hook config" }));
+
             match hook.run_erased(runtime_params) {
                 Ok(captured) => {
                     let should_abort = captured.abort_requested();
@@ -59,8 +63,9 @@ fn build_and_run_hooks(
                     let mut json = captured.to_json();
                     if let serde_json::Value::Object(ref mut map) = json {
                         let metadata = json!({
+                            "id": hook.id(),
+                            "config": hook_config_json,
                             "success": true,
-                            "index": idx
                         });
                         map.insert("__meta".to_string(), metadata);
                     }
@@ -75,8 +80,8 @@ fn build_and_run_hooks(
                     // Only include the metadata with error information
                     let json = json!({
                         "__meta": json!({
+                            "config": hook_config_json,
                             "success": false,
-                            "index": idx,
                             "error": format!("{}", error)
                         })}
                     );
@@ -168,8 +173,17 @@ path = \".\"",
             let run = run.setup_run_dir(&vault_dir, 5)?;
             eprintln!("Run directory: {}", run.run_dir.to_string_lossy());
 
-            // Save run metadata to run_dir/metadata.json
-            let run_metadata_path = run.run_dir.join("metadata.json");
+            // Make `_capsula` directory inside run_dir to store metadata and hook outputs
+            let capsula_dir = run.run_dir.join("_capsula");
+            std::fs::create_dir(&capsula_dir).with_context(|| {
+                format!(
+                    "Failed to create _capsula directory in run directory {}",
+                    run.run_dir.display()
+                )
+            })?;
+
+            // Save run metadata to capsula_dir/metadata.json
+            let run_metadata_path = capsula_dir.join("metadata.json");
             std::fs::write(&run_metadata_path, serde_json::to_string_pretty(&run)?).with_context(
                 || {
                     format!(
@@ -189,8 +203,8 @@ path = \".\"",
                 build_and_run_hooks(&pre_params, &config.pre_run, &registry, &project_root)
                     .context("Failed to execute pre-phase hooks")?;
 
-            // Save pre_json to run_dir/pre.json
-            let pre_json_path = run.run_dir.join("pre.json");
+            // Save pre_json to capsula_dir/pre.json
+            let pre_json_path = capsula_dir.join("pre-run.json");
             std::fs::write(&pre_json_path, serde_json::to_string_pretty(&pre_json)?).with_context(
                 || {
                     format!(
@@ -207,8 +221,8 @@ path = \".\"",
 
             // Execute the command
             let run_output = run.exec().context("Failed to execute command")?;
-            // Save run_output to run_dir/run.json
-            let run_json_path = run.run_dir.join("run.json");
+            // Save run_output to capsula_dir/command.json
+            let run_json_path = capsula_dir.join("command.json");
             std::fs::write(&run_json_path, serde_json::to_string_pretty(&run_output)?)
                 .with_context(|| {
                     format!("Failed to write run output to {}", run_json_path.display())
@@ -225,7 +239,7 @@ path = \".\"",
                     .context("Failed to execute post-run hooks")?;
 
             // Save post_json to run_dir/post.json
-            let post_json_path = run.run_dir.join("post.json");
+            let post_json_path = capsula_dir.join("post-run.json");
             std::fs::write(&post_json_path, serde_json::to_string_pretty(&post_json)?)
                 .with_context(|| {
                     format!(
