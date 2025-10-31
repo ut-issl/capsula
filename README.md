@@ -292,6 +292,34 @@ capsula run python train.py --epochs 100 --lr 0.01
 3. Executes the command if safe, aborts otherwise
 4. Runs post-run hooks and saves their outputs to vault
 
+#### `capsula list`
+
+List all captured runs in the vault.
+
+```bash
+# List runs with default config
+capsula list
+
+# List runs with custom config
+capsula list --config my-config.toml
+```
+
+**Example Output:**
+
+```
+TIMESTAMP (UTC)      NAME                  COMMAND
+---------------------------------------------------------------------------------------------
+2025-10-31 09:35:29  kind-year             echo hello
+2025-10-31 09:35:28  smelly-apparel        echo hello
+2025-10-31 09:35:26  clear-waste           echo hello
+2025-10-31 09:30:15  cheap-trip            echo this is a very long command with many argu...
+```
+
+The output shows:
+- **Timestamp**: UTC time when the command was executed
+- **Name**: Human-readable generated name for the run
+- **Command**: The command that was executed (truncated if too long)
+
 
 ## Output Structure
 
