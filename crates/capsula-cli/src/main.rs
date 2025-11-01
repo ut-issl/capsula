@@ -55,10 +55,10 @@ fn build_and_run_hooks(
                 .unwrap_or_else(|| format!("hook[{}]", idx));
 
             let hook_config_json = hook
-                .config_as_json_erased()
+                .config_as_json()
                 .unwrap_or_else(|_| json!({ "__error": "Failed to serialize hook config" }));
 
-            match hook.run_erased(runtime_params) {
+            match hook.run(runtime_params) {
                 Ok(captured) => {
                     let should_abort = captured.abort_requested();
 

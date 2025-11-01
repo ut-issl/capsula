@@ -31,8 +31,8 @@ pub trait Hook {
 /// Engine-facing trait (object-safe, heterogenous)
 pub trait HookErased: Send + Sync {
     fn id(&self) -> String;
-    fn config_as_json_erased(&self) -> Result<serde_json::Value, serde_json::Error>;
-    fn run_erased(
+    fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error>;
+    fn run(
         &self,
         parmas: &RuntimeParams,
     ) -> Result<Box<dyn super::captured::Captured>, CapsulaError>;
@@ -45,11 +45,11 @@ where
     fn id(&self) -> String {
         <T as Hook>::id(self)
     }
-    fn config_as_json_erased(&self) -> Result<serde_json::Value, serde_json::Error> {
-        self.config_as_json()
+    fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        <T as Hook>::config_as_json(self)
     }
 
-    fn run_erased(
+    fn run(
         &self,
         params: &RuntimeParams,
     ) -> Result<Box<dyn super::captured::Captured>, CapsulaError> {
