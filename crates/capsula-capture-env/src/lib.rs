@@ -4,7 +4,7 @@ mod error;
 use crate::config::{EnvVarHookConfig, EnvVarHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 pub const KEY: &str = "capture-env";
 
@@ -20,7 +20,10 @@ pub struct EnvVarCaptured {
     pub value: Option<String>,
 }
 
-impl Hook for EnvVarHook {
+impl<P> Hook<P> for EnvVarHook
+where
+    P: PhaseMarker,
+{
     type Config = EnvVarHookConfig;
     type Output = EnvVarCaptured;
 
@@ -32,7 +35,11 @@ impl Hook for EnvVarHook {
         &self.config
     }
 
-    fn run(&self, _metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(
+        &self,
+        _metadata: &PreparedRun,
+        _params: &RuntimeParams<P>,
+    ) -> CapsulaResult<Self::Output> {
         let value = std::env::var(&self.name).ok();
         Ok(EnvVarCaptured {
             name: self.name.clone(),
@@ -49,6 +56,6 @@ impl Captured for EnvVarCaptured {
     }
 }
 
-pub fn create_factory() -> Box<dyn HookFactory> {
+pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
     Box::new(EnvVarHookFactory)
 }

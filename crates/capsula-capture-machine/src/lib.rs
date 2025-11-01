@@ -4,7 +4,7 @@ mod error;
 use crate::error::MachineHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use config::{MachineHookConfig, MachineHookFactory};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
@@ -35,7 +35,10 @@ pub struct MachineCaptured {
     pub hostname: String,
 }
 
-impl Hook for MachineHook {
+impl<P> Hook<P> for MachineHook
+where
+    P: PhaseMarker,
+{
     type Config = MachineHookConfig;
     type Output = MachineCaptured;
 
@@ -47,7 +50,11 @@ impl Hook for MachineHook {
         &MachineHookConfig {}
     }
 
-    fn run(&self, _metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(
+        &self,
+        _metadata: &PreparedRun,
+        _params: &RuntimeParams<P>,
+    ) -> CapsulaResult<Self::Output> {
         let os = System::name().ok_or(MachineHookError::OsInfoError)?;
         let os_version = System::os_version().ok_or(MachineHookError::OsInfoError)?;
         let kernel_version = System::kernel_version().ok_or(MachineHookError::OsInfoError)?;
@@ -105,6 +112,6 @@ impl Captured for MachineCaptured {
     }
 }
 
-pub fn create_factory() -> Box<dyn HookFactory> {
+pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
     Box::new(MachineHookFactory)
 }

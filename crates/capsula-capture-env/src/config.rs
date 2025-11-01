@@ -1,6 +1,6 @@
 use crate::{EnvVarHook, KEY};
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{HookErased, HookFactory};
+use capsula_core::hook::{HookErased, HookFactory, PhaseMarker};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
@@ -12,7 +12,10 @@ pub struct EnvVarHookConfig {
 
 pub struct EnvVarHookFactory;
 
-impl HookFactory for EnvVarHookFactory {
+impl<P> HookFactory<P> for EnvVarHookFactory
+where
+    P: PhaseMarker,
+{
     fn key(&self) -> &'static str {
         KEY
     }
@@ -21,7 +24,7 @@ impl HookFactory for EnvVarHookFactory {
         &self,
         config: &Value,
         _project_root: &Path,
-    ) -> CapsulaResult<Box<dyn HookErased>> {
+    ) -> CapsulaResult<Box<dyn HookErased<P>>> {
         let config: EnvVarHookConfig = serde_json::from_value(config.clone())?;
 
         let hook = EnvVarHook {

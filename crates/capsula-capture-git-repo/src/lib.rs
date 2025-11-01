@@ -6,7 +6,7 @@ use crate::error::GitHookError;
 use crate::config::{GitHookConfig, GitHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
 use serde_json::json;
@@ -46,7 +46,10 @@ impl Captured for GitCaptured {
     }
 }
 
-impl Hook for GitHook {
+impl<P> Hook<P> for GitHook
+where
+    P: PhaseMarker,
+{
     type Config = GitHookConfig;
     type Output = GitCaptured;
 
@@ -58,7 +61,11 @@ impl Hook for GitHook {
         &self.config
     }
 
-    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(
+        &self,
+        metadata: &PreparedRun,
+        _params: &RuntimeParams<P>,
+    ) -> CapsulaResult<Self::Output> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {
             std::env::current_dir()?
         } else {
@@ -129,6 +136,6 @@ impl GitHook {
 }
 
 /// Create a factory for GitHook
-pub fn create_factory() -> Box<dyn HookFactory> {
+pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
     Box::new(GitHookFactory)
 }

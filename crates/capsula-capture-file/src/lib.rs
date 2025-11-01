@@ -5,7 +5,7 @@ use crate::config::{FileHookConfig, FileHookFactory};
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
-use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
@@ -67,7 +67,10 @@ impl Captured for FileCaptured {
     }
 }
 
-impl Hook for FileHook {
+impl<P> Hook<P> for FileHook
+where
+    P: PhaseMarker,
+{
     type Config = FileHookConfig;
     type Output = FileCaptured;
 
@@ -79,17 +82,17 @@ impl Hook for FileHook {
         &self.config
     }
 
-    fn run(&self, metadata: &PreparedRun, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
-        self.run(metadata, params).map_err(CapsulaError::from)
+    fn run(
+        &self,
+        metadata: &PreparedRun,
+        _params: &RuntimeParams<P>,
+    ) -> CapsulaResult<Self::Output> {
+        self.run(metadata).map_err(CapsulaError::from)
     }
 }
 
 impl FileHook {
-    fn run(
-        &self,
-        metadata: &PreparedRun,
-        _params: &RuntimeParams,
-    ) -> Result<FileCaptured, FileHookError> {
+    fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
         GlobWalkerBuilder::from_patterns(&metadata.project_root, &[&self.glob])
             .max_depth(1)
             .build()?
@@ -140,6 +143,6 @@ impl FileHook {
     }
 }
 
-pub fn create_factory() -> Box<dyn HookFactory> {
+pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
     Box::new(FileHookFactory)
 }

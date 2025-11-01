@@ -1,6 +1,6 @@
 use capsula_capture_cwd::CwdHook;
 use capsula_core::captured::Captured;
-use capsula_core::hook::{Hook, HookPhase, RuntimeParams};
+use capsula_core::hook::{Hook, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use ulid::Ulid;
 
@@ -16,10 +16,7 @@ fn cwd_hook_captures_current_dir_and_json() {
         run_dir: expected.clone(),
         project_root: expected.clone(),
     };
-    let params = RuntimeParams {
-        phase: HookPhase::Pre,
-    };
-
+    let params = RuntimeParams::<PreRun>::default();
     // Act
     let captured = hook.run(&run_metadata, &params).expect("CwdHook::run ok");
     let json = captured.to_json();

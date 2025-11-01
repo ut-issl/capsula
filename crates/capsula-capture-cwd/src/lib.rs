@@ -5,7 +5,7 @@ use crate::config::{CwdHookConfig, CwdHookFactory};
 use crate::error::CwdHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde_json::json;
 use std::path::PathBuf;
@@ -20,7 +20,10 @@ pub struct CwdCaptured {
     pub cwd_abs: PathBuf,
 }
 
-impl Hook for CwdHook {
+impl<P> Hook<P> for CwdHook
+where
+    P: PhaseMarker,
+{
     type Config = CwdHookConfig;
     type Output = CwdCaptured;
 
@@ -32,7 +35,11 @@ impl Hook for CwdHook {
         &CwdHookConfig {}
     }
 
-    fn run(&self, _metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(
+        &self,
+        _metadata: &PreparedRun,
+        _params: &RuntimeParams<P>,
+    ) -> CapsulaResult<Self::Output> {
         let cwd_abs =
             std::env::current_dir().map_err(|source| CwdHookError::CurrentDirError { source })?;
         Ok(CwdCaptured { cwd_abs })
@@ -48,6 +55,6 @@ impl Captured for CwdCaptured {
 }
 
 /// Create a factory for CwdHook
-pub fn create_factory() -> Box<dyn HookFactory> {
+pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
     Box::new(CwdHookFactory)
 }

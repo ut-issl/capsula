@@ -1,7 +1,7 @@
 use crate::{GitHook, KEY};
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::HookErased;
-use capsula_core::hook::HookFactory;
+use capsula_core::hook::{HookFactory, PhaseMarker};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -18,7 +18,10 @@ pub struct GitHookConfig {
 /// Factory for creating GitHook instances
 pub struct GitHookFactory;
 
-impl HookFactory for GitHookFactory {
+impl<P> HookFactory<P> for GitHookFactory
+where
+    P: PhaseMarker,
+{
     fn key(&self) -> &'static str {
         KEY
     }
@@ -27,7 +30,7 @@ impl HookFactory for GitHookFactory {
         &self,
         config: &Value,
         project_root: &Path,
-    ) -> CapsulaResult<Box<dyn HookErased>> {
+    ) -> CapsulaResult<Box<dyn HookErased<P>>> {
         let config: GitHookConfig = serde_json::from_value(config.clone()).map_err(|e| {
             capsula_core::error::CapsulaError::Configuration {
                 message: format!("Invalid git hook configuration: {}", e),
