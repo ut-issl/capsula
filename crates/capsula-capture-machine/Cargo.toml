@@ -17,5 +17,8 @@ sysinfo = { workspace = true }
 thiserror = { workspace = true }
 # whoami = { workspace = true }
 
+[dev-dependencies]
+ulid = { workspace = true }
+
 [lints]
 workspace = true
