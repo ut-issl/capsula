@@ -21,19 +21,17 @@ pub struct GitHookConfig {
 
 #[derive(Debug)]
 pub struct GitHook {
-    pub config: GitHookConfig,
-    pub name: String,
-    pub working_dir: PathBuf,
-    pub allow_dirty: bool,
+    config: GitHookConfig,
+    working_dir: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
 pub struct GitCaptured {
-    pub name: String,
     pub working_dir: PathBuf,
     pub sha: String, // TODO: Use more suitable type
     pub is_dirty: bool,
-    pub abort_on_dirty: bool,
+    #[serde(skip)]
+    abort_requested: bool,
 }
 
 impl Captured for GitCaptured {
@@ -42,7 +40,7 @@ impl Captured for GitCaptured {
     }
 
     fn abort_requested(&self) -> bool {
-        self.is_dirty && self.abort_on_dirty
+        self.abort_requested
     }
 }
 
@@ -72,8 +70,6 @@ where
         };
 
         Ok(GitHook {
-            name: config.name.clone(),
-            allow_dirty: config.allow_dirty,
             working_dir,
             config,
         })
@@ -113,7 +109,7 @@ where
 
         // If dirty and not allowed, we'll signal abort through the Captured trait
         // rather than returning an error, so other hooks can still be captured
-        if is_dirty && !self.allow_dirty {
+        if is_dirty && !self.config.allow_dirty {
             eprintln!(
                 "Warning: Repository has uncommitted changes. Run will be aborted after hooks capture."
             );
@@ -124,16 +120,15 @@ where
             let run_dir = &metadata.run_dir;
             let diff_content = GitHook::diff_content(&repo)?;
             // Output to a patch file in the run directory
-            let patch_file_path = run_dir.join(format!("{}.patch", self.name));
+            let patch_file_path = run_dir.join(format!("{}.patch", self.config.name));
             std::fs::write(&patch_file_path, diff_content).map_err(GitHookError::IoError)?;
         }
 
         Ok(GitCaptured {
-            name: self.name.clone(),
             working_dir: repo_path,
             sha: oid.to_string(),
             is_dirty,
-            abort_on_dirty: !self.allow_dirty,
+            abort_requested: is_dirty && !self.config.allow_dirty,
         })
     }
 }

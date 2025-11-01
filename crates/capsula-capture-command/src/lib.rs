@@ -17,19 +17,16 @@ pub struct CommandHookConfig {
 
 #[derive(Debug)]
 pub struct CommandHook {
-    pub config: CommandHookConfig,
-    pub command: Vec<String>,
-    pub abort_on_failure: bool,
+    config: CommandHookConfig,
 }
 
 #[derive(Debug, Serialize)]
 pub struct CommandCaptured {
-    #[serde(skip)]
-    pub command: Vec<String>,
     pub stdout: String,
     pub stderr: String,
     pub status: i32,
-    pub abort_requested: bool,
+    #[serde(skip)]
+    abort_requested: bool,
 }
 
 impl<P> Hook<P> for CommandHook
@@ -46,11 +43,7 @@ where
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: CommandHookConfig = serde_json::from_value(config.clone())?;
-        Ok(CommandHook {
-            command: config.command.clone(),
-            abort_on_failure: config.abort_on_failure,
-            config,
-        })
+        Ok(CommandHook { config })
     }
 
     fn config(&self) -> &Self::Config {
@@ -64,19 +57,19 @@ where
     ) -> CapsulaResult<Self::Output> {
         use std::process::Command;
 
-        if self.command.is_empty() {
+        if self.config.command.is_empty() {
             return Err(CommandHookError::EmptyCommand.into());
         }
 
-        let mut cmd = Command::new(&self.command[0]);
-        if self.command.len() > 1 {
-            cmd.args(&self.command[1..]);
+        let mut cmd = Command::new(&self.config.command[0]);
+        if self.config.command.len() > 1 {
+            cmd.args(&self.config.command[1..]);
         }
 
         let output = cmd
             .output()
             .map_err(|source| CommandHookError::ExecutionFailed {
-                command: self.command.join(" "),
+                command: self.config.command.join(" "),
                 source,
             })?;
 
@@ -85,11 +78,10 @@ where
         let status = output.status.code().unwrap_or(-1);
 
         Ok(CommandCaptured {
-            command: self.command.clone(),
             stdout,
             stderr,
             status,
-            abort_requested: self.abort_on_failure && status != 0,
+            abort_requested: self.config.abort_on_failure && status != 0,
         })
     }
 }

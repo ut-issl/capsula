@@ -14,14 +14,11 @@ pub struct EnvVarHookConfig {
 
 #[derive(Debug)]
 pub struct EnvVarHook {
-    pub config: EnvVarHookConfig,
-    pub name: String,
+    config: EnvVarHookConfig,
 }
 
 #[derive(Debug, Serialize)]
 pub struct EnvVarCaptured {
-    #[serde(skip)]
-    pub name: String,
     pub value: Option<String>,
 }
 
@@ -39,10 +36,7 @@ where
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: EnvVarHookConfig = serde_json::from_value(config.clone())?;
-        Ok(EnvVarHook {
-            name: config.name.clone(),
-            config,
-        })
+        Ok(EnvVarHook { config })
     }
 
     fn config(&self) -> &Self::Config {
@@ -54,11 +48,8 @@ where
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
-        let value = std::env::var(&self.name).ok();
-        Ok(EnvVarCaptured {
-            name: self.name.clone(),
-            value,
-        })
+        let value = std::env::var(&self.config.name).ok();
+        Ok(EnvVarCaptured { value })
     }
 }
 

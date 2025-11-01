@@ -41,10 +41,7 @@ pub enum HashAlgorithm {
 
 #[derive(Debug)]
 pub struct FileHook {
-    pub config: FileHookConfig,
-    pub glob: String,
-    pub mode: CaptureMode,
-    pub hash: HashAlgorithm,
+    config: FileHookConfig,
 }
 
 #[derive(Debug, Serialize)]
@@ -79,13 +76,7 @@ where
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: FileHookConfig = serde_json::from_value(config.clone())?;
-
-        Ok(FileHook {
-            glob: config.glob.clone(),
-            mode: config.mode.clone(),
-            hash: config.hash.clone(),
-            config,
-        })
+        Ok(FileHook { config })
     }
 
     fn config(&self) -> &Self::Config {
@@ -103,7 +94,7 @@ where
 
 impl FileHook {
     fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
-        GlobWalkerBuilder::from_patterns(&metadata.project_root, &[&self.glob])
+        GlobWalkerBuilder::from_patterns(&metadata.project_root, &[&self.config.glob])
             .max_depth(1)
             .build()?
             .filter_map(Result::ok)
@@ -118,13 +109,13 @@ impl FileHook {
         run_dir: &Path,
     ) -> Result<FileCapturedPerFile, FileHookError> {
         // Compute hash if needed
-        let hash = match self.hash {
+        let hash = match self.config.hash {
             HashAlgorithm::Sha256 => Some(format!("sha256:{}", file_digest_sha256(path)?)),
             HashAlgorithm::None => None,
         };
 
         // Copy or move file if needed
-        let copied_path = match self.mode {
+        let copied_path = match self.config.mode {
             CaptureMode::Copy | CaptureMode::Move => {
                 let file_name = path
                     .file_name()
@@ -133,7 +124,7 @@ impl FileHook {
                     })?
                     .to_os_string();
                 let dest_path = run_dir.join(file_name);
-                match self.mode {
+                match self.config.mode {
                     CaptureMode::Copy => std::fs::copy(path, &dest_path).map(|_| ())?,
                     CaptureMode::Move => {
                         std::fs::rename(path, &dest_path)?;
