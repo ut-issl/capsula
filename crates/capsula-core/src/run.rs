@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
-use shlex::try_join;
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -159,9 +158,15 @@ impl Run<PathBuf> {
             self.run_dir.to_string_lossy().to_string(),
         );
         env_vars.insert("CAPSULA_RUN_TIMESTAMP", self.timestamp().to_rfc3339());
-        if let Ok(cmd_str) = try_join(self.command.iter().map(|s| s.as_str())) {
-            env_vars.insert("CAPSULA_RUN_COMMAND", cmd_str);
-        }
+        let command_display = shlex::try_join(self.command.iter().map(|s| s.as_str()))
+            .unwrap_or_else(|_| self.command.join(" "));
+        env_vars.insert("CAPSULA_RUN_COMMAND", command_display);
+
+        let pre_run_output_json_path = self.run_dir.join("_capsula").join("pre-run.json");
+        env_vars.insert(
+            "CAPSULA_PRE_RUN_OUTPUT_PATH",
+            pre_run_output_json_path.to_string_lossy().to_string(),
+        );
 
         let start = Instant::now();
 
