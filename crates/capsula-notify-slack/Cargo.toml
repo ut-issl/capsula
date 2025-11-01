@@ -3,6 +3,7 @@ name = "capsula-notify-slack"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+description = "A Capsula hook that sends notifications to Slack."
 readme.workspace = true
 repository.workspace = true
 license.workspace = true
