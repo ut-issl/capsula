@@ -1,14 +1,7 @@
 use crate::error::{CapsulaError, CapsulaResult};
 use crate::run::PreparedRun;
-use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum HookPhase {
-    Pre,
-    Post,
-}
+use std::marker::PhantomData;
 
 pub struct PreRun;
 pub struct PostRun;
@@ -19,15 +12,13 @@ impl PhaseMarker for PostRun {}
 
 #[derive(Debug, Clone)]
 pub struct RuntimeParams<P: PhaseMarker> {
-    phase_marker: std::marker::PhantomData<P>,
-    pub phase: HookPhase,
+    phase_marker: PhantomData<P>,
 }
 
 impl Default for RuntimeParams<PreRun> {
     fn default() -> Self {
         Self {
-            phase_marker: std::marker::PhantomData,
-            phase: HookPhase::Pre,
+            phase_marker: PhantomData,
         }
     }
 }
@@ -35,8 +26,7 @@ impl Default for RuntimeParams<PreRun> {
 impl Default for RuntimeParams<PostRun> {
     fn default() -> Self {
         Self {
-            phase_marker: std::marker::PhantomData,
-            phase: HookPhase::Post,
+            phase_marker: PhantomData,
         }
     }
 }
