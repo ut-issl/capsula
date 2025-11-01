@@ -188,6 +188,13 @@ pub fn standard_pre_run_hook_registry() -> HookRegistry<PreRun> {
             .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e));
     }
 
+    #[cfg(feature = "hook-slack")]
+    {
+        builder = builder
+            .with_factory(capsula_notify_slack::create_pre_run_hook_factory())
+            .unwrap_or_else(|e| panic!("Failed to register capture-slack hook: {}", e));
+    }
+
     builder.build()
 }
 
@@ -234,6 +241,13 @@ pub fn standard_post_run_hook_registry() -> HookRegistry<PostRun> {
         builder = builder
             .with_factory(capsula_capture_machine::create_factory())
             .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e));
+    }
+
+    #[cfg(feature = "hook-slack")]
+    {
+        builder = builder
+            .with_factory(capsula_notify_slack::create_post_run_hook_factory())
+            .unwrap_or_else(|e| panic!("Failed to register capture-slack hook: {}", e));
     }
 
     builder.build()
