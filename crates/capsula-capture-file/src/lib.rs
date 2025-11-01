@@ -6,7 +6,7 @@ use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
-
+use capsula_core::run::PreparedRun;
 use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -79,7 +79,7 @@ impl Hook for FileHook {
         &self.config
     }
 
-    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, metadata: &PreparedRun, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         self.run(params).map_err(CapsulaError::from)
     }
 }

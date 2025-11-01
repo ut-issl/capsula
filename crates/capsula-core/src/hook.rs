@@ -1,4 +1,5 @@
 use crate::error::{CapsulaError, CapsulaResult};
+use crate::run::PreparedRun;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +23,7 @@ pub trait Hook {
     type Config: Serialize + for<'de> Deserialize<'de>;
     fn id(&self) -> String;
     fn config(&self) -> &Self::Config;
-    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output>;
+    fn run(&self, metadata: &PreparedRun, params: &RuntimeParams) -> CapsulaResult<Self::Output>;
 }
 
 /// Engine-facing trait (object-safe, heterogenous)
@@ -31,6 +32,7 @@ pub trait HookErased: Send + Sync {
     fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error>;
     fn run(
         &self,
+        metadata: &PreparedRun,
         parmas: &RuntimeParams,
     ) -> Result<Box<dyn super::captured::Captured>, CapsulaError>;
 }
@@ -49,9 +51,10 @@ where
 
     fn run(
         &self,
+        metadata: &PreparedRun,
         params: &RuntimeParams,
     ) -> Result<Box<dyn super::captured::Captured>, CapsulaError> {
-        let out = <T as Hook>::run(self, params)?;
+        let out = <T as Hook>::run(self, metadata, params)?;
         Ok(Box::new(out))
     }
 }

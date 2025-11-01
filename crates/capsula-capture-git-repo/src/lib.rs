@@ -7,6 +7,7 @@ use crate::config::{GitHookConfig, GitHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::run::PreparedRun;
 use git2::Repository;
 use serde_json::json;
 use std::path::PathBuf;
@@ -57,7 +58,7 @@ impl Hook for GitHook {
         &self.config
     }
 
-    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, metadata: &PreparedRun, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {
             std::env::current_dir()?
         } else {

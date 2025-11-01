@@ -5,6 +5,7 @@ use crate::error::MachineHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::run::PreparedRun;
 use config::{MachineHookConfig, MachineHookFactory};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
@@ -46,7 +47,7 @@ impl Hook for MachineHook {
         &MachineHookConfig {}
     }
 
-    fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let os = System::name().ok_or(MachineHookError::OsInfoError)?;
         let os_version = System::os_version().ok_or(MachineHookError::OsInfoError)?;
         let kernel_version = System::kernel_version().ok_or(MachineHookError::OsInfoError)?;

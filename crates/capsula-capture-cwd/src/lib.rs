@@ -6,6 +6,7 @@ use crate::error::CwdHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::run::PreparedRun;
 use serde_json::json;
 use std::path::PathBuf;
 
@@ -31,7 +32,7 @@ impl Hook for CwdHook {
         &CwdHookConfig {}
     }
 
-    fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let cwd_abs =
             std::env::current_dir().map_err(|source| CwdHookError::CurrentDirError { source })?;
         Ok(CwdCaptured { cwd_abs })

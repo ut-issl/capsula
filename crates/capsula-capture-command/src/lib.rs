@@ -6,6 +6,7 @@ use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::run::PreparedRun;
 
 pub const KEY: &str = "capture-command";
 
@@ -37,7 +38,7 @@ impl Hook for CommandHook {
         &self.config
     }
 
-    fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         use std::process::Command;
 
         if self.command.is_empty() {

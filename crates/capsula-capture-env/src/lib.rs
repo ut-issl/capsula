@@ -5,7 +5,7 @@ use crate::config::{EnvVarHookConfig, EnvVarHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
-
+use capsula_core::run::PreparedRun;
 pub const KEY: &str = "capture-env";
 
 #[derive(Debug)]
@@ -32,7 +32,7 @@ impl Hook for EnvVarHook {
         &self.config
     }
 
-    fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let value = std::env::var(&self.name).ok();
         Ok(EnvVarCaptured {
             name: self.name.clone(),
