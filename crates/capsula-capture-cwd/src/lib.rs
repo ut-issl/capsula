@@ -1,16 +1,17 @@
-mod config;
 mod error;
 
-use crate::config::CwdHookConfig;
 use crate::error::CwdHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub const KEY: &str = "capture-cwd";
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct CwdHookConfig {}
 
 #[derive(Debug, Default)]
 pub struct CwdHook {

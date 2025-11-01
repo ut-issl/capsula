@@ -1,13 +1,17 @@
-mod config;
 mod error;
 
-use crate::config::EnvVarHookConfig;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
 pub const KEY: &str = "capture-env";
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EnvVarHookConfig {
+    pub name: String,
+}
 
 #[derive(Debug)]
 pub struct EnvVarHook {

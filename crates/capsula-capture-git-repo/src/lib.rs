@@ -1,18 +1,24 @@
-mod config;
 mod error;
 
 use crate::error::GitHookError;
-
-use crate::config::GitHookConfig;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub const KEY: &str = "capture-git-repo";
+
+/// Configuration for GitHook
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GitHookConfig {
+    pub name: String,
+    pub path: PathBuf,
+    #[serde(default)]
+    pub allow_dirty: bool,
+}
 
 #[derive(Debug)]
 pub struct GitHook {

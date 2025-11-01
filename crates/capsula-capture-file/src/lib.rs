@@ -1,7 +1,7 @@
-mod config;
 mod error;
 mod hash;
-use crate::config::FileHookConfig;
+
+use crate::error::FileHookError;
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
@@ -11,9 +11,16 @@ use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-use error::FileHookError;
-
 pub const KEY: &str = "capture-file";
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FileHookConfig {
+    pub glob: String,
+    #[serde(default)]
+    pub mode: CaptureMode,
+    #[serde(default)]
+    pub hash: HashAlgorithm,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]

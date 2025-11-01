@@ -1,15 +1,20 @@
-mod config;
 mod error;
 
-use crate::config::CommandHookConfig;
 use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub const KEY: &str = "capture-command";
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CommandHookConfig {
+    pub command: Vec<String>,
+    #[serde(default)]
+    pub abort_on_failure: bool,
+}
 
 #[derive(Debug)]
 pub struct CommandHook {

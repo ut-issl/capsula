@@ -1,4 +1,3 @@
-mod config;
 mod error;
 
 use crate::error::MachineHookError;
@@ -6,11 +5,13 @@ use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use config::MachineHookConfig;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 pub const KEY: &str = "capture-machine";
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct MachineHookConfig {}
 
 #[derive(Debug, Default)]
 pub struct MachineHook {

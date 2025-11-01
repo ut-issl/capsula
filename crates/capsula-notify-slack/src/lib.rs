@@ -1,15 +1,19 @@
-mod config;
 mod error;
-use crate::config::SlackNotifyHookConfig;
 use crate::error::SlackNotifyError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PostRun, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 pub const KEY: &str = "notify-slack";
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SlackNotifyHookConfig {
+    pub channel: String,
+    pub token: String,
+}
 
 #[derive(Debug)]
 pub struct SlackNotifyHook {
