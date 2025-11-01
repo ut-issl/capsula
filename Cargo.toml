@@ -4,7 +4,7 @@ members = ["crates/*"]
 default-members = ["crates/capsula-cli"]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.89"
 readme = "README.md"
@@ -13,17 +13,17 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 anyhow = "1"
-capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.3.0" }
-capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.3.0" }
-capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.3.0" }
-capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.3.0" }
-capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.3.0" }
-capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.3.0" }
-capsula-cli = { path = "crates/capsula-cli", version = "0.3.0" }
-capsula-config = { path = "crates/capsula-config", version = "0.3.0" }
-capsula-core = { path = "crates/capsula-core", version = "0.3.0" }
-capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.3.0" }
-capsula-registry = { path = "crates/capsula-registry", version = "0.3.0" }
+capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.9.0" }
+capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.9.0" }
+capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.9.0" }
+capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.9.0" }
+capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.9.0" }
+capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.9.0" }
+capsula-cli = { path = "crates/capsula-cli", version = "0.9.0" }
+capsula-config = { path = "crates/capsula-config", version = "0.9.0" }
+capsula-core = { path = "crates/capsula-core", version = "0.9.0" }
+capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.9.0" }
+capsula-registry = { path = "crates/capsula-registry", version = "0.9.0" }
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 globwalk = "0.9"
