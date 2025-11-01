@@ -18,7 +18,7 @@ A powerful CLI tool for running hooks and capturing their output before and afte
 
 ## Installation
 
-### Install from crates.io
+### Install from crates.io (recommended)
 
 ```bash
 cargo install capsula-cli --locked
