@@ -1,6 +1,6 @@
 use crate::{KEY, MachineHook};
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{HookErased, HookFactory};
+use capsula_core::hook::{HookErased, HookFactory, PhaseMarker};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
@@ -10,7 +10,10 @@ pub struct MachineHookFactory;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MachineHookConfig {}
 
-impl HookFactory for MachineHookFactory {
+impl<P> HookFactory<P> for MachineHookFactory
+where
+    P: PhaseMarker,
+{
     fn key(&self) -> &'static str {
         KEY
     }
@@ -19,7 +22,7 @@ impl HookFactory for MachineHookFactory {
         &self,
         _config: &Value,
         _project_root: &Path,
-    ) -> CapsulaResult<Box<dyn HookErased>> {
+    ) -> CapsulaResult<Box<dyn HookErased<P>>> {
         // Config could be deserialized if needed:
         // let _config: MachineHookConfig = serde_json::from_value(config.clone())?;
         Ok(Box::new(MachineHook))

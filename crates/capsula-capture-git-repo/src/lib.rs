@@ -6,7 +6,8 @@ use crate::error::GitHookError;
 use crate::config::{GitHookConfig, GitHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::run::PreparedRun;
 use git2::Repository;
 use serde_json::json;
 use std::path::PathBuf;
@@ -45,7 +46,10 @@ impl Captured for GitCaptured {
     }
 }
 
-impl Hook for GitHook {
+impl<P> Hook<P> for GitHook
+where
+    P: PhaseMarker,
+{
     type Config = GitHookConfig;
     type Output = GitCaptured;
 
@@ -57,7 +61,11 @@ impl Hook for GitHook {
         &self.config
     }
 
-    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(
+        &self,
+        metadata: &PreparedRun,
+        _params: &RuntimeParams<P>,
+    ) -> CapsulaResult<Self::Output> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {
             std::env::current_dir()?
         } else {
@@ -91,13 +99,7 @@ impl Hook for GitHook {
 
         // Output diff content if dirty
         if is_dirty {
-            let run_dir =
-                params
-                    .run_dir
-                    .as_ref()
-                    .ok_or_else(|| GitHookError::RunDirNotSpecified {
-                        message: "Run directory is not specified in runtime parameters".to_string(),
-                    })?;
+            let run_dir = &metadata.run_dir;
             let diff_content = GitHook::diff_content(&repo)?;
             // Output to a patch file in the run directory
             let patch_file_path = run_dir.join(format!("{}.patch", self.name));
@@ -134,6 +136,6 @@ impl GitHook {
 }
 
 /// Create a factory for GitHook
-pub fn create_factory() -> Box<dyn HookFactory> {
+pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
     Box::new(GitHookFactory)
 }

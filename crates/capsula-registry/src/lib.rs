@@ -1,5 +1,5 @@
 use capsula_core::error::{CapsulaError, CapsulaResult};
-use capsula_core::hook::{HookErased, HookFactory};
+use capsula_core::hook::{HookErased, HookFactory, PhaseMarker, PostRun, PreRun};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
@@ -37,11 +37,11 @@ impl From<RegistryError> for CapsulaError {
 }
 
 /// Hook factory registry
-pub struct HookRegistry {
-    factories: HashMap<&'static str, Box<dyn HookFactory>>,
+pub struct HookRegistry<P: PhaseMarker> {
+    factories: HashMap<&'static str, Box<dyn HookFactory<P>>>,
 }
 
-impl HookRegistry {
+impl<P: PhaseMarker> HookRegistry<P> {
     /// Create a new empty registry
     pub fn new() -> Self {
         Self {
@@ -50,7 +50,7 @@ impl HookRegistry {
     }
 
     /// Register a hook factory
-    pub fn register(&mut self, factory: Box<dyn HookFactory>) -> Result<(), RegistryError> {
+    pub fn register(&mut self, factory: Box<dyn HookFactory<P>>) -> Result<(), RegistryError> {
         let hook_id = factory.key();
         if self.factories.contains_key(hook_id) {
             return Err(RegistryError::AlreadyRegistered(hook_id.to_string()));
@@ -66,7 +66,7 @@ impl HookRegistry {
         hook_id: &str,
         config: &Value,
         project_root: &Path,
-    ) -> CapsulaResult<Box<dyn HookErased>> {
+    ) -> CapsulaResult<Box<dyn HookErased<P>>> {
         let factory = self.factories.get(hook_id).ok_or_else(|| {
             let available = self.registered_types().join(", ");
             CapsulaError::Configuration {
@@ -96,35 +96,41 @@ impl HookRegistry {
     }
 }
 
-impl Default for HookRegistry {
+impl<P> Default for HookRegistry<P>
+where
+    P: PhaseMarker,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
 /// Builder for setting up a registry with standard hook types
-pub struct RegistryBuilder {
-    registry: HookRegistry,
+pub struct RegistryBuilder<P: PhaseMarker> {
+    registry: HookRegistry<P>,
 }
 
-impl RegistryBuilder {
+impl<P: PhaseMarker> RegistryBuilder<P> {
     pub fn new() -> Self {
         Self {
             registry: HookRegistry::new(),
         }
     }
 
-    pub fn with_factory(mut self, factory: Box<dyn HookFactory>) -> Result<Self, RegistryError> {
+    pub fn with_factory(mut self, factory: Box<dyn HookFactory<P>>) -> Result<Self, RegistryError> {
         self.registry.register(factory)?;
         Ok(self)
     }
 
-    pub fn build(self) -> HookRegistry {
+    pub fn build(self) -> HookRegistry<P> {
         self.registry
     }
 }
 
-impl Default for RegistryBuilder {
+impl<P> Default for RegistryBuilder<P>
+where
+    P: PhaseMarker,
+{
     fn default() -> Self {
         Self::new()
     }
@@ -137,7 +143,55 @@ impl Default for RegistryBuilder {
 /// - "hook-git": includes Git hook
 ///
 /// You can disable hooks by turning off features in Cargo.toml
-pub fn standard_registry() -> HookRegistry {
+pub fn standard_pre_run_hook_registry() -> HookRegistry<PreRun> {
+    let mut builder = RegistryBuilder::new();
+
+    #[cfg(feature = "hook-cwd")]
+    {
+        builder = builder
+            .with_factory(capsula_capture_cwd::create_factory())
+            .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {}", e));
+    }
+
+    #[cfg(feature = "hook-git")]
+    {
+        builder = builder
+            .with_factory(capsula_capture_git_repo::create_factory())
+            .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {}", e));
+    }
+
+    #[cfg(feature = "hook-file")]
+    {
+        builder = builder
+            .with_factory(capsula_capture_file::create_factory())
+            .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {}", e));
+    }
+
+    #[cfg(feature = "hook-env")]
+    {
+        builder = builder
+            .with_factory(capsula_capture_env::create_factory())
+            .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {}", e));
+    }
+
+    #[cfg(feature = "hook-command")]
+    {
+        builder = builder
+            .with_factory(capsula_capture_command::create_factory())
+            .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {}", e));
+    }
+
+    #[cfg(feature = "hook-machine")]
+    {
+        builder = builder
+            .with_factory(capsula_capture_machine::create_factory())
+            .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e));
+    }
+
+    builder.build()
+}
+
+pub fn standard_post_run_hook_registry() -> HookRegistry<PostRun> {
     let mut builder = RegistryBuilder::new();
 
     #[cfg(feature = "hook-cwd")]

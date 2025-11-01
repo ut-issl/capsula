@@ -1,4 +1,7 @@
-use capsula_core::error::{CapsulaError, CapsulaResult};
+use capsula_core::{
+    error::{CapsulaError, CapsulaResult},
+    hook::PhaseMarker,
+};
 use serde::{Deserialize, Deserializer};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -113,11 +116,11 @@ impl CapsulaConfig {
 }
 
 /// Build hooks from any phase config that contains hooks
-pub fn build_hooks(
+pub fn build_hooks<P: PhaseMarker>(
     phase: &HookPhaseConfig,
     project_root: &Path,
-    registry: &capsula_registry::HookRegistry,
-) -> CapsulaResult<Vec<Box<dyn capsula_core::hook::HookErased>>> {
+    registry: &capsula_registry::HookRegistry<P>,
+) -> CapsulaResult<Vec<Box<dyn capsula_core::hook::HookErased<P>>>> {
     phase
         .hooks
         .iter()

@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use capsula_config::{CapsulaConfig, HookPhaseConfig};
-use capsula_core::hook::{HookPhase, RuntimeParams};
-use capsula_core::run::Run;
+use capsula_core::hook::{PhaseMarker, PostRun, PreRun, RuntimeParams};
+use capsula_core::run::{PreparedRun, Run};
 use chrono::DateTime;
 use clap::{Parser, Subcommand};
 use names::Generator;
@@ -30,15 +30,21 @@ enum Commands {
     List,
 }
 
-fn create_registry() -> capsula_registry::HookRegistry {
+fn create_pre_run_hook_registry() -> capsula_registry::HookRegistry<PreRun> {
     // Use the standard registry with all built-in hook types
-    capsula_registry::standard_registry()
+    capsula_registry::standard_pre_run_hook_registry()
 }
 
-fn build_and_run_hooks(
-    runtime_params: &RuntimeParams,
+fn create_post_run_hook_registry() -> capsula_registry::HookRegistry<PostRun> {
+    // Use the standard registry with all built-in hook types
+    capsula_registry::standard_post_run_hook_registry()
+}
+
+fn build_and_run_hooks<P: PhaseMarker>(
+    run_metadata: &PreparedRun,
+    runtime_params: &RuntimeParams<P>,
     hook_phase_config: &HookPhaseConfig,
-    hook_registry: &capsula_registry::HookRegistry,
+    hook_registry: &capsula_registry::HookRegistry<P>,
     project_root: &std::path::Path,
 ) -> Result<(Vec<serde_json::Value>, bool)> {
     let hooks = capsula_config::build_hooks(hook_phase_config, project_root, hook_registry)
@@ -58,7 +64,7 @@ fn build_and_run_hooks(
                 .config_as_json()
                 .unwrap_or_else(|_| json!({ "__error": "Failed to serialize hook config" }));
 
-            match hook.run(runtime_params) {
+            match hook.run(run_metadata, runtime_params) {
                 Ok(captured) => {
                     let should_abort = captured.abort_requested();
 
@@ -185,7 +191,8 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
 
 fn run() -> Result<()> {
     // Create the registry with all available hook types
-    let registry = create_registry();
+    let pre_run_hook_registry = create_pre_run_hook_registry();
+    let post_run_hook_registry = create_post_run_hook_registry();
 
     let cli = Cli::parse();
     let config_file_path = cli.config.unwrap_or_else(|| PathBuf::from("capsula.toml"));
@@ -316,14 +323,15 @@ path = \".\"",
             )?;
 
             // Pre-run hooks capture
-            let pre_params = RuntimeParams {
-                phase: HookPhase::Pre,
-                run_dir: Some(run.run_dir.clone()),
-                project_root: project_root.clone(),
-            };
-            let (pre_json, should_abort) =
-                build_and_run_hooks(&pre_params, &config.pre_run, &registry, &project_root)
-                    .context("Failed to execute pre-phase hooks")?;
+            let pre_params = RuntimeParams::<PreRun>::default();
+            let (pre_json, should_abort) = build_and_run_hooks(
+                &run,
+                &pre_params,
+                &config.pre_run,
+                &pre_run_hook_registry,
+                &project_root,
+            )
+            .context("Failed to execute pre-phase hooks")?;
 
             // Save pre_json to capsula_dir/pre.json
             let pre_json_path = capsula_dir.join("pre-run.json");
@@ -351,14 +359,15 @@ path = \".\"",
                 })?;
 
             // Post-run hooks capture
-            let post_params = RuntimeParams {
-                phase: HookPhase::Post,
-                run_dir: Some(run.run_dir.clone()),
-                project_root: project_root.clone(),
-            };
-            let (post_json, _should_abort) =
-                build_and_run_hooks(&post_params, &config.post_run, &registry, &project_root)
-                    .context("Failed to execute post-run hooks")?;
+            let post_params = RuntimeParams::<PostRun>::default();
+            let (post_json, _should_abort) = build_and_run_hooks::<PostRun>(
+                &run,
+                &post_params,
+                &config.post_run,
+                &post_run_hook_registry,
+                &project_root,
+            )
+            .context("Failed to execute post-run hooks")?;
 
             // Save post_json to run_dir/post.json
             let post_json_path = capsula_dir.join("post-run.json");

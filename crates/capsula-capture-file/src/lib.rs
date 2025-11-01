@@ -5,8 +5,8 @@ use crate::config::{FileHookConfig, FileHookFactory};
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
-use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
-
+use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::run::PreparedRun;
 use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -67,7 +67,10 @@ impl Captured for FileCaptured {
     }
 }
 
-impl Hook for FileHook {
+impl<P> Hook<P> for FileHook
+where
+    P: PhaseMarker,
+{
     type Config = FileHookConfig;
     type Output = FileCaptured;
 
@@ -79,18 +82,22 @@ impl Hook for FileHook {
         &self.config
     }
 
-    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
-        self.run(params).map_err(CapsulaError::from)
+    fn run(
+        &self,
+        metadata: &PreparedRun,
+        _params: &RuntimeParams<P>,
+    ) -> CapsulaResult<Self::Output> {
+        self.run(metadata).map_err(CapsulaError::from)
     }
 }
 
 impl FileHook {
-    fn run(&self, params: &RuntimeParams) -> Result<FileCaptured, FileHookError> {
-        GlobWalkerBuilder::from_patterns(&params.project_root, &[&self.glob])
+    fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
+        GlobWalkerBuilder::from_patterns(&metadata.project_root, &[&self.glob])
             .max_depth(1)
             .build()?
             .filter_map(Result::ok)
-            .map(|entry| self.capture_file(entry.path(), params))
+            .map(|entry| self.capture_file(entry.path(), &metadata.run_dir))
             .collect::<Result<Vec<_>, FileHookError>>()
             .map(|files| FileCaptured { files })
     }
@@ -98,7 +105,7 @@ impl FileHook {
     fn capture_file(
         &self,
         path: &Path,
-        runtime_params: &RuntimeParams,
+        run_dir: &Path,
     ) -> Result<FileCapturedPerFile, FileHookError> {
         // Compute hash if needed
         let hash = match self.hash {
@@ -109,10 +116,6 @@ impl FileHook {
         // Copy or move file if needed
         let copied_path = match self.mode {
             CaptureMode::Copy | CaptureMode::Move => {
-                let run_dir = runtime_params
-                    .run_dir
-                    .as_ref()
-                    .ok_or(FileHookError::RunDirNotSet)?;
                 let file_name = path
                     .file_name()
                     .ok_or_else(|| FileHookError::InvalidRunDir {
@@ -140,6 +143,6 @@ impl FileHook {
     }
 }
 
-pub fn create_factory() -> Box<dyn HookFactory> {
+pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
     Box::new(FileHookFactory)
 }

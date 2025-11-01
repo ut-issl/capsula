@@ -1,4 +1,5 @@
 use crate::error::{CapsulaError, CapsulaResult};
+use crate::run::PreparedRun;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
@@ -9,55 +10,82 @@ pub enum HookPhase {
     Post,
 }
 
+pub struct PreRun;
+pub struct PostRun;
+
+pub trait PhaseMarker {}
+impl PhaseMarker for PreRun {}
+impl PhaseMarker for PostRun {}
+
 #[derive(Debug, Clone)]
-pub struct RuntimeParams {
+pub struct RuntimeParams<P: PhaseMarker> {
+    phase_marker: std::marker::PhantomData<P>,
     pub phase: HookPhase,
-    // TODO: Make it non-optional by making struct for each command
-    pub run_dir: Option<std::path::PathBuf>,
-    pub project_root: std::path::PathBuf,
 }
 
-pub trait Hook {
-    type Output: super::captured::Captured;
+impl Default for RuntimeParams<PreRun> {
+    fn default() -> Self {
+        Self {
+            phase_marker: std::marker::PhantomData,
+            phase: HookPhase::Pre,
+        }
+    }
+}
+
+impl Default for RuntimeParams<PostRun> {
+    fn default() -> Self {
+        Self {
+            phase_marker: std::marker::PhantomData,
+            phase: HookPhase::Post,
+        }
+    }
+}
+
+pub trait Hook<P: PhaseMarker>: Send + Sync {
+    type Output: super::captured::Captured + 'static;
     type Config: Serialize + for<'de> Deserialize<'de>;
     fn id(&self) -> String;
     fn config(&self) -> &Self::Config;
-    fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output>;
+    fn run(&self, metadata: &PreparedRun, params: &RuntimeParams<P>)
+    -> CapsulaResult<Self::Output>;
 }
 
 /// Engine-facing trait (object-safe, heterogenous)
-pub trait HookErased: Send + Sync {
+pub trait HookErased<P: PhaseMarker>: Send + Sync {
     fn id(&self) -> String;
     fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error>;
     fn run(
         &self,
-        parmas: &RuntimeParams,
+        metadata: &PreparedRun,
+        parmas: &RuntimeParams<P>,
     ) -> Result<Box<dyn super::captured::Captured>, CapsulaError>;
 }
 
-impl<T> HookErased for T
+impl<T, P> HookErased<P> for T
 where
-    T: Hook + Send + Sync + 'static,
+    T: Hook<P> + Send + Sync + 'static,
+    P: PhaseMarker,
 {
     fn id(&self) -> String {
-        <T as Hook>::id(self)
+        <T as Hook<P>>::id(self)
     }
 
     fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::to_value(<T as Hook>::config(self))
+        serde_json::to_value(<T as Hook<P>>::config(self))
     }
 
     fn run(
         &self,
-        params: &RuntimeParams,
+        metadata: &PreparedRun,
+        params: &RuntimeParams<P>,
     ) -> Result<Box<dyn super::captured::Captured>, CapsulaError> {
-        let out = <T as Hook>::run(self, params)?;
+        let out = <T as Hook<P>>::run(self, metadata, params)?;
         Ok(Box::new(out))
     }
 }
 
 /// Factory trait for creating hooks from configuration
-pub trait HookFactory: Send + Sync {
+pub trait HookFactory<P: PhaseMarker>: Send + Sync {
     /// The type key this factory handles (e.g., "cwd", "git", "file")
     fn key(&self) -> &'static str;
 
@@ -66,5 +94,5 @@ pub trait HookFactory: Send + Sync {
         &self,
         config: &serde_json::Value,
         project_root: &std::path::Path,
-    ) -> CapsulaResult<Box<dyn HookErased>>;
+    ) -> CapsulaResult<Box<dyn HookErased<P>>>;
 }

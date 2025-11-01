@@ -5,7 +5,8 @@ use crate::config::{CommandHookConfig, CommandHookFactory};
 use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, RuntimeParams};
+use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::run::PreparedRun;
 
 pub const KEY: &str = "capture-command";
 
@@ -25,7 +26,10 @@ pub struct CommandCaptured {
     pub abort_requested: bool,
 }
 
-impl Hook for CommandHook {
+impl<P> Hook<P> for CommandHook
+where
+    P: PhaseMarker,
+{
     type Config = CommandHookConfig;
     type Output = CommandCaptured;
 
@@ -37,7 +41,11 @@ impl Hook for CommandHook {
         &self.config
     }
 
-    fn run(&self, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(
+        &self,
+        _metadata: &PreparedRun,
+        _params: &RuntimeParams<P>,
+    ) -> CapsulaResult<Self::Output> {
         use std::process::Command;
 
         if self.command.is_empty() {
@@ -85,6 +93,6 @@ impl Captured for CommandCaptured {
     }
 }
 
-pub fn create_factory() -> Box<dyn HookFactory> {
+pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
     Box::new(CommandHookFactory)
 }
