@@ -6,7 +6,7 @@
 A powerful CLI tool for running hooks and capturing their output before and after your command executions. Capsula automatically records the state of your project environment before and after running commands, making your workflows reproducible and auditable.
 
 > [!NOTE]
-> The Python version of Capsula is deprecated and can be found at the main branch of this repository.
+> The Python version of Capsula is deprecated and can be found at the `python` branch of this repository.
 
 ## Features
 
@@ -18,7 +18,7 @@ A powerful CLI tool for running hooks and capturing their output before and afte
 
 ## Installation
 
-### Install from crates.io
+### Install from crates.io (recommended)
 
 ```bash
 cargo install capsula-cli --locked
