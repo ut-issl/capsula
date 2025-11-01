@@ -287,6 +287,7 @@ path = \".\"",
                     .with_context(|| "Failed to generate a random name for the run")?,
                 command: cmd,
                 run_dir: (),
+                project_root: project_root.clone(),
             };
 
             // Display run ID and name

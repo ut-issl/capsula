@@ -15,6 +15,7 @@ pub struct Run<Dir = PathBuf> {
     pub name: String,
     pub command: Vec<String>,
     pub run_dir: Dir,
+    pub project_root: PathBuf,
 }
 
 pub type UnpreparedRun = Run<()>;
@@ -83,6 +84,7 @@ impl Run<()> {
             name: self.name.clone(),
             command: self.command.clone(),
             run_dir,
+            project_root: self.project_root.clone(),
         })
     }
 }
@@ -92,11 +94,12 @@ impl Serialize for Run<()> {
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("Run", 4)?;
+        let mut state = serializer.serialize_struct("Run", 5)?;
         state.serialize_field("id", &self.id)?;
         state.serialize_field("name", &self.name)?;
         state.serialize_field("command", &self.command)?;
         state.serialize_field("timestamp", &self.timestamp().to_rfc3339())?;
+        state.serialize_field("project_root", &self.project_root.to_string_lossy())?;
         state.end()
     }
 }
@@ -106,12 +109,13 @@ impl Serialize for Run<PathBuf> {
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("Run", 5)?;
+        let mut state = serializer.serialize_struct("Run", 6)?;
         state.serialize_field("id", &self.id)?;
         state.serialize_field("name", &self.name)?;
         state.serialize_field("command", &self.command)?;
         state.serialize_field("timestamp", &self.timestamp().to_rfc3339())?;
         state.serialize_field("run_dir", &self.run_dir.to_string_lossy())?;
+        state.serialize_field("project_root", &self.project_root.to_string_lossy())?;
         state.end()
     }
 }
@@ -166,6 +170,10 @@ impl Run<PathBuf> {
         env_vars.insert(
             "CAPSULA_PRE_RUN_OUTPUT_PATH",
             pre_run_output_json_path.to_string_lossy().to_string(),
+        );
+        env_vars.insert(
+            "CAPSULA_PROJECT_ROOT",
+            self.project_root.to_string_lossy().to_string(),
         );
 
         let start = Instant::now();
