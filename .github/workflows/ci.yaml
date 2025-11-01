@@ -2,10 +2,8 @@ name: CI
 on:
   push:
     branches:
-      - rust
+      - main
   pull_request:
-    branches:
-      - rust
 
 env:
   RUSTFLAGS: "-Dwarnings"
