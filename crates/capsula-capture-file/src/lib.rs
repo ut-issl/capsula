@@ -11,14 +11,13 @@ use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FileHookConfig {
-    pub glob: String,
+    glob: String,
     #[serde(default)]
-    pub mode: CaptureMode,
+    mode: CaptureMode,
     #[serde(default)]
-    pub hash: HashAlgorithm,
+    hash: HashAlgorithm,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -46,14 +45,14 @@ pub struct FileHook {
 
 #[derive(Debug, Serialize)]
 pub struct FileCapturedPerFile {
-    pub path: PathBuf,
-    pub copied_path: Option<PathBuf>,
-    pub hash: Option<String>,
+    path: PathBuf,
+    copied_path: Option<PathBuf>,
+    hash: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct FileCaptured {
-    pub files: Vec<FileCapturedPerFile>,
+    files: Vec<FileCapturedPerFile>,
 }
 
 impl Captured for FileCaptured {

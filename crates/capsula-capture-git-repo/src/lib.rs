@@ -9,14 +9,13 @@ use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-
 /// Configuration for GitHook
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GitHookConfig {
-    pub name: String,
-    pub path: PathBuf,
+    name: String,
+    path: PathBuf,
     #[serde(default)]
-    pub allow_dirty: bool,
+    allow_dirty: bool,
 }
 
 #[derive(Debug)]
@@ -27,9 +26,9 @@ pub struct GitHook {
 
 #[derive(Debug, Serialize)]
 pub struct GitCaptured {
-    pub working_dir: PathBuf,
-    pub sha: String, // TODO: Use more suitable type
-    pub is_dirty: bool,
+    working_dir: PathBuf,
+    sha: String, // TODO: Use more suitable type
+    is_dirty: bool,
     #[serde(skip)]
     abort_requested: bool,
 }

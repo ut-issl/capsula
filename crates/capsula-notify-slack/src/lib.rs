@@ -7,22 +7,21 @@ use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SlackNotifyHookConfig {
-    pub channel: String,
-    pub token: String,
+    channel: String,
+    token: String,
 }
 
 #[derive(Debug)]
 pub struct SlackNotifyHook {
-    pub config: SlackNotifyHookConfig,
+    config: SlackNotifyHookConfig,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SlackNotifyCaptured {
-    pub message: String,
-    pub response: Option<String>,
+    message: String,
+    response: Option<String>,
 }
 
 impl Captured for SlackNotifyCaptured {

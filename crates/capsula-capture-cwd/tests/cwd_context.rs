@@ -29,7 +29,8 @@ fn cwd_hook_captures_current_dir_and_json() {
 
     // Assert (captured struct)
     assert_eq!(
-        captured.cwd_abs, expected,
+        captured.cwd_abs(),
+        expected.as_path(),
         "cwd_abs should match current_dir"
     );
 

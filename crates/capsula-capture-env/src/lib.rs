@@ -6,10 +6,9 @@ use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EnvVarHookConfig {
-    pub name: String,
+    name: String,
 }
 
 #[derive(Debug)]
@@ -19,7 +18,7 @@ pub struct EnvVarHook {
 
 #[derive(Debug, Serialize)]
 pub struct EnvVarCaptured {
-    pub value: Option<String>,
+    value: Option<String>,
 }
 
 impl<P> Hook<P> for EnvVarHook

@@ -7,12 +7,11 @@ use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CommandHookConfig {
-    pub command: Vec<String>,
+    command: Vec<String>,
     #[serde(default)]
-    pub abort_on_failure: bool,
+    abort_on_failure: bool,
 }
 
 #[derive(Debug)]
@@ -22,9 +21,9 @@ pub struct CommandHook {
 
 #[derive(Debug, Serialize)]
 pub struct CommandCaptured {
-    pub stdout: String,
-    pub stderr: String,
-    pub status: i32,
+    stdout: String,
+    stderr: String,
+    status: i32,
     #[serde(skip)]
     abort_requested: bool,
 }

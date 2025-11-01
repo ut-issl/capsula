@@ -8,7 +8,6 @@ use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct CwdHookConfig {}
 
@@ -20,7 +19,13 @@ pub struct CwdHook {
 #[derive(Debug, Serialize)]
 pub struct CwdCaptured {
     #[serde(rename = "cwd")]
-    pub cwd_abs: PathBuf,
+    cwd_abs: PathBuf,
+}
+
+impl CwdCaptured {
+    pub fn cwd_abs(&self) -> &PathBuf {
+        &self.cwd_abs
+    }
 }
 
 impl<P> Hook<P> for CwdHook

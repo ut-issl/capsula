@@ -8,7 +8,6 @@ use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
-
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MachineHookConfig {}
 
@@ -27,15 +26,15 @@ pub struct CpuInfo {
 
 #[derive(Debug, Serialize)]
 pub struct MachineCaptured {
-    pub os: String,
-    pub os_version: String,
-    pub kernel_version: String,
-    pub architecture: String,
-    pub cpus: Vec<CpuInfo>,
+    os: String,
+    os_version: String,
+    kernel_version: String,
+    architecture: String,
+    cpus: Vec<CpuInfo>,
     // pub cpu_cores: usize,
-    pub total_memory: usize,
+    total_memory: usize,
     // pub user: String,
-    pub hostname: String,
+    hostname: String,
 }
 
 impl<P> Hook<P> for MachineHook
