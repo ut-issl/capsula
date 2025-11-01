@@ -162,6 +162,12 @@ impl Run<PathBuf> {
             .unwrap_or_else(|_| self.command.join(" "));
         env_vars.insert("CAPSULA_RUN_COMMAND", command_display);
 
+        let pre_run_output_json_path = self.run_dir.join("_capsula").join("pre-run.json");
+        env_vars.insert(
+            "CAPSULA_PRE_RUN_OUTPUT_PATH",
+            pre_run_output_json_path.to_string_lossy().to_string(),
+        );
+
         let start = Instant::now();
 
         let mut child = Command::new(program)
