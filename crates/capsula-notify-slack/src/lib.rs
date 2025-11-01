@@ -4,7 +4,7 @@ use crate::config::SlackNotifyHookConfig;
 use crate::error::SlackNotifyError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PostRun, PreRun, RuntimeParams};
+use capsula_core::hook::{Hook, PostRun, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::Serialize;
 use serde_json::json;
@@ -29,8 +29,18 @@ impl Captured for SlackNotifyCaptured {
 }
 
 impl Hook<PreRun> for SlackNotifyHook {
+    const KEY: &'static str = KEY;
+
     type Config = SlackNotifyHookConfig;
     type Output = SlackNotifyCaptured;
+
+    fn from_config(
+        config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
+        Ok(Self { config })
+    }
 
     fn id(&self) -> String {
         KEY.to_string()
@@ -74,8 +84,18 @@ impl Hook<PreRun> for SlackNotifyHook {
 }
 
 impl Hook<PostRun> for SlackNotifyHook {
+    const KEY: &'static str = KEY;
+
     type Config = SlackNotifyHookConfig;
     type Output = SlackNotifyCaptured;
+
+    fn from_config(
+        config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
+        Ok(Self { config })
+    }
 
     fn id(&self) -> String {
         KEY.to_string()
@@ -115,12 +135,4 @@ impl Hook<PostRun> for SlackNotifyHook {
             response: res.text().ok(),
         })
     }
-}
-
-pub fn create_pre_run_hook_factory() -> Box<dyn HookFactory<PreRun>> {
-    Box::new(config::SlackNotifyHookFactory)
-}
-
-pub fn create_post_run_hook_factory() -> Box<dyn HookFactory<PostRun>> {
-    Box::new(config::SlackNotifyHookFactory)
 }

@@ -3,10 +3,10 @@ mod error;
 
 use crate::error::GitHookError;
 
-use crate::config::{GitHookConfig, GitHookFactory};
+use crate::config::GitHookConfig;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
 use serde::Serialize;
@@ -45,8 +45,34 @@ impl<P> Hook<P> for GitHook
 where
     P: PhaseMarker,
 {
+    const KEY: &'static str = KEY;
+
     type Config = GitHookConfig;
     type Output = GitCaptured;
+
+    fn from_config(
+        config: &serde_json::Value,
+        project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config: GitHookConfig = serde_json::from_value(config.clone()).map_err(|e| {
+            capsula_core::error::CapsulaError::Configuration {
+                message: format!("Invalid git hook configuration: {}", e),
+            }
+        })?;
+
+        let working_dir = if config.path.is_absolute() {
+            config.path.clone()
+        } else {
+            project_root.join(&config.path).canonicalize()?
+        };
+
+        Ok(GitHook {
+            name: config.name.clone(),
+            allow_dirty: config.allow_dirty,
+            working_dir,
+            config,
+        })
+    }
 
     fn id(&self) -> String {
         KEY.to_string()
@@ -128,9 +154,4 @@ impl GitHook {
 
         Ok(diff_content)
     }
-}
-
-/// Create a factory for GitHook
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(GitHookFactory)
 }

@@ -1,10 +1,10 @@
 mod config;
 mod error;
 
-use crate::config::{EnvVarHookConfig, EnvVarHookFactory};
+use crate::config::EnvVarHookConfig;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::Serialize;
 pub const KEY: &str = "capture-env";
@@ -26,8 +26,21 @@ impl<P> Hook<P> for EnvVarHook
 where
     P: PhaseMarker,
 {
+    const KEY: &'static str = KEY;
+
     type Config = EnvVarHookConfig;
     type Output = EnvVarCaptured;
+
+    fn from_config(
+        config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config: EnvVarHookConfig = serde_json::from_value(config.clone())?;
+        Ok(EnvVarHook {
+            name: config.name.clone(),
+            config,
+        })
+    }
 
     fn id(&self) -> String {
         KEY.to_string()
@@ -54,8 +67,4 @@ impl Captured for EnvVarCaptured {
     fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
         serde_json::to_value(self)
     }
-}
-
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(EnvVarHookFactory)
 }

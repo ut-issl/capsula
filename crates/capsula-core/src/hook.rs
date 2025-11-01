@@ -32,8 +32,20 @@ impl Default for RuntimeParams<PostRun> {
 }
 
 pub trait Hook<P: PhaseMarker>: Send + Sync {
+    /// The unique identifier key for this hook type (e.g., "capture-cwd", "notify-slack")
+    const KEY: &'static str;
+
     type Output: super::captured::Captured + 'static;
     type Config: Serialize + for<'de> Deserialize<'de>;
+
+    /// Create a hook instance from JSON configuration
+    fn from_config(
+        config: &serde_json::Value,
+        project_root: &std::path::Path,
+    ) -> CapsulaResult<Self>
+    where
+        Self: Sized;
+
     fn id(&self) -> String;
     fn config(&self) -> &Self::Config;
     fn run(&self, metadata: &PreparedRun, params: &RuntimeParams<P>)
@@ -72,17 +84,4 @@ where
         let out = <T as Hook<P>>::run(self, metadata, params)?;
         Ok(Box::new(out))
     }
-}
-
-/// Factory trait for creating hooks from configuration
-pub trait HookFactory<P: PhaseMarker>: Send + Sync {
-    /// The type key this factory handles (e.g., "cwd", "git", "file")
-    fn key(&self) -> &'static str;
-
-    /// Create a hook instance from JSON configuration
-    fn create_hook(
-        &self,
-        config: &serde_json::Value,
-        project_root: &std::path::Path,
-    ) -> CapsulaResult<Box<dyn HookErased<P>>>;
 }

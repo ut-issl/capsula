@@ -1,10 +1,5 @@
-use crate::{CaptureMode, FileHook, HashAlgorithm, KEY};
-use capsula_core::error::CapsulaResult;
-use capsula_core::hook::HookFactory;
-use capsula_core::hook::{HookErased, PhaseMarker};
+use crate::{CaptureMode, HashAlgorithm};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::path::Path;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FileHookConfig {
@@ -13,32 +8,4 @@ pub struct FileHookConfig {
     pub mode: CaptureMode,
     #[serde(default)]
     pub hash: HashAlgorithm,
-}
-
-pub struct FileHookFactory;
-
-impl<P> HookFactory<P> for FileHookFactory
-where
-    P: PhaseMarker,
-{
-    fn key(&self) -> &'static str {
-        KEY
-    }
-
-    fn create_hook(
-        &self,
-        config: &Value,
-        _project_root: &Path,
-    ) -> CapsulaResult<Box<dyn HookErased<P>>> {
-        let config: FileHookConfig = serde_json::from_value(config.clone())?;
-
-        let hook = FileHook {
-            config: config.clone(),
-            glob: config.glob,
-            mode: config.mode,
-            hash: config.hash,
-        };
-
-        Ok(Box::new(hook))
-    }
 }

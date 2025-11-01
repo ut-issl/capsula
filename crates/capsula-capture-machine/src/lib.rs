@@ -4,16 +4,18 @@ mod error;
 use crate::error::MachineHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use config::{MachineHookConfig, MachineHookFactory};
+use config::MachineHookConfig;
 use serde::Serialize;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 pub const KEY: &str = "capture-machine";
 
 #[derive(Debug, Default)]
-pub struct MachineHook;
+pub struct MachineHook {
+    config: MachineHookConfig,
+}
 
 #[derive(Debug, Serialize)]
 pub struct CpuInfo {
@@ -40,15 +42,26 @@ impl<P> Hook<P> for MachineHook
 where
     P: PhaseMarker,
 {
+    const KEY: &'static str = KEY;
+
     type Config = MachineHookConfig;
     type Output = MachineCaptured;
+
+    fn from_config(
+        _config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        Ok(Self {
+            config: MachineHookConfig {},
+        })
+    }
 
     fn id(&self) -> String {
         KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {
-        &MachineHookConfig {}
+        &self.config
     }
 
     fn run(
@@ -96,8 +109,4 @@ impl Captured for MachineCaptured {
     fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
         serde_json::to_value(self)
     }
-}
-
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(MachineHookFactory)
 }

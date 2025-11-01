@@ -1,11 +1,11 @@
 mod config;
 mod error;
 
-use crate::config::{CommandHookConfig, CommandHookFactory};
+use crate::config::CommandHookConfig;
 use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::Serialize;
 
@@ -32,8 +32,22 @@ impl<P> Hook<P> for CommandHook
 where
     P: PhaseMarker,
 {
+    const KEY: &'static str = KEY;
+
     type Config = CommandHookConfig;
     type Output = CommandCaptured;
+
+    fn from_config(
+        config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config: CommandHookConfig = serde_json::from_value(config.clone())?;
+        Ok(CommandHook {
+            command: config.command.clone(),
+            abort_on_failure: config.abort_on_failure,
+            config,
+        })
+    }
 
     fn id(&self) -> String {
         KEY.to_string()
@@ -88,8 +102,4 @@ impl Captured for CommandCaptured {
     fn abort_requested(&self) -> bool {
         self.abort_requested
     }
-}
-
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(CommandHookFactory)
 }

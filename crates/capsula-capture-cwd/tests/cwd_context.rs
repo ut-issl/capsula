@@ -8,7 +8,7 @@ use ulid::Ulid;
 fn cwd_hook_captures_current_dir_and_json() {
     // Arrange
     let expected = std::env::current_dir().expect("current_dir");
-    let hook = CwdHook;
+    let hook = CwdHook::default();
     let run_metadata = PreparedRun {
         id: Ulid::new(),
         name: "test-run".to_string(),

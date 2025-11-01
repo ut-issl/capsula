@@ -1,11 +1,11 @@
 mod config;
 mod error;
 mod hash;
-use crate::config::{FileHookConfig, FileHookFactory};
+use crate::config::FileHookConfig;
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
@@ -63,8 +63,24 @@ impl<P> Hook<P> for FileHook
 where
     P: PhaseMarker,
 {
+    const KEY: &'static str = KEY;
+
     type Config = FileHookConfig;
     type Output = FileCaptured;
+
+    fn from_config(
+        config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config: FileHookConfig = serde_json::from_value(config.clone())?;
+
+        Ok(FileHook {
+            glob: config.glob.clone(),
+            mode: config.mode.clone(),
+            hash: config.hash.clone(),
+            config,
+        })
+    }
 
     fn id(&self) -> String {
         KEY.to_string()
@@ -133,8 +149,4 @@ impl FileHook {
             hash,
         })
     }
-}
-
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(FileHookFactory)
 }
