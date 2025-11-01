@@ -22,11 +22,13 @@ capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "
 capsula-cli = { path = "crates/capsula-cli", version = "0.3.0" }
 capsula-config = { path = "crates/capsula-config", version = "0.3.0" }
 capsula-core = { path = "crates/capsula-core", version = "0.3.0" }
+capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.3.0" }
 capsula-registry = { path = "crates/capsula-registry", version = "0.3.0" }
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 globwalk = "0.9"
 names = { version = "0.14", default-features = false }
+reqwest = { version = "0.12", features = ["blocking", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
@@ -34,6 +36,5 @@ shlex = "1"
 sysinfo = "0.37"
 thiserror = "2"
 ulid = { version = "1", features = ["serde"] }
-# whoami = "1"
 
 [workspace.lints.rust]

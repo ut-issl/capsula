@@ -16,6 +16,7 @@ capsula-capture-file = { workspace = true, optional = true }
 capsula-capture-git-repo = { workspace = true, optional = true }
 capsula-capture-machine = { workspace = true, optional = true }
 capsula-core = { workspace = true }
+capsula-notify-slack = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -27,7 +28,8 @@ default = [
   "hook-env",
   "hook-file",
   "hook-git",
-  "hook-machine"
+  "hook-machine",
+  "hook-slack",
 ]
 hook-command = ["dep:capsula-capture-command"]
 hook-cwd = ["dep:capsula-capture-cwd"]
@@ -35,6 +37,7 @@ hook-env = ["dep:capsula-capture-env"]
 hook-file = ["dep:capsula-capture-file"]
 hook-git = ["dep:capsula-capture-git-repo"]
 hook-machine = ["dep:capsula-capture-machine"]
+hook-slack = ["dep:capsula-notify-slack"]
 
 [lints]
 workspace = true
