@@ -168,119 +168,42 @@ where
     }
 }
 
-/// Create a standard registry with all built-in hook types
-///
-/// This is feature-gated so only enabled hooks are included:
-/// - "hook-cwd": includes CWD hook
-/// - "hook-git": includes Git hook
-///
-/// You can disable hooks by turning off features in Cargo.toml
+/// Create a standard registry with all built-in hook types for pre-run phase
 pub fn standard_pre_run_hook_registry() -> HookRegistry<PreRun> {
-    let mut builder = RegistryBuilder::new();
-
-    #[cfg(feature = "hook-cwd")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_cwd::CwdHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-git")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_git_repo::GitHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-file")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_file::FileHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-env")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_env::EnvVarHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-command")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_command::CommandHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-machine")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_machine::MachineHook>()
-            .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-slack")]
-    {
-        builder = builder
-            .with_hook::<capsula_notify_slack::SlackNotifyHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-slack hook: {}", e));
-    }
-
-    builder.build()
+    RegistryBuilder::new()
+        .with_hook::<capsula_capture_cwd::CwdHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {}", e))
+        .with_hook::<capsula_capture_git_repo::GitHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {}", e))
+        .with_hook::<capsula_capture_file::FileHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {}", e))
+        .with_hook::<capsula_capture_env::EnvVarHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {}", e))
+        .with_hook::<capsula_capture_command::CommandHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {}", e))
+        .with_hook::<capsula_capture_machine::MachineHook>()
+        .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e))
+        .with_hook::<capsula_notify_slack::SlackNotifyHook>()
+        .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {}", e))
+        .build()
 }
 
+/// Create a standard registry with all built-in hook types for post-run phase
 pub fn standard_post_run_hook_registry() -> HookRegistry<PostRun> {
-    let mut builder = RegistryBuilder::new();
-
-    #[cfg(feature = "hook-cwd")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_cwd::CwdHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-git")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_git_repo::GitHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-file")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_file::FileHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-env")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_env::EnvVarHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-command")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_command::CommandHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-machine")]
-    {
-        builder = builder
-            .with_hook::<capsula_capture_machine::MachineHook>()
-            .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e));
-    }
-
-    #[cfg(feature = "hook-slack")]
-    {
-        builder = builder
-            .with_hook::<capsula_notify_slack::SlackNotifyHook>()
-            .unwrap_or_else(|e| panic!("Failed to register capture-slack hook: {}", e));
-    }
-
-    builder.build()
+    RegistryBuilder::new()
+        .with_hook::<capsula_capture_cwd::CwdHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {}", e))
+        .with_hook::<capsula_capture_git_repo::GitHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {}", e))
+        .with_hook::<capsula_capture_file::FileHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {}", e))
+        .with_hook::<capsula_capture_env::EnvVarHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {}", e))
+        .with_hook::<capsula_capture_command::CommandHook>()
+        .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {}", e))
+        .with_hook::<capsula_capture_machine::MachineHook>()
+        .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e))
+        .with_hook::<capsula_notify_slack::SlackNotifyHook>()
+        .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {}", e))
+        .build()
 }
