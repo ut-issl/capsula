@@ -13,8 +13,6 @@ pub enum HookPhase {
 #[derive(Debug, Clone)]
 pub struct RuntimeParams {
     pub phase: HookPhase,
-    // TODO: Make it non-optional by making struct for each command
-    pub run_dir: std::path::PathBuf,
     pub project_root: std::path::PathBuf,
 }
 

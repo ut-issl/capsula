@@ -80,17 +80,21 @@ impl Hook for FileHook {
     }
 
     fn run(&self, metadata: &PreparedRun, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
-        self.run(params).map_err(CapsulaError::from)
+        self.run(metadata, params).map_err(CapsulaError::from)
     }
 }
 
 impl FileHook {
-    fn run(&self, params: &RuntimeParams) -> Result<FileCaptured, FileHookError> {
+    fn run(
+        &self,
+        metadata: &PreparedRun,
+        params: &RuntimeParams,
+    ) -> Result<FileCaptured, FileHookError> {
         GlobWalkerBuilder::from_patterns(&params.project_root, &[&self.glob])
             .max_depth(1)
             .build()?
             .filter_map(Result::ok)
-            .map(|entry| self.capture_file(entry.path(), params))
+            .map(|entry| self.capture_file(entry.path(), &metadata.run_dir))
             .collect::<Result<Vec<_>, FileHookError>>()
             .map(|files| FileCaptured { files })
     }
@@ -98,7 +102,7 @@ impl FileHook {
     fn capture_file(
         &self,
         path: &Path,
-        runtime_params: &RuntimeParams,
+        run_dir: &Path,
     ) -> Result<FileCapturedPerFile, FileHookError> {
         // Compute hash if needed
         let hash = match self.hash {
@@ -109,7 +113,6 @@ impl FileHook {
         // Copy or move file if needed
         let copied_path = match self.mode {
             CaptureMode::Copy | CaptureMode::Move => {
-                let run_dir = &runtime_params.run_dir;
                 let file_name = path
                     .file_name()
                     .ok_or_else(|| FileHookError::InvalidRunDir {

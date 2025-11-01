@@ -92,7 +92,7 @@ impl Hook for GitHook {
 
         // Output diff content if dirty
         if is_dirty {
-            let run_dir = &params.run_dir;
+            let run_dir = &metadata.run_dir;
             let diff_content = GitHook::diff_content(&repo)?;
             // Output to a patch file in the run directory
             let patch_file_path = run_dir.join(format!("{}.patch", self.name));
