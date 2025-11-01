@@ -8,7 +8,7 @@ use ulid::Ulid;
 fn cwd_hook_captures_current_dir_and_json() {
     // Arrange
     let expected = std::env::current_dir().expect("current_dir");
-    let hook = CwdHook;
+    let hook = CwdHook::default();
     let run_metadata = PreparedRun {
         id: Ulid::new(),
         name: "test-run".to_string(),
@@ -19,7 +19,9 @@ fn cwd_hook_captures_current_dir_and_json() {
     let params = RuntimeParams::<PreRun>::default();
     // Act
     let captured = hook.run(&run_metadata, &params).expect("CwdHook::run ok");
-    let json = captured.to_json();
+    let json = captured
+        .serialize_json()
+        .expect("serialization should succeed");
     let json_cwd = json
         .get("cwd")
         .and_then(|v| v.as_str())
@@ -27,7 +29,8 @@ fn cwd_hook_captures_current_dir_and_json() {
 
     // Assert (captured struct)
     assert_eq!(
-        captured.cwd_abs, expected,
+        captured.cwd_abs(),
+        expected.as_path(),
         "cwd_abs should match current_dir"
     );
 

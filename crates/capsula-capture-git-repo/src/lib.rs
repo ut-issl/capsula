@@ -1,48 +1,45 @@
-mod config;
 mod error;
 
 use crate::error::GitHookError;
-
-use crate::config::{GitHookConfig, GitHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub const KEY: &str = "capture-git-repo";
+/// Configuration for GitHook
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GitHookConfig {
+    name: String,
+    path: PathBuf,
+    #[serde(default)]
+    allow_dirty: bool,
+}
 
 #[derive(Debug)]
 pub struct GitHook {
-    pub config: GitHookConfig,
-    pub name: String,
-    pub working_dir: PathBuf,
-    pub allow_dirty: bool,
+    config: GitHookConfig,
+    working_dir: PathBuf,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct GitCaptured {
-    pub name: String,
-    pub working_dir: PathBuf,
-    pub sha: String, // TODO: Use more suitable type
-    pub is_dirty: bool,
-    pub abort_on_dirty: bool,
+    working_dir: PathBuf,
+    sha: String, // TODO: Use more suitable type
+    is_dirty: bool,
+    #[serde(skip)]
+    abort_requested: bool,
 }
 
 impl Captured for GitCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        json!({
-            "working_dir": self.working_dir.to_string_lossy(),
-            "sha": self.sha,
-            "is_dirty": self.is_dirty,
-            "abort_on_dirty": self.abort_on_dirty
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 
     fn abort_requested(&self) -> bool {
-        self.is_dirty && self.abort_on_dirty
+        self.abort_requested
     }
 }
 
@@ -50,11 +47,31 @@ impl<P> Hook<P> for GitHook
 where
     P: PhaseMarker,
 {
+    const ID: &'static str = "capture-git-repo";
+
     type Config = GitHookConfig;
     type Output = GitCaptured;
 
-    fn id(&self) -> String {
-        KEY.to_string()
+    fn from_config(
+        config: &serde_json::Value,
+        project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config: GitHookConfig = serde_json::from_value(config.clone()).map_err(|e| {
+            capsula_core::error::CapsulaError::Configuration {
+                message: format!("Invalid git hook configuration: {}", e),
+            }
+        })?;
+
+        let working_dir = if config.path.is_absolute() {
+            config.path.clone()
+        } else {
+            project_root.join(&config.path).canonicalize()?
+        };
+
+        Ok(GitHook {
+            working_dir,
+            config,
+        })
     }
 
     fn config(&self) -> &Self::Config {
@@ -91,7 +108,7 @@ where
 
         // If dirty and not allowed, we'll signal abort through the Captured trait
         // rather than returning an error, so other hooks can still be captured
-        if is_dirty && !self.allow_dirty {
+        if is_dirty && !self.config.allow_dirty {
             eprintln!(
                 "Warning: Repository has uncommitted changes. Run will be aborted after hooks capture."
             );
@@ -102,16 +119,15 @@ where
             let run_dir = &metadata.run_dir;
             let diff_content = GitHook::diff_content(&repo)?;
             // Output to a patch file in the run directory
-            let patch_file_path = run_dir.join(format!("{}.patch", self.name));
+            let patch_file_path = run_dir.join(format!("{}.patch", self.config.name));
             std::fs::write(&patch_file_path, diff_content).map_err(GitHookError::IoError)?;
         }
 
         Ok(GitCaptured {
-            name: self.name.clone(),
             working_dir: repo_path,
             sha: oid.to_string(),
             is_dirty,
-            abort_on_dirty: !self.allow_dirty,
+            abort_requested: is_dirty && !self.config.allow_dirty,
         })
     }
 }
@@ -133,9 +149,4 @@ impl GitHook {
 
         Ok(diff_content)
     }
-}
-
-/// Create a factory for GitHook
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(GitHookFactory)
 }

@@ -1,20 +1,22 @@
-mod config;
 mod error;
 
 use crate::error::MachineHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use config::{MachineHookConfig, MachineHookFactory};
+use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
-pub const KEY: &str = "capture-machine";
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct MachineHookConfig {}
 
 #[derive(Debug, Default)]
-pub struct MachineHook;
+pub struct MachineHook {
+    config: MachineHookConfig,
+}
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct CpuInfo {
     name: String,
     vender_id: String,
@@ -22,32 +24,39 @@ pub struct CpuInfo {
     frequency_mhz: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct MachineCaptured {
-    pub os: String,
-    pub os_version: String,
-    pub kernel_version: String,
-    pub architecture: String,
-    pub cpus: Vec<CpuInfo>,
+    os: String,
+    os_version: String,
+    kernel_version: String,
+    architecture: String,
+    cpus: Vec<CpuInfo>,
     // pub cpu_cores: usize,
-    pub total_memory: usize,
+    total_memory: usize,
     // pub user: String,
-    pub hostname: String,
+    hostname: String,
 }
 
 impl<P> Hook<P> for MachineHook
 where
     P: PhaseMarker,
 {
+    const ID: &'static str = "capture-machine";
+
     type Config = MachineHookConfig;
     type Output = MachineCaptured;
 
-    fn id(&self) -> String {
-        KEY.to_string()
+    fn from_config(
+        _config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        Ok(Self {
+            config: MachineHookConfig {},
+        })
     }
 
     fn config(&self) -> &Self::Config {
-        &MachineHookConfig {}
+        &self.config
     }
 
     fn run(
@@ -92,26 +101,7 @@ where
 }
 
 impl Captured for MachineCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "os": self.os,
-            "os_version": self.os_version,
-            "kernel_version": self.kernel_version,
-            "architecture": self.architecture,
-            "cpus": self.cpus.iter().map(|cpu| {
-                serde_json::json!({
-                    "name": cpu.name,
-                    "vender_id": cpu.vender_id,
-                    "brand": cpu.brand,
-                    "frequency_mhz": cpu.frequency_mhz,
-                })
-            }).collect::<Vec<_>>(),
-            "total_memory": self.total_memory,
-            "hostname": self.hostname,
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
-}
-
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(MachineHookFactory)
 }

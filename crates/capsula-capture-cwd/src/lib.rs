@@ -1,38 +1,53 @@
-mod config;
 mod error;
 
-use crate::config::{CwdHookConfig, CwdHookFactory};
 use crate::error::CwdHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub const KEY: &str = "capture-cwd";
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct CwdHookConfig {}
 
 #[derive(Debug, Default)]
-pub struct CwdHook;
+pub struct CwdHook {
+    config: CwdHookConfig,
+}
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct CwdCaptured {
-    pub cwd_abs: PathBuf,
+    #[serde(rename = "cwd")]
+    cwd_abs: PathBuf,
+}
+
+impl CwdCaptured {
+    pub fn cwd_abs(&self) -> &PathBuf {
+        &self.cwd_abs
+    }
 }
 
 impl<P> Hook<P> for CwdHook
 where
     P: PhaseMarker,
 {
+    const ID: &'static str = "capture-cwd";
+
     type Config = CwdHookConfig;
     type Output = CwdCaptured;
 
-    fn id(&self) -> String {
-        KEY.to_string()
+    fn from_config(
+        _config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        Ok(Self {
+            config: CwdHookConfig {},
+        })
     }
 
     fn config(&self) -> &Self::Config {
-        &CwdHookConfig {}
+        &self.config
     }
 
     fn run(
@@ -47,14 +62,7 @@ where
 }
 
 impl Captured for CwdCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        json!({
-            "cwd": self.cwd_abs.to_string_lossy(),
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
-}
-
-/// Create a factory for CwdHook
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(CwdHookFactory)
 }

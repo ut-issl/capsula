@@ -1,19 +1,24 @@
-mod config;
 mod error;
 mod hash;
-use crate::config::{FileHookConfig, FileHookFactory};
+
+use crate::error::FileHookError;
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-use error::FileHookError;
-
-pub const KEY: &str = "capture-file";
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FileHookConfig {
+    glob: String,
+    #[serde(default)]
+    mode: CaptureMode,
+    #[serde(default)]
+    hash: HashAlgorithm,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -35,35 +40,24 @@ pub enum HashAlgorithm {
 
 #[derive(Debug)]
 pub struct FileHook {
-    pub config: FileHookConfig,
-    pub glob: String,
-    pub mode: CaptureMode,
-    pub hash: HashAlgorithm,
+    config: FileHookConfig,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct FileCapturedPerFile {
-    pub path: PathBuf,
-    pub copied_path: Option<PathBuf>,
-    pub hash: Option<String>,
+    path: PathBuf,
+    copied_path: Option<PathBuf>,
+    hash: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct FileCaptured {
-    pub files: Vec<FileCapturedPerFile>,
+    files: Vec<FileCapturedPerFile>,
 }
 
 impl Captured for FileCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "files": self.files.iter().map(|f| {
-                serde_json::json!({
-                    "path": f.path.to_string_lossy(),
-                    "copied_path": f.copied_path.as_ref().map(|p| p.to_string_lossy()),
-                    "hash": f.hash,
-                })
-            }).collect::<Vec<_>>(),
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 }
 
@@ -71,11 +65,17 @@ impl<P> Hook<P> for FileHook
 where
     P: PhaseMarker,
 {
+    const ID: &'static str = "capture-file";
+
     type Config = FileHookConfig;
     type Output = FileCaptured;
 
-    fn id(&self) -> String {
-        KEY.to_string()
+    fn from_config(
+        config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config: FileHookConfig = serde_json::from_value(config.clone())?;
+        Ok(FileHook { config })
     }
 
     fn config(&self) -> &Self::Config {
@@ -93,7 +93,7 @@ where
 
 impl FileHook {
     fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
-        GlobWalkerBuilder::from_patterns(&metadata.project_root, &[&self.glob])
+        GlobWalkerBuilder::from_patterns(&metadata.project_root, &[&self.config.glob])
             .max_depth(1)
             .build()?
             .filter_map(Result::ok)
@@ -108,13 +108,13 @@ impl FileHook {
         run_dir: &Path,
     ) -> Result<FileCapturedPerFile, FileHookError> {
         // Compute hash if needed
-        let hash = match self.hash {
+        let hash = match self.config.hash {
             HashAlgorithm::Sha256 => Some(format!("sha256:{}", file_digest_sha256(path)?)),
             HashAlgorithm::None => None,
         };
 
         // Copy or move file if needed
-        let copied_path = match self.mode {
+        let copied_path = match self.config.mode {
             CaptureMode::Copy | CaptureMode::Move => {
                 let file_name = path
                     .file_name()
@@ -123,7 +123,7 @@ impl FileHook {
                     })?
                     .to_os_string();
                 let dest_path = run_dir.join(file_name);
-                match self.mode {
+                match self.config.mode {
                     CaptureMode::Copy => std::fs::copy(path, &dest_path).map(|_| ())?,
                     CaptureMode::Move => {
                         std::fs::rename(path, &dest_path)?;
@@ -141,8 +141,4 @@ impl FileHook {
             hash,
         })
     }
-}
-
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(FileHookFactory)
 }

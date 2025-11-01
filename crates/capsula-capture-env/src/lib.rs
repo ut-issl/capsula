@@ -1,34 +1,41 @@
-mod config;
 mod error;
 
-use crate::config::{EnvVarHookConfig, EnvVarHookFactory};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-pub const KEY: &str = "capture-env";
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
-pub struct EnvVarHook {
-    pub config: EnvVarHookConfig,
-    pub name: String,
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EnvVarHookConfig {
+    name: String,
 }
 
 #[derive(Debug)]
+pub struct EnvVarHook {
+    config: EnvVarHookConfig,
+}
+
+#[derive(Debug, Serialize)]
 pub struct EnvVarCaptured {
-    pub name: String,
-    pub value: Option<String>,
+    value: Option<String>,
 }
 
 impl<P> Hook<P> for EnvVarHook
 where
     P: PhaseMarker,
 {
+    const ID: &'static str = "capture-env";
+
     type Config = EnvVarHookConfig;
     type Output = EnvVarCaptured;
 
-    fn id(&self) -> String {
-        KEY.to_string()
+    fn from_config(
+        config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config: EnvVarHookConfig = serde_json::from_value(config.clone())?;
+        Ok(EnvVarHook { config })
     }
 
     fn config(&self) -> &Self::Config {
@@ -40,22 +47,13 @@ where
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
-        let value = std::env::var(&self.name).ok();
-        Ok(EnvVarCaptured {
-            name: self.name.clone(),
-            value,
-        })
+        let value = std::env::var(&self.config.name).ok();
+        Ok(EnvVarCaptured { value })
     }
 }
 
 impl Captured for EnvVarCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "value": self.value,
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
-}
-
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(EnvVarHookFactory)
 }

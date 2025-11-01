@@ -1,40 +1,48 @@
-mod config;
 mod error;
 
-use crate::config::{CommandHookConfig, CommandHookFactory};
 use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
+use serde::{Deserialize, Serialize};
 
-pub const KEY: &str = "capture-command";
-
-#[derive(Debug)]
-pub struct CommandHook {
-    pub config: CommandHookConfig,
-    pub command: Vec<String>,
-    pub abort_on_failure: bool,
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CommandHookConfig {
+    command: Vec<String>,
+    #[serde(default)]
+    abort_on_failure: bool,
 }
 
 #[derive(Debug)]
+pub struct CommandHook {
+    config: CommandHookConfig,
+}
+
+#[derive(Debug, Serialize)]
 pub struct CommandCaptured {
-    pub command: Vec<String>,
-    pub stdout: String,
-    pub stderr: String,
-    pub status: i32,
-    pub abort_requested: bool,
+    stdout: String,
+    stderr: String,
+    status: i32,
+    #[serde(skip)]
+    abort_requested: bool,
 }
 
 impl<P> Hook<P> for CommandHook
 where
     P: PhaseMarker,
 {
+    const ID: &'static str = "capture-command";
+
     type Config = CommandHookConfig;
     type Output = CommandCaptured;
 
-    fn id(&self) -> String {
-        KEY.to_string()
+    fn from_config(
+        config: &serde_json::Value,
+        _project_root: &std::path::Path,
+    ) -> CapsulaResult<Self> {
+        let config: CommandHookConfig = serde_json::from_value(config.clone())?;
+        Ok(CommandHook { config })
     }
 
     fn config(&self) -> &Self::Config {
@@ -48,19 +56,19 @@ where
     ) -> CapsulaResult<Self::Output> {
         use std::process::Command;
 
-        if self.command.is_empty() {
+        if self.config.command.is_empty() {
             return Err(CommandHookError::EmptyCommand.into());
         }
 
-        let mut cmd = Command::new(&self.command[0]);
-        if self.command.len() > 1 {
-            cmd.args(&self.command[1..]);
+        let mut cmd = Command::new(&self.config.command[0]);
+        if self.config.command.len() > 1 {
+            cmd.args(&self.config.command[1..]);
         }
 
         let output = cmd
             .output()
             .map_err(|source| CommandHookError::ExecutionFailed {
-                command: self.command.join(" "),
+                command: self.config.command.join(" "),
                 source,
             })?;
 
@@ -69,30 +77,20 @@ where
         let status = output.status.code().unwrap_or(-1);
 
         Ok(CommandCaptured {
-            command: self.command.clone(),
             stdout,
             stderr,
             status,
-            abort_requested: self.abort_on_failure && status != 0,
+            abort_requested: self.config.abort_on_failure && status != 0,
         })
     }
 }
 
 impl Captured for CommandCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "stdout": self.stdout,
-            "stderr": self.stderr,
-            "status": self.status,
-            "abort_requested": self.abort_requested,
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 
     fn abort_requested(&self) -> bool {
         self.abort_requested
     }
-}
-
-pub fn create_factory<P: PhaseMarker>() -> Box<dyn HookFactory<P>> {
-    Box::new(CommandHookFactory)
 }

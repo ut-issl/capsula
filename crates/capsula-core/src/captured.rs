@@ -1,7 +1,5 @@
-use serde_json::Value;
-
 pub trait Captured {
-    fn to_json(&self) -> Value;
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error>;
 
     fn abort_requested(&self) -> bool {
         false
