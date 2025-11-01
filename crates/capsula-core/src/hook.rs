@@ -22,9 +22,6 @@ pub trait Hook {
     type Config: Serialize + for<'de> Deserialize<'de>;
     fn id(&self) -> String;
     fn config(&self) -> &Self::Config;
-    fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::to_value(self.config())
-    }
     fn run(&self, params: &RuntimeParams) -> CapsulaResult<Self::Output>;
 }
 
@@ -45,8 +42,9 @@ where
     fn id(&self) -> String {
         <T as Hook>::id(self)
     }
+
     fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error> {
-        <T as Hook>::config_as_json(self)
+        serde_json::to_value(<T as Hook>::config(self))
     }
 
     fn run(
