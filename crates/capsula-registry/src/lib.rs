@@ -54,7 +54,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
 
     /// Register a hook type by providing its type parameter
     ///
-    /// This method uses the Hook trait's associated constant KEY and from_config method
+    /// This method uses the Hook trait's associated constant ID and from_config method
     /// to register the hook type in the registry.
     ///
     /// # Example
@@ -66,9 +66,9 @@ impl<P: PhaseMarker> HookRegistry<P> {
     where
         H: capsula_core::hook::Hook<P> + 'static,
     {
-        let key = H::KEY;
-        if self.creators.contains_key(key) {
-            return Err(RegistryError::AlreadyRegistered(key.to_string()));
+        let id = H::ID;
+        if self.creators.contains_key(id) {
+            return Err(RegistryError::AlreadyRegistered(id.to_string()));
         }
 
         // Create a function pointer that calls H::from_config and boxes the result
@@ -77,7 +77,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
             Ok(Box::new(hook))
         };
 
-        self.creators.insert(key, creator);
+        self.creators.insert(id, creator);
         Ok(())
     }
 

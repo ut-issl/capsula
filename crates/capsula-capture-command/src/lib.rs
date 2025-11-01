@@ -7,7 +7,6 @@ use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 
-pub const KEY: &str = "capture-command";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CommandHookConfig {
@@ -37,7 +36,7 @@ impl<P> Hook<P> for CommandHook
 where
     P: PhaseMarker,
 {
-    const KEY: &'static str = KEY;
+    const ID: &'static str = "capture-command";
 
     type Config = CommandHookConfig;
     type Output = CommandCaptured;
@@ -52,10 +51,6 @@ where
             abort_on_failure: config.abort_on_failure,
             config,
         })
-    }
-
-    fn id(&self) -> String {
-        KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {

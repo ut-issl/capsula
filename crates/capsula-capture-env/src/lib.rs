@@ -6,7 +6,6 @@ use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 
-pub const KEY: &str = "capture-env";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EnvVarHookConfig {
@@ -30,7 +29,7 @@ impl<P> Hook<P> for EnvVarHook
 where
     P: PhaseMarker,
 {
-    const KEY: &'static str = KEY;
+    const ID: &'static str = "capture-env";
 
     type Config = EnvVarHookConfig;
     type Output = EnvVarCaptured;
@@ -44,10 +43,6 @@ where
             name: config.name.clone(),
             config,
         })
-    }
-
-    fn id(&self) -> String {
-        KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {

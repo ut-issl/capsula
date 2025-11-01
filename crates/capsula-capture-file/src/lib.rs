@@ -11,7 +11,6 @@ use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-pub const KEY: &str = "capture-file";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FileHookConfig {
@@ -70,7 +69,7 @@ impl<P> Hook<P> for FileHook
 where
     P: PhaseMarker,
 {
-    const KEY: &'static str = KEY;
+    const ID: &'static str = "capture-file";
 
     type Config = FileHookConfig;
     type Output = FileCaptured;
@@ -87,10 +86,6 @@ where
             hash: config.hash.clone(),
             config,
         })
-    }
-
-    fn id(&self) -> String {
-        KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {

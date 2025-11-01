@@ -8,7 +8,6 @@ use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub const KEY: &str = "capture-cwd";
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct CwdHookConfig {}
@@ -28,7 +27,7 @@ impl<P> Hook<P> for CwdHook
 where
     P: PhaseMarker,
 {
-    const KEY: &'static str = KEY;
+    const ID: &'static str = "capture-cwd";
 
     type Config = CwdHookConfig;
     type Output = CwdCaptured;
@@ -40,10 +39,6 @@ where
         Ok(Self {
             config: CwdHookConfig {},
         })
-    }
-
-    fn id(&self) -> String {
-        KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {

@@ -8,7 +8,6 @@ use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
-pub const KEY: &str = "capture-machine";
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MachineHookConfig {}
@@ -43,7 +42,7 @@ impl<P> Hook<P> for MachineHook
 where
     P: PhaseMarker,
 {
-    const KEY: &'static str = KEY;
+    const ID: &'static str = "capture-machine";
 
     type Config = MachineHookConfig;
     type Output = MachineCaptured;
@@ -55,10 +54,6 @@ where
         Ok(Self {
             config: MachineHookConfig {},
         })
-    }
-
-    fn id(&self) -> String {
-        KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {

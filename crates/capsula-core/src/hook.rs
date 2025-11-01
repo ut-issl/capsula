@@ -32,8 +32,8 @@ impl Default for RuntimeParams<PostRun> {
 }
 
 pub trait Hook<P: PhaseMarker>: Send + Sync {
-    /// The unique identifier key for this hook type (e.g., "capture-cwd", "notify-slack")
-    const KEY: &'static str;
+    /// The unique identifier for this hook type (e.g., "capture-cwd", "notify-slack")
+    const ID: &'static str;
 
     type Output: super::captured::Captured + 'static;
     type Config: Serialize + for<'de> Deserialize<'de>;
@@ -46,7 +46,6 @@ pub trait Hook<P: PhaseMarker>: Send + Sync {
     where
         Self: Sized;
 
-    fn id(&self) -> String;
     fn config(&self) -> &Self::Config;
     fn run(&self, metadata: &PreparedRun, params: &RuntimeParams<P>)
     -> CapsulaResult<Self::Output>;
@@ -69,7 +68,7 @@ where
     P: PhaseMarker,
 {
     fn id(&self) -> String {
-        <T as Hook<P>>::id(self)
+        T::ID.to_string()
     }
 
     fn config_as_json(&self) -> Result<serde_json::Value, serde_json::Error> {

@@ -9,7 +9,6 @@ use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub const KEY: &str = "capture-git-repo";
 
 /// Configuration for GitHook
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -51,7 +50,7 @@ impl<P> Hook<P> for GitHook
 where
     P: PhaseMarker,
 {
-    const KEY: &'static str = KEY;
+    const ID: &'static str = "capture-git-repo";
 
     type Config = GitHookConfig;
     type Output = GitCaptured;
@@ -78,10 +77,6 @@ where
             working_dir,
             config,
         })
-    }
-
-    fn id(&self) -> String {
-        KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {

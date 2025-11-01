@@ -7,7 +7,6 @@ use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-pub const KEY: &str = "notify-slack";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SlackNotifyHookConfig {
@@ -33,7 +32,7 @@ impl Captured for SlackNotifyCaptured {
 }
 
 impl Hook<PreRun> for SlackNotifyHook {
-    const KEY: &'static str = KEY;
+    const ID: &'static str = "notify-slack";
 
     type Config = SlackNotifyHookConfig;
     type Output = SlackNotifyCaptured;
@@ -44,10 +43,6 @@ impl Hook<PreRun> for SlackNotifyHook {
     ) -> CapsulaResult<Self> {
         let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
         Ok(Self { config })
-    }
-
-    fn id(&self) -> String {
-        KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {
@@ -88,7 +83,7 @@ impl Hook<PreRun> for SlackNotifyHook {
 }
 
 impl Hook<PostRun> for SlackNotifyHook {
-    const KEY: &'static str = KEY;
+    const ID: &'static str = "notify-slack";
 
     type Config = SlackNotifyHookConfig;
     type Output = SlackNotifyCaptured;
@@ -99,10 +94,6 @@ impl Hook<PostRun> for SlackNotifyHook {
     ) -> CapsulaResult<Self> {
         let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
         Ok(Self { config })
-    }
-
-    fn id(&self) -> String {
-        KEY.to_string()
     }
 
     fn config(&self) -> &Self::Config {
