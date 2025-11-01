@@ -13,7 +13,8 @@ fn command_hook_executes_successful_command() {
         "command": ["echo", "hello world"],
         "abort_on_failure": false
     });
-    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from(".")).expect("from_config ok");
+    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
 
     let run_metadata = PreparedRun {
         id: Ulid::new(),
@@ -33,7 +34,10 @@ fn command_hook_executes_successful_command() {
     // Assert
     assert_eq!(json.get("status").and_then(|v| v.as_i64()), Some(0));
     let stdout = json.get("stdout").and_then(|v| v.as_str()).unwrap();
-    assert!(stdout.contains("hello world"), "stdout should contain output");
+    assert!(
+        stdout.contains("hello world"),
+        "stdout should contain output"
+    );
     assert!(!captured.abort_requested(), "Should not request abort");
 }
 
@@ -44,7 +48,8 @@ fn command_hook_captures_failing_command() {
         "command": ["false"],
         "abort_on_failure": false
     });
-    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from(".")).expect("from_config ok");
+    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
 
     let run_metadata = PreparedRun {
         id: Ulid::new(),
@@ -63,7 +68,10 @@ fn command_hook_captures_failing_command() {
 
     // Assert
     assert_ne!(json.get("status").and_then(|v| v.as_i64()), Some(0));
-    assert!(!captured.abort_requested(), "Should not request abort when abort_on_failure is false");
+    assert!(
+        !captured.abort_requested(),
+        "Should not request abort when abort_on_failure is false"
+    );
 }
 
 #[test]
@@ -73,7 +81,8 @@ fn command_hook_aborts_on_failure_when_configured() {
         "command": ["false"],
         "abort_on_failure": true
     });
-    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from(".")).expect("from_config ok");
+    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
 
     let run_metadata = PreparedRun {
         id: Ulid::new(),
@@ -88,7 +97,10 @@ fn command_hook_aborts_on_failure_when_configured() {
     let captured = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
-    assert!(captured.abort_requested(), "Should request abort when command fails and abort_on_failure is true");
+    assert!(
+        captured.abort_requested(),
+        "Should request abort when command fails and abort_on_failure is true"
+    );
 }
 
 #[test]
@@ -98,7 +110,8 @@ fn command_hook_captures_stderr() {
         "command": ["sh", "-c", "echo 'error message' >&2"],
         "abort_on_failure": false
     });
-    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from(".")).expect("from_config ok");
+    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
 
     let run_metadata = PreparedRun {
         id: Ulid::new(),
@@ -117,5 +130,8 @@ fn command_hook_captures_stderr() {
 
     // Assert
     let stderr = json.get("stderr").and_then(|v| v.as_str()).unwrap();
-    assert!(stderr.contains("error message"), "stderr should contain error message");
+    assert!(
+        stderr.contains("error message"),
+        "stderr should contain error message"
+    );
 }

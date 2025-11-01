@@ -19,7 +19,8 @@ fn env_hook_captures_existing_variable() {
     let config = json!({
         "name": test_var
     });
-    let hook = <EnvVarHook as Hook<PreRun>>::from_config(&config, &PathBuf::from(".")).expect("from_config ok");
+    let hook = <EnvVarHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
 
     let run_metadata = PreparedRun {
         id: Ulid::new(),
@@ -56,7 +57,8 @@ fn env_hook_captures_missing_variable() {
     let config = json!({
         "name": test_var
     });
-    let hook = <EnvVarHook as Hook<PreRun>>::from_config(&config, &PathBuf::from(".")).expect("from_config ok");
+    let hook = <EnvVarHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
 
     let run_metadata = PreparedRun {
         id: Ulid::new(),

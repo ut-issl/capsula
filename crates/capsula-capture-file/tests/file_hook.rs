@@ -45,7 +45,10 @@ fn file_hook_captures_files_with_copy_mode() {
 
     let file_info = &files[0];
     assert!(file_info.get("path").is_some(), "Should have path");
-    assert!(file_info.get("copied_path").is_some(), "Should have copied_path");
+    assert!(
+        file_info.get("copied_path").is_some(),
+        "Should have copied_path"
+    );
     assert!(file_info.get("hash").is_some(), "Should have hash");
 
     // Verify file was actually copied
@@ -53,7 +56,10 @@ fn file_hook_captures_files_with_copy_mode() {
     assert!(copied_path.exists(), "File should be copied to run_dir");
 
     // Verify original file still exists
-    assert!(test_file.exists(), "Original file should still exist in copy mode");
+    assert!(
+        test_file.exists(),
+        "Original file should still exist in copy mode"
+    );
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -99,7 +105,10 @@ fn file_hook_captures_files_with_move_mode() {
     // Verify file was moved
     let moved_path = run_dir.join("moveme.txt");
     assert!(moved_path.exists(), "File should exist in run_dir");
-    assert!(!test_file.exists(), "Original file should not exist in move mode");
+    assert!(
+        !test_file.exists(),
+        "Original file should not exist in move mode"
+    );
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -144,12 +153,18 @@ fn file_hook_captures_files_with_none_mode() {
 
     let file_info = &files[0];
     assert!(file_info.get("path").is_some(), "Should have path");
-    assert!(file_info.get("copied_path").unwrap().is_null(), "Should not have copied_path in none mode");
+    assert!(
+        file_info.get("copied_path").unwrap().is_null(),
+        "Should not have copied_path in none mode"
+    );
     assert!(file_info.get("hash").is_some(), "Should have hash");
 
     // Verify file was not copied
     let would_be_copied = run_dir.join("metadata.txt");
-    assert!(!would_be_copied.exists(), "File should not be copied in none mode");
+    assert!(
+        !would_be_copied.exists(),
+        "File should not be copied in none mode"
+    );
 
     // Verify original file still exists
     assert!(test_file.exists(), "Original file should still exist");

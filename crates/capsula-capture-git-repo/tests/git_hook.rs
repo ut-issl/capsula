@@ -76,7 +76,10 @@ fn git_hook_captures_clean_repo() {
         Some(false),
         "Clean repo should not be dirty"
     );
-    assert!(!captured.abort_requested(), "Clean repo should not request abort");
+    assert!(
+        !captured.abort_requested(),
+        "Clean repo should not request abort"
+    );
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -152,11 +155,17 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
         Some(true),
         "Repo with uncommitted changes should be dirty"
     );
-    assert!(!captured.abort_requested(), "Should not abort when allow_dirty is true");
+    assert!(
+        !captured.abort_requested(),
+        "Should not abort when allow_dirty is true"
+    );
 
     // Verify patch file was created
     let patch_file = run_dir.join("test-repo.patch");
-    assert!(patch_file.exists(), "Patch file should be created for dirty repo");
+    assert!(
+        patch_file.exists(),
+        "Patch file should be created for dirty repo"
+    );
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -224,9 +233,8 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
     let captured = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
-    assert_eq!(
+    assert!(
         captured.abort_requested(),
-        true,
         "Should request abort when dirty and allow_dirty is false"
     );
 

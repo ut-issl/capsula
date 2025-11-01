@@ -10,7 +10,8 @@ use ulid::Ulid;
 fn machine_hook_captures_system_info() {
     // Arrange
     let config = json!({});
-    let hook = <MachineHook as Hook<PreRun>>::from_config(&config, &PathBuf::from(".")).expect("from_config ok");
+    let hook = <MachineHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
 
     let run_metadata = PreparedRun {
         id: Ulid::new(),
@@ -29,7 +30,10 @@ fn machine_hook_captures_system_info() {
 
     // Assert - verify expected fields exist
     assert!(json.get("os").is_some(), "Should capture OS");
-    assert!(json.get("os_version").is_some(), "Should capture OS version");
+    assert!(
+        json.get("os_version").is_some(),
+        "Should capture OS version"
+    );
     assert!(
         json.get("kernel_version").is_some(),
         "Should capture kernel version"

@@ -1,5 +1,5 @@
-use capsula_notify_slack::SlackNotifyHook;
 use capsula_core::hook::{Hook, PreRun};
+use capsula_notify_slack::SlackNotifyHook;
 use serde_json::json;
 use std::path::PathBuf;
 
