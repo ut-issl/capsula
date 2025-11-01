@@ -13,7 +13,6 @@ pub enum HookPhase {
 #[derive(Debug, Clone)]
 pub struct RuntimeParams {
     pub phase: HookPhase,
-    pub project_root: std::path::PathBuf,
 }
 
 pub trait Hook {

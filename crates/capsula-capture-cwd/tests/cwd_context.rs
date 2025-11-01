@@ -18,7 +18,6 @@ fn cwd_hook_captures_current_dir_and_json() {
     };
     let params = RuntimeParams {
         phase: HookPhase::Pre,
-        project_root: expected.clone(),
     };
 
     // Act

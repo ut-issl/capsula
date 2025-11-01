@@ -88,9 +88,9 @@ impl FileHook {
     fn run(
         &self,
         metadata: &PreparedRun,
-        params: &RuntimeParams,
+        _params: &RuntimeParams,
     ) -> Result<FileCaptured, FileHookError> {
-        GlobWalkerBuilder::from_patterns(&params.project_root, &[&self.glob])
+        GlobWalkerBuilder::from_patterns(&metadata.project_root, &[&self.glob])
             .max_depth(1)
             .build()?
             .filter_map(Result::ok)

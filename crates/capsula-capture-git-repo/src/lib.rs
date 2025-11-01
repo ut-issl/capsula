@@ -58,7 +58,7 @@ impl Hook for GitHook {
         &self.config
     }
 
-    fn run(&self, metadata: &PreparedRun, params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {
             std::env::current_dir()?
         } else {

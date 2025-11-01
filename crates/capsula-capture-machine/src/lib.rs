@@ -47,7 +47,7 @@ impl Hook for MachineHook {
         &MachineHookConfig {}
     }
 
-    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, _metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let os = System::name().ok_or(MachineHookError::OsInfoError)?;
         let os_version = System::os_version().ok_or(MachineHookError::OsInfoError)?;
         let kernel_version = System::kernel_version().ok_or(MachineHookError::OsInfoError)?;

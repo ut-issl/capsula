@@ -319,7 +319,6 @@ path = \".\"",
             // Pre-run hooks capture
             let pre_params = RuntimeParams {
                 phase: HookPhase::Pre,
-                project_root: project_root.clone(),
             };
             let (pre_json, should_abort) =
                 build_and_run_hooks(&run, &pre_params, &config.pre_run, &registry, &project_root)
@@ -353,7 +352,6 @@ path = \".\"",
             // Post-run hooks capture
             let post_params = RuntimeParams {
                 phase: HookPhase::Post,
-                project_root: project_root.clone(),
             };
             let (post_json, _should_abort) = build_and_run_hooks(
                 &run,

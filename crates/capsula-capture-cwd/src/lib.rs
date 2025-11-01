@@ -32,7 +32,7 @@ impl Hook for CwdHook {
         &CwdHookConfig {}
     }
 
-    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, _metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let cwd_abs =
             std::env::current_dir().map_err(|source| CwdHookError::CurrentDirError { source })?;
         Ok(CwdCaptured { cwd_abs })

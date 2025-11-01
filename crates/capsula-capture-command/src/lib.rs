@@ -38,7 +38,7 @@ impl Hook for CommandHook {
         &self.config
     }
 
-    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, _metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         use std::process::Command;
 
         if self.command.is_empty() {

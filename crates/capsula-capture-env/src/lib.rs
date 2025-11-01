@@ -32,7 +32,7 @@ impl Hook for EnvVarHook {
         &self.config
     }
 
-    fn run(&self, metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
+    fn run(&self, _metadata: &PreparedRun, _params: &RuntimeParams) -> CapsulaResult<Self::Output> {
         let value = std::env::var(&self.name).ok();
         Ok(EnvVarCaptured {
             name: self.name.clone(),
