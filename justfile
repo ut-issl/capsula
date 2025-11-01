@@ -11,6 +11,7 @@ publish:
     cargo publish -p capsula-capture-env
     cargo publish -p capsula-capture-command
     cargo publish -p capsula-capture-machine
+    cargo publish -p capsula-notify-slack
 
     # Crates dependent on hook crates
     cargo publish -p capsula-registry
