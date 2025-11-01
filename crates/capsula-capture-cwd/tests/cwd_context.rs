@@ -9,7 +9,8 @@ fn cwd_hook_captures_current_dir_and_json() {
     let hook = CwdHook;
     let params = RuntimeParams {
         phase: HookPhase::Pre,
-        run_dir: None,
+        // Set random values; they are not used in CwdHook
+        run_dir: expected.clone(),
         project_root: expected.clone(),
     };
 

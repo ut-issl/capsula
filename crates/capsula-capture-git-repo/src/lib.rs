@@ -91,13 +91,7 @@ impl Hook for GitHook {
 
         // Output diff content if dirty
         if is_dirty {
-            let run_dir =
-                params
-                    .run_dir
-                    .as_ref()
-                    .ok_or_else(|| GitHookError::RunDirNotSpecified {
-                        message: "Run directory is not specified in runtime parameters".to_string(),
-                    })?;
+            let run_dir = &params.run_dir;
             let diff_content = GitHook::diff_content(&repo)?;
             // Output to a patch file in the run directory
             let patch_file_path = run_dir.join(format!("{}.patch", self.name));

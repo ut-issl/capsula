@@ -109,10 +109,7 @@ impl FileHook {
         // Copy or move file if needed
         let copied_path = match self.mode {
             CaptureMode::Copy | CaptureMode::Move => {
-                let run_dir = runtime_params
-                    .run_dir
-                    .as_ref()
-                    .ok_or(FileHookError::RunDirNotSet)?;
+                let run_dir = &runtime_params.run_dir;
                 let file_name = path
                     .file_name()
                     .ok_or_else(|| FileHookError::InvalidRunDir {
