@@ -7,6 +7,7 @@ use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use config::{MachineHookConfig, MachineHookFactory};
+use serde::Serialize;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 
 pub const KEY: &str = "capture-machine";
@@ -14,7 +15,7 @@ pub const KEY: &str = "capture-machine";
 #[derive(Debug, Default)]
 pub struct MachineHook;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct CpuInfo {
     name: String,
     vender_id: String,
@@ -22,7 +23,7 @@ pub struct CpuInfo {
     frequency_mhz: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct MachineCaptured {
     pub os: String,
     pub os_version: String,
@@ -92,23 +93,8 @@ where
 }
 
 impl Captured for MachineCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "os": self.os,
-            "os_version": self.os_version,
-            "kernel_version": self.kernel_version,
-            "architecture": self.architecture,
-            "cpus": self.cpus.iter().map(|cpu| {
-                serde_json::json!({
-                    "name": cpu.name,
-                    "vender_id": cpu.vender_id,
-                    "brand": cpu.brand,
-                    "frequency_mhz": cpu.frequency_mhz,
-                })
-            }).collect::<Vec<_>>(),
-            "total_memory": self.total_memory,
-            "hostname": self.hostname,
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 }
 

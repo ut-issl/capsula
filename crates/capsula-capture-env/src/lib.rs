@@ -6,6 +6,7 @@ use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
+use serde::Serialize;
 pub const KEY: &str = "capture-env";
 
 #[derive(Debug)]
@@ -14,8 +15,9 @@ pub struct EnvVarHook {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct EnvVarCaptured {
+    #[serde(skip)]
     pub name: String,
     pub value: Option<String>,
 }
@@ -49,10 +51,8 @@ where
 }
 
 impl Captured for EnvVarCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "value": self.value,
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 }
 

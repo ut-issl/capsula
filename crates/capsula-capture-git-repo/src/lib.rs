@@ -9,7 +9,7 @@ use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
-use serde_json::json;
+use serde::Serialize;
 use std::path::PathBuf;
 
 pub const KEY: &str = "capture-git-repo";
@@ -22,7 +22,7 @@ pub struct GitHook {
     pub allow_dirty: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct GitCaptured {
     pub name: String,
     pub working_dir: PathBuf,
@@ -32,13 +32,8 @@ pub struct GitCaptured {
 }
 
 impl Captured for GitCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        json!({
-            "working_dir": self.working_dir.to_string_lossy(),
-            "sha": self.sha,
-            "is_dirty": self.is_dirty,
-            "abort_on_dirty": self.abort_on_dirty
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 
     fn abort_requested(&self) -> bool {

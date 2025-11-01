@@ -19,7 +19,9 @@ fn cwd_hook_captures_current_dir_and_json() {
     let params = RuntimeParams::<PreRun>::default();
     // Act
     let captured = hook.run(&run_metadata, &params).expect("CwdHook::run ok");
-    let json = captured.to_json();
+    let json = captured
+        .serialize_json()
+        .expect("serialization should succeed");
     let json_cwd = json
         .get("cwd")
         .and_then(|v| v.as_str())

@@ -7,7 +7,7 @@ use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use serde_json::json;
+use serde::Serialize;
 use std::path::PathBuf;
 
 pub const KEY: &str = "capture-cwd";
@@ -15,8 +15,9 @@ pub const KEY: &str = "capture-cwd";
 #[derive(Debug, Default)]
 pub struct CwdHook;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct CwdCaptured {
+    #[serde(rename = "cwd")]
     pub cwd_abs: PathBuf,
 }
 
@@ -47,10 +48,8 @@ where
 }
 
 impl Captured for CwdCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        json!({
-            "cwd": self.cwd_abs.to_string_lossy(),
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 }
 

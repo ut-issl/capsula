@@ -7,6 +7,7 @@ use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
+use serde::Serialize;
 
 pub const KEY: &str = "capture-command";
 
@@ -17,8 +18,9 @@ pub struct CommandHook {
     pub abort_on_failure: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct CommandCaptured {
+    #[serde(skip)]
     pub command: Vec<String>,
     pub stdout: String,
     pub stderr: String,
@@ -79,13 +81,8 @@ where
 }
 
 impl Captured for CommandCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "stdout": self.stdout,
-            "stderr": self.stderr,
-            "status": self.status,
-            "abort_requested": self.abort_requested,
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 
     fn abort_requested(&self) -> bool {

@@ -6,6 +6,7 @@ use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookFactory, PostRun, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
+use serde::Serialize;
 use serde_json::json;
 
 pub const KEY: &str = "notify-slack";
@@ -15,18 +16,15 @@ pub struct SlackNotifyHook {
     pub config: SlackNotifyHookConfig,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct SlackNotifyCaptured {
     pub message: String,
     pub response: Option<String>,
 }
 
 impl Captured for SlackNotifyCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "message": self.message,
-            "response": self.response,
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 }
 

@@ -69,7 +69,9 @@ fn build_and_run_hooks<P: PhaseMarker>(
                     let should_abort = captured.abort_requested();
 
                     // Convert to JSON and add metadata object
-                    let mut json = captured.to_json();
+                    let mut json = captured.serialize_json().unwrap_or_else(
+                        |_| json!({ "__error": "Failed to serialize captured data" }),
+                    );
                     if let serde_json::Value::Object(ref mut map) = json {
                         let metadata = json!({
                             "id": hook.id(),

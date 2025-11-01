@@ -41,29 +41,21 @@ pub struct FileHook {
     pub hash: HashAlgorithm,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct FileCapturedPerFile {
     pub path: PathBuf,
     pub copied_path: Option<PathBuf>,
     pub hash: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct FileCaptured {
     pub files: Vec<FileCapturedPerFile>,
 }
 
 impl Captured for FileCaptured {
-    fn to_json(&self) -> serde_json::Value {
-        serde_json::json!({
-            "files": self.files.iter().map(|f| {
-                serde_json::json!({
-                    "path": f.path.to_string_lossy(),
-                    "copied_path": f.copied_path.as_ref().map(|p| p.to_string_lossy()),
-                    "hash": f.hash,
-                })
-            }).collect::<Vec<_>>(),
-        })
+    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        serde_json::to_value(self)
     }
 }
 
