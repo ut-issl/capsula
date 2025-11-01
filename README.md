@@ -292,6 +292,51 @@ capsula run python train.py --epochs 100 --lr 0.01
 3. Executes the command if safe, aborts otherwise
 4. Runs post-run hooks and saves their outputs to vault
 
+**Environment Variables:**
+
+When executing a command with `capsula run`, the following environment variables are automatically set and available to your command:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CAPSULA_RUN_ID` | Unique ULID identifier for this run | `01K8WSYC91YAE21R7CWHQ4KYN2` |
+| `CAPSULA_RUN_NAME` | Human-readable generated name | `chubby-back` |
+| `CAPSULA_RUN_DIRECTORY` | Absolute path to the run directory in the vault | `/path/to/.capsula/vault-name/2025-10-31/093525-chubby-back` |
+| `CAPSULA_RUN_TIMESTAMP` | ISO 8601 timestamp of when the run started | `2025-10-31T09:35:25.473+00:00` |
+| `CAPSULA_RUN_COMMAND` | Shell-quoted string of the executed command | `python train.py --epochs 100` |
+| `CAPSULA_PRE_RUN_OUTPUT_PATH` | Path to the pre-run output JSON file | `/path/to/.capsula/vault-name/.../pre-run.json` |
+
+> [!CAUTION]
+> While `CAPSULA_RUN_DIRECTORY` is available, it is **not recommended** to write files directly to this directory. Instead, output files to your project root and capture them using the `capture-file` hook in the post-run phase. This approach ensures files are properly tracked and managed by Capsula's file handling system.
+
+These variables can be used within your scripts to access run metadata:
+
+```python
+# Example: Embed run name in matplotlib figures for traceability
+import os
+import matplotlib.pyplot as plt
+
+run_name = os.environ.get('CAPSULA_RUN_NAME')
+
+# Create your plot
+plt.plot([1, 2, 3, 4], [1, 4, 2, 3])
+plt.title('Experiment Results')
+
+# Add run name to the figure - useful when copying plots to presentations
+plt.figtext(0.99, 0.01, f'Run: {run_name}',
+            ha='right', va='bottom', fontsize=8, alpha=0.7)
+
+# Save to project root, then capture with post-run hook
+plt.savefig('results.png')
+```
+
+```toml
+# Configure a post-run hook to capture the output file
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results.png"
+mode = "move"  # Move the file to the vault
+```
+
 #### `capsula list`
 
 List all captured runs in the vault.
