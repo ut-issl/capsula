@@ -47,7 +47,7 @@ pub enum FileHookError {
 impl From<FileHookError> for CapsulaError {
     fn from(err: FileHookError) -> Self {
         CapsulaError::HookFailed {
-            hook: "file".to_string(),
+            hook: "capture-file".to_string(),
             message: err.to_string(),
             source: Box::new(err),
         }
