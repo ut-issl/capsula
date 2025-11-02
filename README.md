@@ -425,3 +425,7 @@ Captured data is organized in the vault:
   }
 }
 ```
+
+## License
+
+This project is licensed under either of the MIT license or the Apache License 2.0 at your option.
