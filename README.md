@@ -124,7 +124,7 @@ allow_dirty = false         # Allow uncommitted changes (default: false)
 Captures the current working directory path.
 
 ```toml
-[[pre-run.contexts]]
+[[pre-run.hooks]]
 id = "capture-cwd"
 ```
 
