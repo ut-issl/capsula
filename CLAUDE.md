@@ -19,9 +19,6 @@ cargo build --workspace
 # Build only the CLI
 cargo build -p capsula-cli
 
-# Build with all features
-cargo build --workspace --all-features
-
 # Build for release
 cargo build --release
 ```
@@ -48,7 +45,7 @@ cargo test -- --nocapture
 # Run all lints (using justfile)
 just lint
 
-# Individual lint commands:
+# Individual lint commands (if needed):
 cargo clippy --workspace --all-targets --all-features
 cargo clippy --workspace --all-targets --no-default-features
 cargo fmt --check --all
@@ -64,7 +61,7 @@ cargo install --path crates/capsula-cli --locked
 
 # Run directly with cargo
 cargo run -p capsula-cli -- run echo "hello"
-cargo run -p capsula-cli -- capture --phase pre
+cargo run -p capsula-cli -- list
 
 # Run with a specific config
 cargo run -p capsula-cli -- --config path/to/config.toml run python script.py
@@ -72,110 +69,155 @@ cargo run -p capsula-cli -- --config path/to/config.toml run python script.py
 
 ## Architecture
 
-### Crate Structure
+### Crate Structure (3-Tier Hierarchy)
 
-The project is a Cargo workspace containing these crates:
+The workspace consists of 11 crates organized into three dependency tiers:
 
-- **capsula-core**: Core abstractions and traits
-  - `Context` trait: Interface for context capture implementations
-  - `ContextErased`: Object-safe trait for heterogeneous context collections
-  - `ContextFactory`: Factory trait for creating contexts from configuration
-  - `Captured` trait: Interface for captured data output
-  - `Run` struct: Manages command execution with context capture
+**Tier 1 - Core Infrastructure:**
 
-- **capsula-registry**: Context type registration system
-  - `ContextRegistry`: Maps context type names (e.g., "git", "file") to factories
-  - `standard_registry()`: Creates registry with all built-in context types
-  - Feature-gated registration: Only enabled context types are included
+- **capsula-core**: Foundation traits and types (`Hook<P>`, `Captured`, `HookErased<P>`, `Run<Dir>`, `CapsulaError`)
 
-- **capsula-config**: Configuration parsing (TOML)
-  - Parses `capsula.toml` configuration files
-  - `CapsulaConfig`: Top-level configuration structure
-  - `PhaseConfig`: Pre/post/in-phase configuration
-  - `ContextEnvelope`: Type-erased context config with dynamic JSON fields
+**Tier 2 - System Support:**
 
-- **capsula-cli**: Command-line interface
-  - Main entry point
-  - Two commands: `capture` (standalone context capture) and `run` (execute with context)
-  - Orchestrates configuration loading, registry setup, and context execution
+- **capsula-registry**: Hook type registry and factory pattern (maps hook IDs to creation functions)
+- **capsula-config**: TOML configuration parsing into strongly-typed structs
 
-- **Context implementation crates** (each implements a specific context type):
-  - `capsula-git-context`: Git repository state (commit hash, dirty status)
-  - `capsula-file-context`: File capture (copy/move files, compute hashes)
-  - `capsula-cwd-context`: Current working directory
-  - `capsula-env-context`: Environment variables
-  - `capsula-command-context`: Shell command output
-  - `capsula-machine-context`: System information (CPU, memory, OS)
+**Tier 3 - CLI and Hook Implementations:**
+
+- **capsula-cli**: Command-line interface and orchestration (main entry point)
+- **Hook implementation crates** (7 total):
+  - `capsula-capture-cwd`: Current working directory
+  - `capsula-capture-env`: Environment variables
+  - `capsula-capture-git-repo`: Git repository state (commit hash, dirty status)
+  - `capsula-capture-file`: File content capture/hashing
+  - `capsula-capture-machine`: System information (CPU, memory, OS)
+  - `capsula-capture-command`: Shell command output
+  - `capsula-notify-slack`: Slack notifications
+
+### Core Trait System
+
+**The `Hook<P>` trait** (`crates/capsula-core/src/hook.rs`): Generic, type-safe interface for all hooks
+
+- Generic parameter `P: PhaseMarker` distinguishes `PreRun` vs `PostRun` phases at compile time
+- Each hook has a unique string ID, strongly-typed Config struct, and Output struct
+
+**The `HookErased<P>` trait**: Object-safe trait for heterogeneous hook collections
+
+- Enables storing different hook types in `Vec<Box<dyn HookErased<P>>>`
+- Blanket impl converts all `Hook<P>` to `HookErased<P>` automatically
+
+**The `Captured` trait** (`crates/capsula-core/src/captured.rs`): Output contract for all hook results
+
+- Must be JSON-serializable
+- Can optionally request run abortion (e.g., git hook when dirty and `allow_dirty=false`)
 
 ### Key Design Patterns
 
-**Factory + Registry Pattern**: Each context type provides a factory that knows how to parse its configuration and create instances. The registry maps type names to factories, enabling dynamic context creation from configuration.
+**Factory + Registry Pattern**: The registry stores function pointers (not type information), enabling dynamic hook creation by string ID from configuration. Each hook type provides a `from_config` function that deserializes JSON config and returns `Box<dyn HookErased<P>>`.
 
-**Trait Object Pattern**: The `ContextErased` trait enables storing heterogeneous context types in a single collection while maintaining type safety for the concrete implementations.
+**Type State Pattern**: The `Run<Dir>` struct uses phantom types to enforce setup ordering at compile time:
 
-**Type State Pattern**: The `Run<Dir>` struct uses phantom types to enforce setup ordering:
+- `Run<()>`: Unprepared run, directory not yet created (cannot execute)
+- `Run<PathBuf>`: Prepared run, directory exists (can execute)
+- `.setup_run_dir()` transforms `Run<()>` → `Run<PathBuf>`
 
-- `Run<()>`: Unprepared run, hasn't created directories yet
-- `Run<PathBuf>`: Prepared run with directory created, ready to execute
+**Phase-based Execution**: Hooks are organized into two phases using phantom types (`PreRun` and `PostRun`):
 
-**Phase-based Execution**: Contexts are organized into phases:
+- **Pre-run phase**: Captured before command execution (e.g., git state, input files)
+- **Post-run phase**: Captured after command execution (e.g., output files, final state)
 
-- **Pre-phase**: Captured before command execution (e.g., git state, input files)
-- **In-phase**: Watchers that monitor during execution (e.g., time watcher)
-- **Post-phase**: Captured after command execution (e.g., output files, final state)
+**JSON as Configuration Interchange**: Hook configs are stored as `serde_json::Value` (dynamic JSON) rather than statically typed. This enables different config types per hook without recompiling the config parser.
 
-### Configuration Flow
+### Configuration to Execution Pipeline
 
-1. CLI parses command-line arguments and loads `capsula.toml`
-2. Config file is deserialized into `CapsulaConfig` structure
-3. For each context in the config:
-   - Registry looks up factory by type name
-   - Factory deserializes context-specific fields from JSON
-   - Factory creates a `Box<dyn ContextErased>` instance
-4. Runtime params (phase, run_dir, project_root) are passed to each context
-5. Each context's `run_erased()` method is called, returning captured data
+```
+capsula.toml
+    ↓ Parse TOML
+CapsulaConfig { vault, pre_run: [HookEnvelope], post_run: [HookEnvelope] }
+    ↓ For each HookEnvelope
+registry.create_hook(id, config_json, project_root)
+    ↓ Lookup factory function by ID
+Hook::from_config() → deserialize JSON to typed Config
+    ↓ Create instance
+Box<dyn HookErased<P>>
+    ↓ Collect all hooks
+Vec<Box<dyn HookErased<P>>>
+    ↓ Execute each hook
+hook.run(metadata, params) → Box<dyn Captured>
+    ↓ Serialize with metadata
+JSON output with __meta field
+```
+
+### Execution Flow
+
+1. CLI parses arguments and loads `capsula.toml`
+2. Create pre-run and post-run registries with `standard_pre_run_hook_registry()` and `standard_post_run_hook_registry()`
+3. Build `Run<()>` with generated ULID and random name (e.g., "chubby-back")
+4. Setup run directory: `Run<()>` → `Run<PathBuf>` (creates `.capsula/{vault-name}/{YYYY-MM-DD}/{HHMMSS-name}/_capsula/`)
+5. Write `metadata.json`
+6. **Pre-run phase**: Build hooks from config, execute all in order, serialize to `pre-run.json`, check `abort_requested()` flags
+7. **Command execution**: Spawn child process with environment variables set, capture stdout/stderr in parallel threads
+8. **Post-run phase**: Build and execute post-run hooks, serialize to `post-run.json`
 
 ### Output Structure
 
-All captured context data is stored in the vault with this structure:
-
 ```
-.capsula/{vault-name}/{date}/{time}-{name}--{ulid}/
-├── metadata.json  # Run metadata (ID, name, command, timestamp)
-├── pre.json       # Pre-phase context captures
-├── run.json       # Command output (exit code, stdout, stderr, duration)
-└── post.json      # Post-phase context captures
+.capsula/{vault-name}/{YYYY-MM-DD}/{HHMMSS-name}/
+├── _capsula/              # Capsula metadata directory
+│   ├── metadata.json      # Run metadata (ID, name, command, timestamp)
+│   ├── pre-run.json       # Array of pre-phase hook outputs
+│   ├── command.json       # Command execution results (exit_code, stdout, stderr, duration)
+│   └── post-run.json      # Array of post-phase hook outputs
+└── [captured files]       # Files copied by file hooks
 ```
 
-Each context output includes a `__meta` field with `success` status and `index` position from config.
+Each hook's JSON output includes a `__meta` field with `id`, `config`, and `success` status. Failed hooks have `success: false` and an `error` field, but don't stop other hooks from running.
 
-### Error Handling
+### Environment Variables
 
-The codebase uses a layered error approach:
-
-- `CapsulaError`: Top-level error type in capsula-core
-- Crate-specific errors (e.g., `ConfigError`, `RegistryError`) that convert to `CapsulaError`
-- The CLI uses `anyhow::Result` for error context and user-friendly messages
-- Failed context captures emit warnings but don't abort the run (except when `abort_on_dirty` or similar flags are set)
-
-### Environment Variables During Execution
-
-When `capsula run` executes a command, these environment variables are set:
+When executing a command with `capsula run`, these environment variables are set:
 
 - `CAPSULA_RUN_ID`: ULID of the run
-- `CAPSULA_RUN_NAME`: Generated human-readable name
-- `CAPSULA_RUN_DIRECTORY`: Path to the run directory
+- `CAPSULA_RUN_NAME`: Human-readable generated name
+- `CAPSULA_RUN_DIRECTORY`: Absolute path to the run directory
 - `CAPSULA_RUN_TIMESTAMP`: ISO 8601 timestamp
 - `CAPSULA_RUN_COMMAND`: Shell-quoted command string
+- `CAPSULA_PRE_RUN_OUTPUT_PATH`: Path to pre-run.json
+- `CAPSULA_PROJECT_ROOT`: Project root directory
 
-## Adding a New Context Type
+### Error Handling Strategy
 
-To add a new context type:
+**Non-fatal hook errors**: Each hook's error is caught, logged as a warning, and stored in `__meta.error` field. Execution continues with remaining hooks.
 
-1. Create a new crate `capsula-{type}-context` in `crates/`
-2. Implement the `Context` trait with your capture logic
-3. Implement the `Captured` trait for your output type
-4. Create a factory implementing `ContextFactory`
-5. Add a feature flag in workspace `Cargo.toml`
-6. Register the factory in `capsula-registry::standard_registry()` with feature gate
-7. Add dependency in `capsula-registry/Cargo.toml` with optional flag
+**Fatal errors** (abort execution):
+
+- Configuration parse errors
+- Run directory creation failures
+- Command execution failures
+- Hook requests abort via `Captured::abort_requested()` (e.g., dirty git repo when `allow_dirty=false`)
+
+This design ensures partial success is always recorded, valuable for debugging.
+
+### Hook Implementation Pattern
+
+Each hook crate follows this structure:
+
+1. **Config struct** (deserializable): `#[derive(Deserialize, Serialize)] pub struct XHookConfig { ... }`
+2. **Captured output struct** (serializable): `#[derive(Serialize)] pub struct XCaptured { ... }`
+3. **Hook struct** (implements `Hook<P>`): Contains config and implements trait with `ID`, `Config`, `Output` types
+4. **Captured implementation**: Implements `serialize_json()` and optionally `abort_requested()`
+
+Example file locations:
+
+- CwdHook (simplest): `crates/capsula-capture-cwd/src/lib.rs`
+- GitHook (with abort logic): `crates/capsula-capture-git-repo/src/lib.rs`
+- FileHook (complex config): `crates/capsula-capture-file/src/lib.rs`
+
+## Adding a New Hook Type
+
+1. Create new crate `capsula-{hook-id}` in `crates/`
+2. Implement `Hook<P>` trait (works for both PreRun and PostRun via generic)
+3. Implement `Captured` trait for output type
+4. Add dependency in `capsula-registry/Cargo.toml`
+5. Register in `capsula-registry/src/lib.rs` using `.with_hook::<YourHook>()` in both registries
+6. No changes needed to CLI or config parser
