@@ -10,3 +10,6 @@ lint:
     cargo fmt --check --all
     cargo doc --workspace --no-deps
     cargo check --workspace
+
+test:
+    cargo test --workspace
