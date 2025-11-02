@@ -1,22 +1,21 @@
 [package]
 name = "capsula-config"
-description = "Configuration management for Capsula."
-keywords = ["capsula", "config"]
 version.workspace = true
-rust-version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+description = "Configuration management for Capsula."
+readme.workspace = true
 repository.workspace = true
 license.workspace = true
-readme.workspace = true
+keywords = ["capsula", "config"]
 
 [dependencies]
 capsula-core = { workspace = true }
 capsula-registry = { workspace = true }
-
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-toml = "0.9.6"
+toml = { workspace = true }
 
 [lints]
 workspace = true
