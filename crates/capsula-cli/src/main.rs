@@ -210,11 +210,13 @@ To get started:
 
 Example minimal configuration:
 [vault]
-name = \"capsula\"
+name = \"my-project\"
 
-[[phase.pre.hooks]]
-type = \"git\"
-path = \".\"",
+[[pre-run.hooks]]
+id = \"capture-git-repo\"
+name = \"my-project\"
+path = \".\"
+",
             config_file_path.display()
         );
     }
