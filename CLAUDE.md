@@ -221,3 +221,11 @@ Example file locations:
 4. Add dependency in `capsula-registry/Cargo.toml`
 5. Register in `capsula-registry/src/lib.rs` using `.with_hook::<YourHook>()` in both registries
 6. No changes needed to CLI or config parser
+
+## Guidance
+
+When working with this repository, please adhere to the following guidelines:
+
+- Prefer type safety and compile-time guarantees using Rust's type system.
+- Avoid runtime type checks or downcasting; use traits and generics instead.
+- When suppressing errors/warnings, use `#[expect(...)]` instead of `#[allow(...)]` to document intent.
