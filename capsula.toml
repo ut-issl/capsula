@@ -11,7 +11,7 @@ id = "capture-cwd"
 id = "capture-git-repo"
 name = "capsula"
 path = "."  # Relative to the project root.
-allow_dirty = true
+allow_dirty = false
 
 [[pre-run.hooks]]
 id = "capture-file"
