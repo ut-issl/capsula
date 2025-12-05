@@ -102,8 +102,12 @@ where
             message: "HEAD does not point to a valid commit".to_string(),
         })?;
 
-        // Check if repository is dirty
-        let statuses = repo.statuses(None).map_err(GitHookError::from)?;
+        // Check if repository is dirty (excluding ignored files to match git status behavior)
+        let mut status_opts = git2::StatusOptions::new();
+        status_opts.include_untracked(true).include_ignored(false);
+        let statuses = repo
+            .statuses(Some(&mut status_opts))
+            .map_err(GitHookError::from)?;
         let is_dirty = !statuses.is_empty();
 
         // If dirty and not allowed, we'll signal abort through the Captured trait
