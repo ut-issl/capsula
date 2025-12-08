@@ -23,12 +23,12 @@ pub enum ConfigError {
 
 pub type ConfigResult<T> = Result<T, ConfigError>;
 
-/// Convert ConfigError to CoreError for cross-crate compatibility
+/// Convert `ConfigError` to `CapsulaError` for cross-crate compatibility
 impl From<ConfigError> for CapsulaError {
     fn from(err: ConfigError) -> Self {
         match err {
             ConfigError::TomlParse(e) => CapsulaError::Configuration {
-                message: format!("Failed to parse TOML configuration: {}", e),
+                message: format!("Failed to parse TOML configuration: {e}"),
             },
             ConfigError::FileNotFound { path } => CapsulaError::Configuration {
                 message: format!(

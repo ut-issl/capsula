@@ -22,15 +22,14 @@ impl From<RegistryError> for CapsulaError {
         match err {
             RegistryError::HookTypeNotFound(ty) => CapsulaError::Configuration {
                 message: format!(
-                    "Unknown hook id '{}'. Check your configuration file for typos.",
-                    ty
+                    "Unknown hook id '{ty}'. Check your configuration file for typos.",
                 ),
             },
             RegistryError::AlreadyRegistered(ty) => CapsulaError::Configuration {
-                message: format!("Hook id '{}' is already registered", ty),
+                message: format!("Hook id '{ty}' is already registered"),
             },
             RegistryError::HookCreationFailed { hook, message } => CapsulaError::Configuration {
-                message: format!("Failed to create '{}' hook: {}", hook, message),
+                message: format!("Failed to create '{hook}' hook: {message}"),
             },
         }
     }
@@ -46,6 +45,7 @@ pub struct HookRegistry<P: PhaseMarker> {
 
 impl<P: PhaseMarker> HookRegistry<P> {
     /// Create a new empty registry
+    #[must_use]
     pub fn new() -> Self {
         Self {
             creators: HashMap::new(),
@@ -54,7 +54,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
 
     /// Register a hook type by providing its type parameter
     ///
-    /// This method uses the Hook trait's associated constant ID and from_config method
+    /// This method uses the Hook trait's associated constant ID and `from_config` method
     /// to register the hook type in the registry.
     ///
     /// # Example
@@ -91,10 +91,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
         let creator = self.creators.get(hook_id).ok_or_else(|| {
             let available = self.registered_types().join(", ");
             CapsulaError::Configuration {
-                message: format!(
-                    "Unknown hook id '{}'. Available types: {}",
-                    hook_id, available
-                ),
+                message: format!("Unknown hook id '{hook_id}'. Available types: {available}",),
             }
         })?;
 
@@ -112,6 +109,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
     }
 
     /// Get list of registered hook types
+    #[must_use]
     pub fn registered_types(&self) -> Vec<&'static str> {
         self.creators.keys().copied().collect()
     }
@@ -132,6 +130,7 @@ pub struct RegistryBuilder<P: PhaseMarker> {
 }
 
 impl<P: PhaseMarker> RegistryBuilder<P> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             registry: HookRegistry::new(),
@@ -154,6 +153,7 @@ impl<P: PhaseMarker> RegistryBuilder<P> {
         Ok(self)
     }
 
+    #[must_use]
     pub fn build(self) -> HookRegistry<P> {
         self.registry
     }
@@ -169,41 +169,43 @@ where
 }
 
 /// Create a standard registry with all built-in hook types for pre-run phase
+#[must_use]
 pub fn standard_pre_run_hook_registry() -> HookRegistry<PreRun> {
     RegistryBuilder::new()
         .with_hook::<capsula_capture_cwd::CwdHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {e}"))
         .with_hook::<capsula_capture_git_repo::GitHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {e}"))
         .with_hook::<capsula_capture_file::FileHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {e}"))
         .with_hook::<capsula_capture_env::EnvVarHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {e}"))
         .with_hook::<capsula_capture_command::CommandHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {e}"))
         .with_hook::<capsula_capture_machine::MachineHook>()
-        .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register Machine hook: {e}"))
         .with_hook::<capsula_notify_slack::SlackNotifyHook>()
-        .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {e}"))
         .build()
 }
 
 /// Create a standard registry with all built-in hook types for post-run phase
+#[must_use]
 pub fn standard_post_run_hook_registry() -> HookRegistry<PostRun> {
     RegistryBuilder::new()
         .with_hook::<capsula_capture_cwd::CwdHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {e}"))
         .with_hook::<capsula_capture_git_repo::GitHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {e}"))
         .with_hook::<capsula_capture_file::FileHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {e}"))
         .with_hook::<capsula_capture_env::EnvVarHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {e}"))
         .with_hook::<capsula_capture_command::CommandHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {e}"))
         .with_hook::<capsula_capture_machine::MachineHook>()
-        .unwrap_or_else(|e| panic!("Failed to register Machine hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register Machine hook: {e}"))
         .with_hook::<capsula_notify_slack::SlackNotifyHook>()
-        .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {}", e))
+        .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {e}"))
         .build()
 }

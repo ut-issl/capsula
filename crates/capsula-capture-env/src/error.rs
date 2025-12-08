@@ -21,7 +21,7 @@ pub enum EnvHookError {
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert EnvHookError to CoreError
+/// Convert `EnvHookError` to `CoreError`
 impl From<EnvHookError> for CapsulaError {
     fn from(err: EnvHookError) -> Self {
         CapsulaError::HookFailed {

@@ -13,7 +13,7 @@ fn test_parse_actual_config_file() {
         assert_eq!(config.post_run.hooks.len(), 0);
 
         println!("Successfully parsed capsula.toml:");
-        println!("{:#?}", config);
+        println!("{config:#?}");
     } else {
         eprintln!("capsula.toml not found at expected location");
     }

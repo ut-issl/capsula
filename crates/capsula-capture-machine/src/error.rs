@@ -29,7 +29,7 @@ pub enum MachineHookError {
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert MachineHookError to CoreError
+/// Convert `MachineHookError` to `CoreError`
 impl From<MachineHookError> for CapsulaError {
     fn from(err: MachineHookError) -> Self {
         CapsulaError::HookFailed {

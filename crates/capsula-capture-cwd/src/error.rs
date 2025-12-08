@@ -16,7 +16,7 @@ pub enum CwdHookError {
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert CwdHookError to CoreError
+/// Convert `CwdHookError` to `CoreError`
 impl From<CwdHookError> for CapsulaError {
     fn from(err: CwdHookError) -> Self {
         CapsulaError::HookFailed {

@@ -27,7 +27,7 @@ pub enum GitHookError {
     IoError(#[from] std::io::Error),
 }
 
-/// Convert GitHookError to CoreError
+/// Convert `GitHookError` to `CoreError`
 impl From<GitHookError> for CapsulaError {
     fn from(err: GitHookError) -> Self {
         CapsulaError::HookFailed {

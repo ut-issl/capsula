@@ -15,7 +15,7 @@ pub enum SlackNotifyError {
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert SlackNotifyError to CapsulaError
+/// Convert `SlackNotifyError` to `CapsulaError`
 impl From<SlackNotifyError> for CapsulaError {
     fn from(err: SlackNotifyError) -> Self {
         CapsulaError::HookFailed {

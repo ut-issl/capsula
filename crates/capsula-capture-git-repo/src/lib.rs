@@ -9,7 +9,7 @@ use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// Configuration for GitHook
+/// Configuration for `GitHook`
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GitHookConfig {
     name: String,
@@ -58,7 +58,7 @@ where
     ) -> CapsulaResult<Self> {
         let config: GitHookConfig = serde_json::from_value(config.clone()).map_err(|e| {
             capsula_core::error::CapsulaError::Configuration {
-                message: format!("Invalid git hook configuration: {}", e),
+                message: format!("Invalid git hook configuration: {e}"),
             }
         })?;
 
@@ -69,8 +69,8 @@ where
         };
 
         Ok(GitHook {
-            working_dir,
             config,
+            working_dir,
         })
     }
 
