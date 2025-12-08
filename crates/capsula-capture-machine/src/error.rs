@@ -32,7 +32,7 @@ pub enum MachineHookError {
 /// Convert `MachineHookError` to `CoreError`
 impl From<MachineHookError> for CapsulaError {
     fn from(err: MachineHookError) -> Self {
-        CapsulaError::HookFailed {
+        Self::HookFailed {
             hook: "capture-machine".to_string(),
             message: err.to_string(),
             source: Box::new(err),

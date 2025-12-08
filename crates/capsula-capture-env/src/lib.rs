@@ -35,7 +35,7 @@ where
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: EnvVarHookConfig = serde_json::from_value(config.clone())?;
-        Ok(EnvVarHook { config })
+        Ok(Self { config })
     }
 
     fn config(&self) -> &Self::Config {

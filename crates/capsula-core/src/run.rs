@@ -127,9 +127,8 @@ pub struct RunOutput {
 }
 
 fn exit_code_from_status(status: ExitStatus) -> i32 {
-    match status.code() {
-        Some(c) => c,
-        None => {
+    status.code().map_or_else(
+        || {
             // On Unix, process may be terminated by a signal.
             #[cfg(unix)]
             {
@@ -140,8 +139,9 @@ fn exit_code_from_status(status: ExitStatus) -> i32 {
             {
                 1
             }
-        }
-    }
+        },
+        |c| c,
+    )
 }
 
 impl Run<PathBuf> {

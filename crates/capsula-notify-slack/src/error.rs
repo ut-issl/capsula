@@ -18,7 +18,7 @@ pub enum SlackNotifyError {
 /// Convert `SlackNotifyError` to `CapsulaError`
 impl From<SlackNotifyError> for CapsulaError {
     fn from(err: SlackNotifyError) -> Self {
-        CapsulaError::HookFailed {
+        Self::HookFailed {
             hook: "notify-slack".to_string(),
             message: err.to_string(),
             source: Box::new(err),

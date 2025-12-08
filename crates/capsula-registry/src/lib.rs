@@ -20,15 +20,15 @@ pub enum RegistryError {
 impl From<RegistryError> for CapsulaError {
     fn from(err: RegistryError) -> Self {
         match err {
-            RegistryError::HookTypeNotFound(ty) => CapsulaError::Configuration {
+            RegistryError::HookTypeNotFound(ty) => Self::Configuration {
                 message: format!(
                     "Unknown hook id '{ty}'. Check your configuration file for typos.",
                 ),
             },
-            RegistryError::AlreadyRegistered(ty) => CapsulaError::Configuration {
+            RegistryError::AlreadyRegistered(ty) => Self::Configuration {
                 message: format!("Hook id '{ty}' is already registered"),
             },
-            RegistryError::HookCreationFailed { hook, message } => CapsulaError::Configuration {
+            RegistryError::HookCreationFailed { hook, message } => Self::Configuration {
                 message: format!("Failed to create '{hook}' hook: {message}"),
             },
         }

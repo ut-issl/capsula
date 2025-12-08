@@ -43,7 +43,7 @@ all = "deny"
 cargo = { level = "deny", priority = -1 }
 missing_errors_doc = { level = "allow", priority = 1 }  # TODO: change to "warn" later
 missing_panics_doc = { level = "allow", priority = 1 }  # TODO: change to "warn" later
-nursery = { level = "allow", priority = -1 }
+nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 restriction = { level = "allow", priority = -2 }
 unwrap_used = { level = "deny", priority = 1 }
