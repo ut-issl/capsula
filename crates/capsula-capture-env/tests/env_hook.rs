@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use ulid::Ulid;
 
 #[test]
+#[expect(unsafe_code)]
 fn env_hook_captures_existing_variable() {
     // Arrange
     let test_var = "CAPSULA_TEST_ENV_VAR";
@@ -47,6 +48,7 @@ fn env_hook_captures_existing_variable() {
 }
 
 #[test]
+#[expect(unsafe_code)]
 fn env_hook_captures_missing_variable() {
     // Arrange
     let test_var = "CAPSULA_NONEXISTENT_VAR_XYZ";

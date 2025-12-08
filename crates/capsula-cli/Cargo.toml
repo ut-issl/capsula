@@ -8,6 +8,7 @@ edition.workspace = true
 repository.workspace = true
 license.workspace = true
 readme.workspace = true
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "capsula"

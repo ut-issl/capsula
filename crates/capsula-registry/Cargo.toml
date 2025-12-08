@@ -4,9 +4,11 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "A Capsula hooks registry."
+keywords = ["capsula", "registry"]
 readme.workspace = true
 repository.workspace = true
 license.workspace = true
+categories = ["development-tools"]
 
 [dependencies]
 capsula-capture-command = { workspace = true }

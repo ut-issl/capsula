@@ -39,13 +39,13 @@ toml = "0.9"
 ulid = { version = "1", features = ["serde"] }
 
 [workspace.lints.clippy]
-all = "warn"
-cargo = { level = "warn", priority = -1 }
+all = "deny"
+cargo = { level = "deny", priority = -1 }
 nursery = { level = "allow", priority = -1 }
 pedantic = { level = "allow", priority = -1 }
 restriction = { level = "allow", priority = -2 }
+unwrap_used = { level = "warn", priority = 1 }
 
 [workspace.lints.rust]
 # missing-docs = "warn"
 unsafe-code = "warn"
-warnings = "warn"

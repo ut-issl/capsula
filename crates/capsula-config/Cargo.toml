@@ -8,6 +8,7 @@ readme.workspace = true
 repository.workspace = true
 license.workspace = true
 keywords = ["capsula", "config"]
+categories = ["config", "development-tools"]
 
 [dependencies]
 capsula-core = { workspace = true }
