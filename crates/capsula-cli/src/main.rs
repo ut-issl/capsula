@@ -189,6 +189,7 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     Ok(runs)
 }
 
+#[expect(clippy::too_many_lines)]
 fn run() -> Result<()> {
     // Create the registry with all available hook types
     let pre_run_hook_registry = create_pre_run_hook_registry();
