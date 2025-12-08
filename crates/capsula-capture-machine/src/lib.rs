@@ -59,6 +59,7 @@ where
         &self.config
     }
 
+    #[expect(clippy::cast_possible_truncation)]
     fn run(
         &self,
         _metadata: &PreparedRun,

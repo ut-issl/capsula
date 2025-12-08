@@ -57,8 +57,7 @@ fn build_and_run_hooks<P: PhaseMarker>(
             let hook_identifier = hook_phase_config
                 .hooks
                 .get(idx)
-                .map(|config_hook| config_hook.id.clone())
-                .unwrap_or_else(|| format!("hook[{}]", idx));
+                .map_or_else(|| format!("hook[{idx}]"),|config_hook| config_hook.id.clone());
 
             let hook_config_json = hook
                 .config_as_json()
@@ -85,8 +84,7 @@ fn build_and_run_hooks<P: PhaseMarker>(
                 Err(e) => {
                     let error = anyhow::anyhow!(e);
                     eprintln!(
-                        "Warning: Failed to capture {} (config index {}): {:#}",
-                        hook_identifier, idx, error
+                        "Warning: Failed to capture {hook_identifier} (config index {idx}): {error:#}",
                     );
                     // Only include the metadata with error information
                     let json = json!({
@@ -191,6 +189,7 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     Ok(runs)
 }
 
+#[expect(clippy::too_many_lines)]
 fn run() -> Result<()> {
     // Create the registry with all available hook types
     let pre_run_hook_registry = create_pre_run_hook_registry();
@@ -265,12 +264,13 @@ path = \".\"
 
             for run in runs {
                 // Parse timestamp for display
-                let timestamp_display = DateTime::parse_from_rfc3339(&run.timestamp)
-                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-                    .unwrap_or_else(|_| run.timestamp.clone());
+                let timestamp_display = DateTime::parse_from_rfc3339(&run.timestamp).map_or_else(
+                    |_| run.timestamp.clone(),
+                    |dt| dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+                );
 
                 // Format command for display (truncate if too long)
-                let command_display = shlex::try_join(run.command.iter().map(|s| s.as_str()))
+                let command_display = shlex::try_join(run.command.iter().map(String::as_str))
                     .unwrap_or_else(|_| run.command.join(" "));
                 let command_truncated = if command_display.len() > command_width {
                     format!("{}...", &command_display[..command_width - 3])
@@ -395,10 +395,10 @@ fn main() {
 
         if verbose {
             // Show full error chain with backtrace
-            eprintln!("Error: {:?}", err);
+            eprintln!("Error: {err:?}");
         } else {
             // Show user-friendly error message
-            eprintln!("Error: {:#}", err);
+            eprintln!("Error: {err:#}");
 
             // Add hint for getting more details
             eprintln!("\nFor more details, run with RUST_BACKTRACE=1");

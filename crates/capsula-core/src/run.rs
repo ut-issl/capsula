@@ -66,12 +66,10 @@ impl Run<()> {
                         return Err(io::Error::new(
                             io::ErrorKind::AlreadyExists,
                             format!(
-                                "Failed to create unique run directory after {} attempts",
-                                max_retries
+                                "Failed to create unique run directory after {max_retries} attempts",
                             ),
                         ));
                     }
-                    continue;
                 } else {
                     break candidate;
                 }
@@ -136,7 +134,7 @@ fn exit_code_from_status(status: ExitStatus) -> i32 {
             #[cfg(unix)]
             {
                 use std::os::unix::process::ExitStatusExt;
-                status.signal().map(|s| 128 + s).unwrap_or(1)
+                status.signal().map_or(1, |s| 128 + s)
             }
             #[cfg(not(unix))]
             {
@@ -152,7 +150,7 @@ impl Run<PathBuf> {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty command"));
         }
         let program = &self.command[0];
-        let args: Vec<&str> = self.command[1..].iter().map(|s| s.as_str()).collect();
+        let args: Vec<&str> = self.command[1..].iter().map(String::as_str).collect();
 
         let mut env_vars = HashMap::new();
         env_vars.insert("CAPSULA_RUN_ID", self.id.to_string());
@@ -162,7 +160,7 @@ impl Run<PathBuf> {
             self.run_dir.to_string_lossy().to_string(),
         );
         env_vars.insert("CAPSULA_RUN_TIMESTAMP", self.timestamp().to_rfc3339());
-        let command_display = shlex::try_join(self.command.iter().map(|s| s.as_str()))
+        let command_display = shlex::try_join(self.command.iter().map(String::as_str))
             .unwrap_or_else(|_| self.command.join(" "));
         env_vars.insert("CAPSULA_RUN_COMMAND", command_display);
 

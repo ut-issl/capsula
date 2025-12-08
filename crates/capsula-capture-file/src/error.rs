@@ -43,7 +43,7 @@ pub enum FileHookError {
     Io(#[from] std::io::Error),
 }
 
-/// Convert FileHookError to CoreError
+/// Convert `FileHookError` to `CoreError`
 impl From<FileHookError> for CapsulaError {
     fn from(err: FileHookError) -> Self {
         CapsulaError::HookFailed {

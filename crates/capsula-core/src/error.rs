@@ -6,8 +6,8 @@ pub type CapsulaResult<T> = Result<T, CapsulaError>;
 /// Core error type for the Capsula library
 ///
 /// This enum defines common infrastructure errors. Hook-specific errors
-/// should be defined in their respective crates and converted to CoreError
-/// via the HookFailed variant.
+/// should be defined in their respective crates and converted to `CoreError`
+/// via the `HookFailed` variant.
 #[derive(Debug, Error)]
 pub enum CapsulaError {
     /// I/O operation failed

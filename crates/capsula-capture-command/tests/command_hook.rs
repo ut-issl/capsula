@@ -1,3 +1,5 @@
+#![expect(clippy::unwrap_used)]
+
 use capsula_capture_command::CommandHook;
 use capsula_core::captured::Captured;
 use capsula_core::hook::{Hook, PreRun, RuntimeParams};
@@ -32,7 +34,10 @@ fn command_hook_executes_successful_command() {
         .expect("serialization should succeed");
 
     // Assert
-    assert_eq!(json.get("status").and_then(|v| v.as_i64()), Some(0));
+    assert_eq!(
+        json.get("status").and_then(serde_json::Value::as_i64),
+        Some(0)
+    );
     let stdout = json.get("stdout").and_then(|v| v.as_str()).unwrap();
     assert!(
         stdout.contains("hello world"),
@@ -67,7 +72,10 @@ fn command_hook_captures_failing_command() {
         .expect("serialization should succeed");
 
     // Assert
-    assert_ne!(json.get("status").and_then(|v| v.as_i64()), Some(0));
+    assert_ne!(
+        json.get("status").and_then(serde_json::Value::as_i64),
+        Some(0)
+    );
     assert!(
         !captured.abort_requested(),
         "Should not request abort when abort_on_failure is false"

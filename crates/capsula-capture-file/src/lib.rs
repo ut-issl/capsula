@@ -128,7 +128,7 @@ impl FileHook {
                     CaptureMode::Move => {
                         std::fs::rename(path, &dest_path)?;
                     }
-                    _ => unreachable!(),
+                    CaptureMode::None => unreachable!(),
                 }
                 Some(dest_path)
             }

@@ -1,3 +1,5 @@
+#![expect(clippy::unwrap_used)]
+
 use capsula_capture_git_repo::GitHook;
 use capsula_core::captured::Captured;
 use capsula_core::hook::{Hook, PreRun, RuntimeParams};
@@ -72,7 +74,7 @@ fn git_hook_captures_clean_repo() {
     // Assert
     assert!(json.get("sha").is_some(), "Should capture commit SHA");
     assert_eq!(
-        json.get("is_dirty").and_then(|v| v.as_bool()),
+        json.get("is_dirty").and_then(serde_json::Value::as_bool),
         Some(false),
         "Clean repo should not be dirty"
     );
@@ -151,7 +153,7 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
 
     // Assert
     assert_eq!(
-        json.get("is_dirty").and_then(|v| v.as_bool()),
+        json.get("is_dirty").and_then(serde_json::Value::as_bool),
         Some(true),
         "Repo with uncommitted changes should be dirty"
     );
@@ -299,8 +301,7 @@ fn git_hook_ignores_git_ignored_files() {
     let status_str = String::from_utf8_lossy(&status_output.stdout);
     assert!(
         status_str.trim().is_empty(),
-        "Git status should be empty (ignored files don't count). Got: {}",
-        status_str
+        "Git status should be empty (ignored files don't count). Got: {status_str}",
     );
 
     let config = json!({
@@ -327,7 +328,7 @@ fn git_hook_ignores_git_ignored_files() {
 
     // Assert
     assert_eq!(
-        json.get("is_dirty").and_then(|v| v.as_bool()),
+        json.get("is_dirty").and_then(serde_json::Value::as_bool),
         Some(false),
         "Repo with only ignored files should not be dirty"
     );
@@ -391,8 +392,7 @@ fn git_hook_detects_untracked_files_as_dirty() {
     let status_str = String::from_utf8_lossy(&status_output.stdout);
     assert!(
         status_str.contains("untracked.txt"),
-        "Git status should show untracked file. Got: {}",
-        status_str
+        "Git status should show untracked file. Got: {status_str}",
     );
 
     let config = json!({
@@ -419,7 +419,7 @@ fn git_hook_detects_untracked_files_as_dirty() {
 
     // Assert
     assert_eq!(
-        json.get("is_dirty").and_then(|v| v.as_bool()),
+        json.get("is_dirty").and_then(serde_json::Value::as_bool),
         Some(true),
         "Repo with untracked files should be dirty"
     );
