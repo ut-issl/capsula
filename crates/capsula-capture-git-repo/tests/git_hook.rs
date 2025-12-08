@@ -1,3 +1,5 @@
+#![expect(clippy::unwrap_used)]
+
 use capsula_capture_git_repo::GitHook;
 use capsula_core::captured::Captured;
 use capsula_core::hook::{Hook, PreRun, RuntimeParams};

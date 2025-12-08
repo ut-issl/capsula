@@ -1,3 +1,5 @@
+#![expect(clippy::unwrap_used)]
+
 use capsula_core::hook::{Hook, PreRun};
 use capsula_notify_slack::SlackNotifyHook;
 use serde_json::json;
