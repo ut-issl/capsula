@@ -32,7 +32,7 @@ pub struct MachineCaptured {
     architecture: String,
     cpus: Vec<CpuInfo>,
     // pub cpu_cores: usize,
-    total_memory: usize,
+    total_memory: u64,
     // pub user: String,
     hostname: String,
 }
@@ -59,7 +59,6 @@ where
         &self.config
     }
 
-    #[expect(clippy::cast_possible_truncation)]
     fn run(
         &self,
         _metadata: &PreparedRun,
@@ -95,7 +94,7 @@ where
             kernel_version,
             architecture,
             cpus,
-            total_memory: total_memory as usize,
+            total_memory,
             hostname,
         })
     }
