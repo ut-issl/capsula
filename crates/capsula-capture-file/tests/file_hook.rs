@@ -1,4 +1,4 @@
-#![expect(clippy::unwrap_used)]
+#![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
 
 use capsula_capture_file::FileHook;
 use capsula_core::captured::Captured;
@@ -198,7 +198,7 @@ fn file_hook_matches_glob_pattern() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
     let params = RuntimeParams::<PreRun>::default();

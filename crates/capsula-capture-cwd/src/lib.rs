@@ -24,7 +24,7 @@ pub struct CwdCaptured {
 
 impl CwdCaptured {
     #[must_use]
-    pub fn cwd_abs(&self) -> &PathBuf {
+    pub const fn cwd_abs(&self) -> &PathBuf {
         &self.cwd_abs
     }
 }

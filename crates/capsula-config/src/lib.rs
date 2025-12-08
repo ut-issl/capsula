@@ -27,17 +27,17 @@ pub type ConfigResult<T> = Result<T, ConfigError>;
 impl From<ConfigError> for CapsulaError {
     fn from(err: ConfigError) -> Self {
         match err {
-            ConfigError::TomlParse(e) => CapsulaError::Configuration {
+            ConfigError::TomlParse(e) => Self::Configuration {
                 message: format!("Failed to parse TOML configuration: {e}"),
             },
-            ConfigError::FileNotFound { path } => CapsulaError::Configuration {
+            ConfigError::FileNotFound { path } => Self::Configuration {
                 message: format!(
                     "Configuration file not found at '{}'. Create a 'capsula.toml' file or specify a custom path with --config",
                     path.display()
                 ),
             },
-            ConfigError::Invalid { message } => CapsulaError::Configuration { message },
-            ConfigError::Io(e) => CapsulaError::from(e),
+            ConfigError::Invalid { message } => Self::Configuration { message },
+            ConfigError::Io(e) => Self::from(e),
         }
     }
 }
@@ -74,7 +74,7 @@ impl<'de> Deserialize<'de> for VaultConfig {
             .path
             .unwrap_or_else(|| PathBuf::from(format!(".capsula/{}", helper.name)));
 
-        Ok(VaultConfig {
+        Ok(Self {
             name: helper.name,
             path,
         })
@@ -129,7 +129,7 @@ pub fn build_hooks<P: PhaseMarker>(
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used)]
+#[expect(clippy::unwrap_used, reason = "Tests can use unwrap")]
 mod tests {
     use super::*;
 

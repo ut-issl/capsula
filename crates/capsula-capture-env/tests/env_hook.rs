@@ -1,4 +1,4 @@
-#![expect(clippy::unwrap_used)]
+#![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
 
 use capsula_capture_env::EnvVarHook;
 use capsula_core::captured::Captured;
@@ -10,11 +10,18 @@ use std::path::PathBuf;
 use ulid::Ulid;
 
 #[test]
-#[expect(unsafe_code)]
+#[expect(
+    unsafe_code,
+    reason = "Modifying the environment is unsafe, but acceptable in this test context"
+)]
 fn env_hook_captures_existing_variable() {
     // Arrange
     let test_var = "CAPSULA_TEST_ENV_VAR";
     let test_value = "test_value_12345";
+
+    // SAFETY: Modifying environment variables is inherently unsafe in a multi-threaded context.
+    // However, for the purpose of this test, we ensure that no other threads are modifying
+    // the same environment variable concurrently.
     unsafe {
         env::set_var(test_var, test_value);
     }
@@ -44,16 +51,23 @@ fn env_hook_captures_existing_variable() {
     assert_eq!(json.get("value").and_then(|v| v.as_str()), Some(test_value));
 
     // Cleanup
+    // SAFETY: See above comment regarding environment variable safety.
     unsafe {
         env::remove_var(test_var);
     }
 }
 
 #[test]
-#[expect(unsafe_code)]
+#[expect(
+    unsafe_code,
+    reason = "Modifying the environment is unsafe, but acceptable in this test context"
+)]
 fn env_hook_captures_missing_variable() {
     // Arrange
     let test_var = "CAPSULA_NONEXISTENT_VAR_XYZ";
+    // SAFETY: Modifying environment variables is inherently unsafe in a multi-threaded context.
+    // However, for the purpose of this test, we ensure that no other threads are modifying
+    // the same environment variable concurrently.
     unsafe {
         env::remove_var(test_var); // Ensure it doesn't exist
     }

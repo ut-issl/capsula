@@ -75,7 +75,7 @@ where
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: FileHookConfig = serde_json::from_value(config.clone())?;
-        Ok(FileHook { config })
+        Ok(Self { config })
     }
 
     fn config(&self) -> &Self::Config {

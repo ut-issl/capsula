@@ -24,7 +24,7 @@ pub enum EnvHookError {
 /// Convert `EnvHookError` to `CoreError`
 impl From<EnvHookError> for CapsulaError {
     fn from(err: EnvHookError) -> Self {
-        CapsulaError::HookFailed {
+        Self::HookFailed {
             hook: "capture-env".to_string(),
             message: err.to_string(),
             source: Box::new(err),

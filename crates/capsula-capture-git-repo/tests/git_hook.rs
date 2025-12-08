@@ -1,4 +1,4 @@
-#![expect(clippy::unwrap_used)]
+#![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
 
 use capsula_capture_git_repo::GitHook;
 use capsula_core::captured::Captured;
@@ -60,7 +60,7 @@ fn git_hook_captures_clean_repo() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
     let params = RuntimeParams::<PreRun>::default();
@@ -226,7 +226,7 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
     let params = RuntimeParams::<PreRun>::default();
@@ -315,7 +315,7 @@ fn git_hook_ignores_git_ignored_files() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
     let params = RuntimeParams::<PreRun>::default();
@@ -406,7 +406,7 @@ fn git_hook_detects_untracked_files_as_dirty() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
     let params = RuntimeParams::<PreRun>::default();

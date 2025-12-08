@@ -30,7 +30,7 @@ pub enum GitHookError {
 /// Convert `GitHookError` to `CoreError`
 impl From<GitHookError> for CapsulaError {
     fn from(err: GitHookError) -> Self {
-        CapsulaError::HookFailed {
+        Self::HookFailed {
             hook: "capture-git-repo".to_string(),
             message: err.to_string(),
             source: Box::new(err),

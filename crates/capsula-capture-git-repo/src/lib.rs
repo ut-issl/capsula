@@ -68,7 +68,7 @@ where
             project_root.join(&config.path).canonicalize()?
         };
 
-        Ok(GitHook {
+        Ok(Self {
             config,
             working_dir,
         })
@@ -78,6 +78,7 @@ where
         &self.config
     }
 
+    #[expect(clippy::print_stderr, reason = "TODO: Use logging")]
     fn run(
         &self,
         metadata: &PreparedRun,
@@ -121,7 +122,7 @@ where
         // Output diff content if dirty
         if is_dirty {
             let run_dir = &metadata.run_dir;
-            let diff_content = GitHook::diff_content(&repo)?;
+            let diff_content = Self::diff_content(&repo)?;
             // Output to a patch file in the run directory
             let patch_file_path = run_dir.join(format!("{}.patch", self.config.name));
             std::fs::write(&patch_file_path, diff_content).map_err(GitHookError::IoError)?;

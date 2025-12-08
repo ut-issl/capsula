@@ -32,7 +32,7 @@ pub enum CommandHookError {
 /// Convert `CommandHookError` to `CoreError`
 impl From<CommandHookError> for CapsulaError {
     fn from(err: CommandHookError) -> Self {
-        CapsulaError::HookFailed {
+        Self::HookFailed {
             hook: "capture-command".to_string(),
             message: err.to_string(),
             source: Box::new(err),
