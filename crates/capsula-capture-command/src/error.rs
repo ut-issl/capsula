@@ -29,7 +29,7 @@ pub enum CommandHookError {
     Serialization(#[from] serde_json::Error),
 }
 
-/// Convert CommandHookError to CoreError
+/// Convert `CommandHookError` to `CoreError`
 impl From<CommandHookError> for CapsulaError {
     fn from(err: CommandHookError) -> Self {
         CapsulaError::HookFailed {
