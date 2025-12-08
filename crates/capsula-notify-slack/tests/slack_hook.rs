@@ -1,4 +1,4 @@
-#![expect(clippy::unwrap_used)]
+#![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
 
 use capsula_core::hook::{Hook, PreRun};
 use capsula_notify_slack::SlackNotifyHook;

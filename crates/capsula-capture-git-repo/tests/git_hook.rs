@@ -1,4 +1,4 @@
-#![expect(clippy::unwrap_used)]
+#![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
 
 use capsula_capture_git_repo::GitHook;
 use capsula_core::captured::Captured;

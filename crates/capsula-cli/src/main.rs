@@ -1,3 +1,12 @@
+#![allow(
+    clippy::print_stdout,
+    reason = "Printing is acceptable in main CLI code"
+)]
+#![allow(
+    clippy::print_stderr,
+    reason = "Printing is acceptable in main CLI code"
+)]
+
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -189,7 +198,10 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     Ok(runs)
 }
 
-#[expect(clippy::too_many_lines)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "TODO: Refactor into smaller functions"
+)]
 fn run() -> Result<()> {
     // Create the registry with all available hook types
     let pre_run_hook_registry = create_pre_run_hook_registry();

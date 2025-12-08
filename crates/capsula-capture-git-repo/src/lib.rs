@@ -78,6 +78,7 @@ where
         &self.config
     }
 
+    #[expect(clippy::print_stderr, reason = "TODO: Use logging")]
     fn run(
         &self,
         metadata: &PreparedRun,

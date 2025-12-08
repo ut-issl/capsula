@@ -1,3 +1,6 @@
+#![allow(clippy::print_stdout, reason = "Printing is acceptable in test code")]
+#![allow(clippy::print_stderr, reason = "Printing is acceptable in test code")]
+
 use capsula_config::CapsulaConfig;
 use std::path::Path;
 

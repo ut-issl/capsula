@@ -1,13 +1,13 @@
 [package]
 name = "capsula-cli"
-description = "The command line interface for Capsula."
-keywords = ["capsula", "cli"]
 version.workspace = true
-rust-version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+description = "The command line interface for Capsula."
+readme.workspace = true
 repository.workspace = true
 license.workspace = true
-readme.workspace = true
+keywords = ["capsula", "cli"]
 categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
@@ -15,18 +15,17 @@ name = "capsula"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = { workspace = true }
 capsula-config = { workspace = true }
 capsula-core = { workspace = true }
 capsula-registry = { workspace = true }
-
-anyhow = { workspace = true }
-serde_json = { workspace = true }
-clap = { workspace = true }
-ulid = { workspace = true }
-names = { workspace = true }
 chrono = { workspace = true }
+clap = { workspace = true }
+names = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 shlex = { workspace = true }
+ulid = { workspace = true }
 
 [lints]
 workspace = true
