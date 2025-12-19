@@ -7,7 +7,6 @@ use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use globwalk::GlobWalkerBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -92,12 +91,20 @@ where
 }
 
 impl FileHook {
+    /// Builds a complete glob pattern from base path and user pattern.
+    /// Users must use forward slashes (/) in patterns.
+    /// On Windows, this normalizes path separators from backslashes to forward slashes.
+    fn build_glob_pattern(base: &Path, pattern: &str) -> String {
+        base.join(pattern).to_string_lossy().replace('\\', "/")
+    }
+
     fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
-        GlobWalkerBuilder::from_patterns(&metadata.project_root, &[&self.config.glob])
-            .max_depth(1)
-            .build()?
-            .filter_map(Result::ok)
-            .map(|entry| self.capture_file(entry.path(), &metadata.run_dir))
+        let pattern = Self::build_glob_pattern(&metadata.project_root, &self.config.glob);
+
+        glob::glob(&pattern)?
+            .filter_map(Result::ok) // Filter out GlobErrors
+            .filter(|path| path.is_file()) // Only files, not directories
+            .map(|path| self.capture_file(&path, &metadata.run_dir))
             .collect::<Result<Vec<_>, FileHookError>>()
             .map(|files| FileCaptured { files })
     }
