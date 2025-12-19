@@ -14,8 +14,12 @@ pub enum FileHookError {
     NoFilesMatched { pattern: String },
 
     /// Pattern is invalid
-    #[error(transparent)]
-    InvalidPattern(#[from] globwalk::GlobError),
+    #[error("Invalid glob pattern: {0}")]
+    InvalidPattern(#[from] glob::PatternError),
+
+    /// Glob traversal error
+    #[error("Glob traversal error: {0}")]
+    GlobError(#[from] glob::GlobError),
 
     #[error("Run directory is not set")]
     RunDirNotSet,
