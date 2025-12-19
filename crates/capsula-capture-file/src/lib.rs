@@ -91,10 +91,11 @@ where
 }
 
 impl FileHook {
-    /// Builds a complete glob pattern from base path and pattern.
-    /// Normalizes path separators to forward slashes for cross-platform compatibility.
+    /// Builds a complete glob pattern from base path and user pattern.
+    /// Users must use forward slashes (/) in patterns.
+    /// On Windows, this normalizes path separators from backslashes to forward slashes.
     fn build_glob_pattern(base: &Path, pattern: &str) -> String {
-        base.join(pattern).to_string_lossy().replace('\\', "/") // Glob uses / even on Windows
+        base.join(pattern).to_string_lossy().replace('\\', "/")
     }
 
     fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
