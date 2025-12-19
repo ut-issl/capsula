@@ -127,21 +127,18 @@ pub struct RunOutput {
 }
 
 fn exit_code_from_status(status: ExitStatus) -> i32 {
-    status.code().map_or_else(
-        || {
-            // On Unix, process may be terminated by a signal.
-            #[cfg(unix)]
-            {
-                use std::os::unix::process::ExitStatusExt;
-                status.signal().map_or(1, |s| 128 + s)
-            }
-            #[cfg(not(unix))]
-            {
-                1
-            }
-        },
-        |c| c,
-    )
+    status.code().unwrap_or_else(|| {
+        // On Unix, process may be terminated by a signal.
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            status.signal().map_or(1, |s| 128 + s)
+        }
+        #[cfg(not(unix))]
+        {
+            1
+        }
+    })
 }
 
 impl Run<PathBuf> {

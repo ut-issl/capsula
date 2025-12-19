@@ -94,9 +94,7 @@ impl FileHook {
     /// Builds a complete glob pattern from base path and pattern.
     /// Normalizes path separators to forward slashes for cross-platform compatibility.
     fn build_glob_pattern(base: &Path, pattern: &str) -> String {
-        base.join(pattern)
-            .to_string_lossy()
-            .replace('\\', "/") // Glob uses / even on Windows
+        base.join(pattern).to_string_lossy().replace('\\', "/") // Glob uses / even on Windows
     }
 
     fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
