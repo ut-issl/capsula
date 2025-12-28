@@ -47,6 +47,7 @@ allow_attributes = { level = "warn", priority = 1 }
 allow_attributes_without_reason = { level = "warn", priority = 1 }
 cargo = { level = "deny", priority = -1 }
 dbg_macro = { level = "warn", priority = 1 }
+derive_partial_eq_without_eq = { level = "allow", priority = 1 }  # We implement `Eq` only when necessary
 else_if_without_else = { level = "warn", priority = 1 }
 expect_used = { level = "allow", priority = 1 }  # TODO: change to "warn" later
 indexing_slicing = { level = "allow", priority = 1 }  # TODO: change to "warn" later
