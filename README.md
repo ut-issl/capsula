@@ -18,6 +18,8 @@ A powerful CLI tool for running hooks and capturing their output before and afte
 
 ## Installation
 
+Rust 1.90.0 or later is required.
+
 ### Install from crates.io (recommended)
 
 ```bash
