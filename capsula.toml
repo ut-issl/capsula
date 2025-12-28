@@ -43,3 +43,13 @@ command = ["rustc", "--version"]
 id = "capture-command"
 command = ["uv", "run", "python", "-c", "raise SystemExit(1)"]
 abort_on_failure = false
+
+[[pre-run.hooks]]
+id = "notify-slack"
+channel = "#paperpile"
+# token is read from environment variable `SLACK_BOT_TOKEN`
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#paperpile"
+# token is read from environment variable `SLACK_BOT_TOKEN`

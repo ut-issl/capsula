@@ -13,6 +13,9 @@ pub enum SlackNotifyError {
     /// Serialization failed
     #[error("Failed to serialize Slack notify hook: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// Slack token not provided
+    #[error("Slack token not provided in config and SLACK_BOT_TOKEN environment variable not set")]
+    MissingToken,
 }
 
 /// Convert `SlackNotifyError` to `CapsulaError`

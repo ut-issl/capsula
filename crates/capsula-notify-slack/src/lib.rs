@@ -10,7 +10,12 @@ use serde_json::json;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SlackNotifyHookConfig {
     channel: String,
+    #[serde(default = "token_from_env")]
     token: String,
+}
+
+fn token_from_env() -> String {
+    std::env::var("SLACK_BOT_TOKEN").unwrap_or_default()
 }
 
 #[derive(Debug)]
@@ -41,6 +46,9 @@ impl Hook<PreRun> for SlackNotifyHook {
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
+        if config.token.is_empty() {
+            return Err(SlackNotifyError::MissingToken.into());
+        }
         Ok(Self { config })
     }
 
@@ -92,6 +100,9 @@ impl Hook<PostRun> for SlackNotifyHook {
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
+        if config.token.is_empty() {
+            return Err(SlackNotifyError::MissingToken.into());
+        }
         Ok(Self { config })
     }
 
