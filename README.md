@@ -16,9 +16,11 @@ A powerful CLI tool for running hooks and capturing their output before and afte
 - 📊 **Structured Output**: JSON-formatted capture data for easy processing
 - 🔧 **Extensible**: Multiple built-in hooks with clean error handling
 
-## Installation
+## Installation / Update
 
 Rust 1.90.0 or later is required.
+
+To install Capsula CLI or update to the latest version, use one of the following methods:
 
 ### Install from crates.io (recommended)
 
@@ -267,6 +269,68 @@ id = "capture-machine"
   ]
 }
 ```
+
+#### Slack Notification Hook
+
+Sends notifications to a Slack channel when a run starts (pre-run phase) or completes (post-run phase).
+
+```toml
+# Send to a channel
+[[pre-run.hooks]]
+id = "notify-slack"
+channel = "#general"        # Slack channel name (or channel ID like "C01234567")
+token = "xoxb-..."          # Slack bot token (optional, can use SLACK_BOT_TOKEN env var)
+
+# Send as a DM to a user
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "U01234ABCD"      # Slack user ID for DMs (not @username)
+# Token will be read from SLACK_BOT_TOKEN env var
+```
+
+> [!TIP]
+> It's recommended to set the Slack bot token via the `SLACK_BOT_TOKEN` environment variable instead of storing it in the configuration file. If the `token` field is omitted from the configuration, Capsula will automatically read it from the environment variable.
+
+**Pre-run notification message:**
+
+```
+Run `chubby-back` (ID: `01K8WSYC91YAE21R7CWHQ4KYN2`) is starting.
+```
+
+**Post-run notification message:**
+
+```
+Run `chubby-back` (ID: `01K8WSYC91YAE21R7CWHQ4KYN2`) has completed.
+```
+
+**Output Example:**
+
+```json
+{
+  "__meta": {
+    "config": {
+      "channel": "C01234567",
+      "token": "xoxb-..."
+    },
+    "id": "notify-slack",
+    "success": true
+  },
+  "message": "Slack notification sent successfully",
+  "response": "{\"ok\":true,\"channel\":\"C01234567\",\"ts\":\"1234567890.123456\"}"
+}
+```
+
+**Setup Requirements:**
+
+To use the Slack notification hook, you need to:
+
+1. Create a Slack app at <https://api.slack.com/apps>
+2. Add the `chat:write` bot token scope to your app
+3. Install the app to your workspace
+4. Copy the bot token (starts with `xoxb-`)
+5. Set the `SLACK_BOT_TOKEN` environment variable or add it to your config
+6. For channel notifications: Invite the bot to the channel you want to post to
+7. For DM notifications: Find the user ID by clicking the user's profile → "More" → "Copy member ID" (format: `U01234ABCD`)
 
 ## CLI Usage
 
