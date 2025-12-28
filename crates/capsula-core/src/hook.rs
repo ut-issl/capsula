@@ -3,7 +3,9 @@ use crate::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
+#[derive(Debug, Clone, Default)]
 pub struct PreRun;
+#[derive(Debug, Clone, Default)]
 pub struct PostRun;
 
 pub trait PhaseMarker {}

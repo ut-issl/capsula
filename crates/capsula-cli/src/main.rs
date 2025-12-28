@@ -2,12 +2,6 @@
     clippy::print_stdout,
     reason = "Printing is acceptable in main CLI code"
 )]
-#![allow(
-    clippy::print_stderr,
-    reason = "Printing is acceptable in main CLI code"
-)]
-
-use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use capsula_config::{CapsulaConfig, HookPhaseConfig};
@@ -18,6 +12,9 @@ use clap::{Parser, Subcommand};
 use names::Generator;
 use serde::Deserialize;
 use serde_json::json;
+use std::path::PathBuf;
+use tracing::{error, info, warn};
+use tracing_subscriber::{EnvFilter, fmt};
 use ulid::Ulid;
 
 #[derive(Parser, Debug)]
@@ -92,9 +89,7 @@ fn build_and_run_hooks<P: PhaseMarker>(
                 }
                 Err(e) => {
                     let error = anyhow::anyhow!(e);
-                    eprintln!(
-                        "Warning: Failed to capture {hook_identifier} (config index {idx}): {error:#}",
-                    );
+                    error!("Warning: Failed to capture {hook_identifier} (config index {idx}): {error:#}");
                     // Only include the metadata with error information
                     let json = json!({
                         "__meta": json!({
@@ -162,7 +157,7 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
                     Ok(content) => match serde_json::from_str::<RunMetadata>(&content) {
                         Ok(metadata) => runs.push(metadata),
                         Err(e) => {
-                            eprintln!(
+                            warn!(
                                 "Warning: Failed to parse metadata from {}: {}",
                                 metadata_path.display(),
                                 e
@@ -170,7 +165,7 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
                         }
                     },
                     Err(e) => {
-                        eprintln!(
+                        warn!(
                             "Warning: Failed to read metadata from {}: {}",
                             metadata_path.display(),
                             e
@@ -264,7 +259,7 @@ path = \".\"
             let runs = list_runs(&vault_dir)?;
 
             if runs.is_empty() {
-                println!("No runs found in vault: {}", vault_dir.display());
+                info!("No runs found in vault: {}", vault_dir.display());
                 return Ok(());
             }
 
@@ -314,9 +309,9 @@ path = \".\"
             };
 
             // Display run ID and name
-            eprintln!("Run ID: {}, Name: {}", run.id, run.name);
+            info!("Run ID: {}, Name: {}", run.id, run.name);
             let run = run.setup_run_dir(&vault_dir, 5)?;
-            eprintln!("Run directory: {}", run.run_dir.to_string_lossy());
+            info!("Run directory: {}", run.run_dir.to_string_lossy());
 
             // Make `_capsula` directory inside run_dir to store metadata and hook outputs
             let capsula_dir = run.run_dir.join("_capsula");
@@ -361,7 +356,7 @@ path = \".\"
             )?;
 
             if should_abort {
-                eprintln!("Aborting run due to pre-run hook request.");
+                error!("Aborting run due to pre-run hook request.");
                 return Ok(());
             }
 
@@ -400,6 +395,18 @@ path = \".\"
 }
 
 fn main() {
+    fmt()
+        // Formatting
+        .with_target(false)
+        .without_time()
+        .with_level(true)
+        .compact()
+        // Filtering
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")),
+        )
+        .init();
+
     if let Err(err) = run() {
         // Check for verbose mode via environment variable
         let verbose =
@@ -407,13 +414,13 @@ fn main() {
 
         if verbose {
             // Show full error chain with backtrace
-            eprintln!("Error: {err:?}");
+            error!("Error: {err:?}");
         } else {
             // Show user-friendly error message
-            eprintln!("Error: {err:#}");
+            error!("Error: {err:#}");
 
             // Add hint for getting more details
-            eprintln!("\nFor more details, run with RUST_BACKTRACE=1");
+            error!("\nFor more details, run with RUST_BACKTRACE=1");
         }
 
         std::process::exit(1);

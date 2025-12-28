@@ -7,7 +7,9 @@ use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::path::PathBuf;
+use tracing::warn;
 
 /// Configuration for `GitHook`
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -45,7 +47,7 @@ impl Captured for GitCaptured {
 
 impl<P> Hook<P> for GitHook
 where
-    P: PhaseMarker,
+    P: PhaseMarker + std::fmt::Debug,
 {
     const ID: &'static str = "capture-git-repo";
 
@@ -78,11 +80,11 @@ where
         &self.config
     }
 
-    #[expect(clippy::print_stderr, reason = "TODO: Use logging")]
+    #[tracing::instrument]
     fn run(
         &self,
         metadata: &PreparedRun,
-        _params: &RuntimeParams<P>,
+        params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {
             std::env::current_dir()?
@@ -114,7 +116,7 @@ where
         // If dirty and not allowed, we'll signal abort through the Captured trait
         // rather than returning an error, so other hooks can still be captured
         if is_dirty && !self.config.allow_dirty {
-            eprintln!(
+            warn!(
                 "Warning: Repository has uncommitted changes. Run will be aborted after hooks capture."
             );
         }
