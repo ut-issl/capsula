@@ -205,6 +205,10 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     clippy::too_many_lines,
     reason = "TODO: Refactor into smaller functions"
 )]
+#[expect(
+    clippy::cognitive_complexity,
+    reason = "TODO: Refactor into smaller functions"
+)]
 fn run() -> Result<()> {
     // Create the registry with all available hook types
     debug!("Creating hook registries");

@@ -73,6 +73,8 @@ The `capsula.toml` configuration file defines:
 - **Phases**: Pre-run and post-run hooks
 
 ```toml
+dotenv = ".env"             # Load environment variables from file (optional)
+
 [vault]
 name = "project-name"        # Vault identifier
 path = ".capsula"           # Storage path (optional, defaults to .capsula/{name})
@@ -87,6 +89,46 @@ id = "capture-git-repo"
 id = "capture-file"
 # ... hook configuration
 ```
+
+### Environment Variables from .env Files
+
+Capsula can automatically load environment variables from a `.env` file before executing hooks and commands. This is useful for managing secrets, API tokens, or environment-specific configuration.
+
+```toml
+dotenv = ".env"              # Relative path (relative to capsula.toml)
+# OR
+dotenv = "/absolute/path/to/.env"  # Absolute path
+```
+
+**Example `.env` file:**
+
+```bash
+DATABASE_URL=postgresql://localhost/mydb
+API_KEY=secret-key-here
+DEBUG=true
+```
+
+**Behavior:**
+
+- If the `dotenv` field is **not specified**, no environment file is loaded (default behavior)
+- If specified, the file is loaded **before** running any hooks or the main command
+- Environment variables are available to all hooks and the executed command
+- If the file fails to load, a warning is logged but execution continues
+- Relative paths are resolved relative to the directory containing `capsula.toml`
+
+**Use with Slack Hook:**
+
+```toml
+dotenv = ".env"  # Load SLACK_BOT_TOKEN from .env file
+
+[[pre-run.hooks]]
+id = "notify-slack"
+channel = "#general"
+# Token will be read from SLACK_BOT_TOKEN environment variable loaded from .env
+```
+
+> [!TIP]
+> Add your `.env` file to `.gitignore` to avoid committing secrets to version control.
 
 ### Available Hook Types
 
