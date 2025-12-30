@@ -9,6 +9,7 @@ use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FileHookConfig {
@@ -100,13 +101,22 @@ impl FileHook {
 
     fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
         let pattern = Self::build_glob_pattern(&metadata.project_root, &self.config.glob);
+        debug!(
+            "FileHook: Searching for files matching pattern: {}",
+            pattern
+        );
 
-        glob::glob(&pattern)?
+        let files: Vec<_> = glob::glob(&pattern)?
             .filter_map(Result::ok) // Filter out GlobErrors
             .filter(|path| path.is_file()) // Only files, not directories
-            .map(|path| self.capture_file(&path, &metadata.run_dir))
-            .collect::<Result<Vec<_>, FileHookError>>()
-            .map(|files| FileCaptured { files })
+            .map(|path| {
+                debug!("FileHook: Processing file: {}", path.display());
+                self.capture_file(&path, &metadata.run_dir)
+            })
+            .collect::<Result<Vec<_>, FileHookError>>()?;
+
+        debug!("FileHook: Captured {} files", files.len());
+        Ok(FileCaptured { files })
     }
 
     fn capture_file(
@@ -116,13 +126,17 @@ impl FileHook {
     ) -> Result<FileCapturedPerFile, FileHookError> {
         // Compute hash if needed
         let hash = match self.config.hash {
-            HashAlgorithm::Sha256 => Some(format!("sha256:{}", file_digest_sha256(path)?)),
+            HashAlgorithm::Sha256 => {
+                debug!("FileHook: Computing SHA256 hash for: {}", path.display());
+                Some(format!("sha256:{}", file_digest_sha256(path)?))
+            }
             HashAlgorithm::None => None,
         };
 
         // Copy or move file if needed
         let copied_path = match self.config.mode {
             CaptureMode::Copy | CaptureMode::Move => {
+                debug!("FileHook: {:?} file to run directory", self.config.mode);
                 let file_name = path
                     .file_name()
                     .ok_or_else(|| FileHookError::InvalidRunDir {

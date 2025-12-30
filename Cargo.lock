@@ -129,6 +129,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
  "ulid",
 ]
 
@@ -140,6 +141,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
  "ulid",
 ]
 
@@ -151,6 +153,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
  "ulid",
 ]
 
@@ -164,6 +167,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror",
+ "tracing",
  "ulid",
 ]
 
@@ -189,6 +193,7 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "thiserror",
+ "tracing",
  "ulid",
 ]
 
@@ -221,6 +226,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "toml",
+ "tracing",
 ]
 
 [[package]]
@@ -233,6 +239,7 @@ dependencies = [
  "serde_json",
  "shlex",
  "thiserror",
+ "tracing",
  "ulid",
 ]
 
@@ -265,6 +272,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

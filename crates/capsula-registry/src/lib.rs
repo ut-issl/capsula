@@ -4,6 +4,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum RegistryError {
@@ -71,6 +72,8 @@ impl<P: PhaseMarker> HookRegistry<P> {
             return Err(RegistryError::AlreadyRegistered(id.to_string()));
         }
 
+        debug!("Registering hook type: {}", id);
+
         // Create a function pointer that calls H::from_config and boxes the result
         let creator: HookCreator<P> = |config, project_root| {
             let hook = H::from_config(config, project_root)?;
@@ -88,6 +91,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
         config: &Value,
         project_root: &Path,
     ) -> CapsulaResult<Box<dyn HookErased<P>>> {
+        debug!("Looking up hook creator for: {}", hook_id);
         let creator = self.creators.get(hook_id).ok_or_else(|| {
             let available = self.registered_types().join(", ");
             CapsulaError::Configuration {
@@ -95,6 +99,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
             }
         })?;
 
+        debug!("Creating hook instance for: {}", hook_id);
         creator(config, project_root).map_err(|e| {
             // Enhance error message with hook type information
             match e {

@@ -7,6 +7,7 @@ use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct CwdHookConfig {}
@@ -56,8 +57,10 @@ where
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
+        debug!("CwdHook: Capturing current working directory");
         let cwd_abs =
             std::env::current_dir().map_err(|source| CwdHookError::CurrentDirError { source })?;
+        debug!("CwdHook: Current directory is: {}", cwd_abs.display());
         Ok(CwdCaptured { cwd_abs })
     }
 }

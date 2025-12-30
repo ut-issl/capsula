@@ -6,6 +6,7 @@ use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CommandHookConfig {
@@ -60,6 +61,7 @@ where
             return Err(CommandHookError::EmptyCommand.into());
         }
 
+        debug!("CommandHook: Executing command: {:?}", self.config.command);
         let mut cmd = Command::new(&self.config.command[0]);
         if self.config.command.len() > 1 {
             cmd.args(&self.config.command[1..]);
@@ -76,11 +78,23 @@ where
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let status = output.status.code().unwrap_or(-1);
 
+        debug!(
+            "CommandHook: Command completed with exit code {}, {} bytes stdout, {} bytes stderr",
+            status,
+            stdout.len(),
+            stderr.len()
+        );
+
+        let abort_requested = self.config.abort_on_failure && status != 0;
+        if abort_requested {
+            debug!("CommandHook: Requesting abort due to command failure");
+        }
+
         Ok(CommandCaptured {
             stdout,
             stderr,
             status,
-            abort_requested: self.config.abort_on_failure && status != 0,
+            abort_requested,
         })
     }
 }

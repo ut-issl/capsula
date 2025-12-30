@@ -5,6 +5,7 @@ use capsula_core::{
 use serde::{Deserialize, Deserializer};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -97,11 +98,15 @@ pub struct HookEnvelope {
 
 impl CapsulaConfig {
     pub fn from_toml_str(content: &str) -> ConfigResult<Self> {
-        Ok(toml::from_str(content)?)
+        debug!("Parsing TOML configuration ({} bytes)", content.len());
+        let config = toml::from_str(content)?;
+        debug!("TOML configuration parsed successfully");
+        Ok(config)
     }
 
     pub fn from_file(path: impl AsRef<std::path::Path>) -> ConfigResult<Self> {
         let path = path.as_ref();
+        debug!("Reading configuration file: {}", path.display());
         let content = std::fs::read_to_string(path).map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
                 ConfigError::FileNotFound {
@@ -121,11 +126,20 @@ pub fn build_hooks<P: PhaseMarker>(
     project_root: &Path,
     registry: &capsula_registry::HookRegistry<P>,
 ) -> CapsulaResult<Vec<Box<dyn capsula_core::hook::HookErased<P>>>> {
-    phase
+    debug!(
+        "Building {} hooks from phase configuration",
+        phase.hooks.len()
+    );
+    let hooks: Vec<_> = phase
         .hooks
         .iter()
-        .map(|envelope| registry.create_hook(&envelope.id, &envelope.rest, project_root))
-        .collect()
+        .map(|envelope| {
+            debug!("Creating hook: {}", envelope.id);
+            registry.create_hook(&envelope.id, &envelope.rest, project_root)
+        })
+        .collect::<Result<_, _>>()?;
+    debug!("Successfully created {} hook instances", hooks.len());
+    Ok(hooks)
 }
 
 #[cfg(test)]

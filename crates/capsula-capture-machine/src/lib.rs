@@ -7,6 +7,7 @@ use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
+use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MachineHookConfig {}
@@ -64,11 +65,17 @@ where
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
+        debug!("MachineHook: Gathering system information");
         let os = System::name().ok_or(MachineHookError::OsInfoError)?;
         let os_version = System::os_version().ok_or(MachineHookError::OsInfoError)?;
         let kernel_version = System::kernel_version().ok_or(MachineHookError::OsInfoError)?;
         let architecture = std::env::consts::ARCH.to_string();
+        debug!(
+            "MachineHook: OS: {} {}, Kernel: {}, Arch: {}",
+            os, os_version, kernel_version, architecture
+        );
 
+        debug!("MachineHook: Querying CPU and memory information");
         let system = System::new_with_specifics(
             RefreshKind::nothing()
                 .with_cpu(CpuRefreshKind::nothing().with_frequency())
@@ -87,6 +94,12 @@ where
 
         let total_memory = system.total_memory();
         let hostname = System::host_name().ok_or(MachineHookError::HostnameError)?;
+        debug!(
+            "MachineHook: Found {} CPUs, {} bytes total memory, hostname: {}",
+            cpus.len(),
+            total_memory,
+            hostname
+        );
 
         Ok(MachineCaptured {
             os,
