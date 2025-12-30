@@ -10,3 +10,4 @@ heading-increment: false
 fenced-code-language: false
 ol-prefix: false
 no-trailing-punctuation: false
+code-block-style: false
