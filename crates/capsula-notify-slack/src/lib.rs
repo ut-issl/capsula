@@ -232,7 +232,15 @@ fn send_slack_message(
         attached_files.push(file_name);
     }
 
-    // Step 3: Build files array as JSON string
+    // Step 4: Send the main message with blocks first
+    let (message_response, thread_ts) =
+        send_simple_message(&client, token, channel, text, blocks, None)?;
+
+    // Step 5: Share files in thread with initial_comment and thread_ts
+    let ts = thread_ts.ok_or_else(|| SlackNotifyError::SlackApi {
+        message: "Failed to get timestamp from message response".to_string(),
+    })?;
+
     let files_json = serde_json::to_string(
         &file_ids
             .iter()
@@ -241,25 +249,21 @@ fn send_slack_message(
     )
     .map_err(SlackNotifyError::Serialization)?;
 
-    // Step 4: Send the main message with blocks first
-    let (message_response, thread_ts) = send_simple_message(&client, token, channel, text, blocks, None)?;
-
-    // Step 5: Complete upload and share the files in a thread reply
-    let ts = thread_ts.ok_or_else(|| SlackNotifyError::SlackApi {
-        message: "Failed to get timestamp from message response".to_string(),
-    })?;
-
-    // Use form data for sharing files in thread
+    // Use form data for sharing files in thread with initial_comment
     let mut complete_form = reqwest::blocking::multipart::Form::new()
-        .text("files", files_json);
+        .text("files", files_json)
+        .text(
+            "initial_comment",
+            format!("📎 {} file(s) attached", attached_files.len()),
+        )
+        .text("thread_ts", ts);
 
-    // Add channel and thread_ts
+    // Add channel
     if channel.starts_with('C') {
         complete_form = complete_form.text("channel_id", channel.to_string());
     } else {
         complete_form = complete_form.text("channels", channel.to_string());
     }
-    complete_form = complete_form.text("thread_ts", ts);
 
     let complete_res = client
         .post("https://slack.com/api/files.completeUploadExternal")
@@ -290,10 +294,7 @@ fn send_slack_message(
         });
     }
 
-    Ok((
-        message_response,
-        attached_files,
-    ))
+    Ok((message_response, attached_files))
 }
 
 #[derive(Debug)]
