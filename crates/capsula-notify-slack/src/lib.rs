@@ -249,17 +249,10 @@ fn send_slack_message(
     )
     .map_err(SlackNotifyError::Serialization)?;
 
-    // Complete upload and share to thread (without initial_comment for cleaner workaround)
-    let mut complete_form = reqwest::blocking::multipart::Form::new()
-        .text("files", files_json)
-        .text("thread_ts", ts.clone());
-
-    // Add channel
-    if channel.starts_with('C') {
-        complete_form = complete_form.text("channel_id", channel.to_string());
-    } else {
-        complete_form = complete_form.text("channels", channel.to_string());
-    }
+    // Complete upload WITHOUT sharing to channel - just finalize the upload
+    // This way the file is uploaded but not posted anywhere yet
+    let complete_form = reqwest::blocking::multipart::Form::new()
+        .text("files", files_json);
 
     let complete_res = client
         .post("https://slack.com/api/files.completeUploadExternal")
@@ -292,6 +285,7 @@ fn send_slack_message(
 
     // Step 6: Extract file permalinks from response for broadcast message
     let mut file_permalinks = Vec::new();
+
     if let Some(files_info) = complete_json.get("files").and_then(|v| v.as_array()) {
         for file in files_info {
             if let Some(permalink) = file.get("permalink").and_then(|v| v.as_str()) {
