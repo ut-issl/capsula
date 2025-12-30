@@ -247,6 +247,7 @@ dependencies = [
  "serde_json",
  "shlex",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

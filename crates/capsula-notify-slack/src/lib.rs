@@ -7,6 +7,7 @@ use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::{Path, PathBuf};
+use tracing::warn;
 
 /// Configuration for the Slack notification hook
 ///
@@ -208,6 +209,7 @@ fn send_slack_message(
     text: &str,
     blocks: &[serde_json::Value],
     attachment_paths: &[PathBuf],
+    run_name: &str,
 ) -> Result<(String, Vec<String>), SlackNotifyError> {
     let client = reqwest::blocking::Client::new();
 
@@ -251,8 +253,7 @@ fn send_slack_message(
 
     // Complete upload WITHOUT sharing to channel - just finalize the upload
     // This way the file is uploaded but not posted anywhere yet
-    let complete_form = reqwest::blocking::multipart::Form::new()
-        .text("files", files_json);
+    let complete_form = reqwest::blocking::multipart::Form::new().text("files", files_json);
 
     let complete_res = client
         .post("https://slack.com/api/files.completeUploadExternal")
@@ -296,15 +297,19 @@ fn send_slack_message(
 
     // Step 7: Post a broadcast message with file links
     let file_links_text = if file_permalinks.is_empty() {
-        format!("📎 {} file(s) attached", attached_files.len())
+        format!(
+            "📎 `{}`: {} file(s) attached",
+            run_name,
+            attached_files.len()
+        )
     } else {
         let links = file_permalinks
             .iter()
             .zip(&attached_files)
-            .map(|(link, name)| format!("<{}|{}>", link, name))
+            .map(|(link, name)| format!("<{link}|{name}>"))
             .collect::<Vec<_>>()
             .join("\n");
-        format!("📎 Attached files:\n{}", links)
+        format!("📎 Attachments (Run Name: `{run_name}`):\n{links}")
     };
 
     let broadcast_payload = json!({
@@ -325,7 +330,7 @@ fn send_slack_message(
 
     if !broadcast_res.status().is_success() {
         // Don't fail the whole operation if broadcast fails
-        eprintln!(
+        warn!(
             "Warning: Failed to broadcast file message: {}",
             broadcast_res.status()
         );
@@ -445,6 +450,7 @@ impl Hook<PreRun> for SlackNotifyHook {
             &fallback_text,
             &blocks,
             &attachment_paths,
+            &metadata.name,
         )?;
 
         Ok(SlackNotifyCaptured {
@@ -546,6 +552,7 @@ impl Hook<PostRun> for SlackNotifyHook {
             &fallback_text,
             &blocks,
             &attachment_paths,
+            &metadata.name,
         )?;
 
         Ok(SlackNotifyCaptured {
