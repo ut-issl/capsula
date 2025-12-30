@@ -32,7 +32,6 @@ impl From<GitHookError> for CapsulaError {
     fn from(err: GitHookError) -> Self {
         Self::HookFailed {
             hook: "capture-git-repo".to_string(),
-            message: err.to_string(),
             source: Box::new(err),
         }
     }

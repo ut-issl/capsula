@@ -34,7 +34,6 @@ impl From<MachineHookError> for CapsulaError {
     fn from(err: MachineHookError) -> Self {
         Self::HookFailed {
             hook: "capture-machine".to_string(),
-            message: err.to_string(),
             source: Box::new(err),
         }
     }

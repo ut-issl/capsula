@@ -1,3 +1,4 @@
+//! Capsula CLI main entry point
 #![allow(
     clippy::print_stdout,
     reason = "Printing is acceptable in main CLI code"
@@ -417,10 +418,7 @@ fn main() {
             error!("Error: {err:?}");
         } else {
             // Show user-friendly error message
-            error!("Error: {err:#}");
-
-            // Add hint for getting more details
-            error!("\nFor more details, run with RUST_BACKTRACE=1");
+            error!("Error: {err:#}\n\nFor more details, run with RUST_BACKTRACE=1");
         }
 
         std::process::exit(1);

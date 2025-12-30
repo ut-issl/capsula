@@ -23,7 +23,6 @@ impl From<SlackNotifyError> for CapsulaError {
     fn from(err: SlackNotifyError) -> Self {
         Self::HookFailed {
             hook: "notify-slack".to_string(),
-            message: err.to_string(),
             source: Box::new(err),
         }
     }

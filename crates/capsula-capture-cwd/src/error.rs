@@ -21,7 +21,6 @@ impl From<CwdHookError> for CapsulaError {
     fn from(err: CwdHookError) -> Self {
         Self::HookFailed {
             hook: "capture-cwd".to_string(),
-            message: err.to_string(),
             source: Box::new(err),
         }
     }
