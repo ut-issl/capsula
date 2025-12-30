@@ -158,18 +158,25 @@ fn upload_file_to_slack(
 }
 
 /// Send a simple message to Slack without attachments using Block Kit
+/// Returns the response JSON and optionally the thread timestamp
 fn send_simple_message(
     client: &reqwest::blocking::Client,
     token: &str,
     channel: &str,
     text: &str,
     blocks: &[serde_json::Value],
-) -> Result<String, SlackNotifyError> {
-    let payload = json!({
+    thread_ts: Option<&str>,
+) -> Result<(String, Option<String>), SlackNotifyError> {
+    let mut payload = json!({
         "channel": channel,
         "text": text,
         "blocks": blocks,
     });
+
+    // Add thread_ts if provided
+    if let Some(ts) = thread_ts {
+        payload["thread_ts"] = json!(ts);
+    }
 
     let res = client
         .post("https://slack.com/api/chat.postMessage")
@@ -184,7 +191,14 @@ fn send_simple_message(
         });
     }
 
-    Ok(res.text().unwrap_or_else(|_| String::from("{}")))
+    let response_text = res.text().unwrap_or_else(|_| String::from("{}"));
+
+    // Extract the timestamp from the response for threading
+    let ts = serde_json::from_str::<serde_json::Value>(&response_text)
+        .ok()
+        .and_then(|v| v.get("ts").and_then(|t| t.as_str()).map(String::from));
+
+    Ok((response_text, ts))
 }
 
 /// Send a message with optional file attachments to Slack
@@ -199,7 +213,7 @@ fn send_slack_message(
 
     // If no attachments, use simple chat.postMessage
     if attachment_paths.is_empty() {
-        let response = send_simple_message(&client, token, channel, text, blocks)?;
+        let (response, _ts) = send_simple_message(&client, token, channel, text, blocks, None)?;
         return Ok((response, Vec::new()));
     }
 
@@ -218,8 +232,7 @@ fn send_slack_message(
         attached_files.push(file_name);
     }
 
-    // Step 3: Complete upload and share to channel
-    // Build files array as JSON string
+    // Step 3: Build files array as JSON string
     let files_json = serde_json::to_string(
         &file_ids
             .iter()
@@ -228,17 +241,25 @@ fn send_slack_message(
     )
     .map_err(SlackNotifyError::Serialization)?;
 
-    // Use form data (not JSON) for the request
-    // Don't include initial_comment - we'll send a separate message with blocks
+    // Step 4: Send the main message with blocks first
+    let (message_response, thread_ts) = send_simple_message(&client, token, channel, text, blocks, None)?;
+
+    // Step 5: Complete upload and share the files in a thread reply
+    let ts = thread_ts.ok_or_else(|| SlackNotifyError::SlackApi {
+        message: "Failed to get timestamp from message response".to_string(),
+    })?;
+
+    // Use form data for sharing files in thread
     let mut complete_form = reqwest::blocking::multipart::Form::new()
         .text("files", files_json);
 
-    // Add channel_id if it's a channel ID (starts with C), otherwise use channels parameter
+    // Add channel and thread_ts
     if channel.starts_with('C') {
         complete_form = complete_form.text("channel_id", channel.to_string());
     } else {
         complete_form = complete_form.text("channels", channel.to_string());
     }
+    complete_form = complete_form.text("thread_ts", ts);
 
     let complete_res = client
         .post("https://slack.com/api/files.completeUploadExternal")
@@ -249,11 +270,10 @@ fn send_slack_message(
 
     if !complete_res.status().is_success() {
         return Err(SlackNotifyError::SlackApi {
-            message: format!("Failed to complete file upload: {}", complete_res.status()),
+            message: format!("Failed to share files in thread: {}", complete_res.status()),
         });
     }
 
-    // Check if the Slack API returned an error in the response
     let complete_json: serde_json::Value = complete_res.json().map_err(SlackNotifyError::from)?;
 
     if !complete_json
@@ -266,12 +286,9 @@ fn send_slack_message(
             .and_then(|v| v.as_str())
             .unwrap_or("unknown error");
         return Err(SlackNotifyError::SlackApi {
-            message: format!("Failed to complete file upload: {error_msg}"),
+            message: format!("Failed to share files in thread: {error_msg}"),
         });
     }
-
-    // Step 4: Send the message with blocks separately
-    let message_response = send_simple_message(&client, token, channel, text, blocks)?;
 
     Ok((
         message_response,
