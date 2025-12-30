@@ -229,9 +229,9 @@ fn send_slack_message(
     .map_err(SlackNotifyError::Serialization)?;
 
     // Use form data (not JSON) for the request
+    // Don't include initial_comment - we'll send a separate message with blocks
     let mut complete_form = reqwest::blocking::multipart::Form::new()
-        .text("files", files_json)
-        .text("initial_comment", text.to_string());
+        .text("files", files_json);
 
     // Add channel_id if it's a channel ID (starts with C), otherwise use channels parameter
     if channel.starts_with('C') {
@@ -270,8 +270,11 @@ fn send_slack_message(
         });
     }
 
+    // Step 4: Send the message with blocks separately
+    let message_response = send_simple_message(&client, token, channel, text, blocks)?;
+
     Ok((
-        serde_json::to_string(&complete_json).unwrap_or_else(|_| String::from("{}")),
+        message_response,
         attached_files,
     ))
 }
