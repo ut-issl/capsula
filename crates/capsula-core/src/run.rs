@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
+use tracing::debug;
 use ulid::Ulid;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -51,6 +52,10 @@ impl Run<()> {
         vault_dir: impl AsRef<std::path::Path>,
         max_retries: usize,
     ) -> io::Result<Run<PathBuf>> {
+        debug!(
+            "Setting up vault directory: {}",
+            vault_dir.as_ref().display()
+        );
         setup_vault(&vault_dir)?;
 
         // TODO: Consider removing retries as it is too conservative?
@@ -58,7 +63,12 @@ impl Run<()> {
             let mut attempt = 0;
             loop {
                 let candidate = self.gen_run_dir(&vault_dir);
+                debug!("Candidate run directory: {}", candidate.display());
                 if candidate.exists() {
+                    debug!(
+                        "Directory already exists, retrying (attempt {})",
+                        attempt + 1
+                    );
                     // Slight delay before retrying
                     thread::sleep(Duration::from_millis(10 * (attempt as u64 + 1)));
                     attempt += 1;
@@ -76,7 +86,10 @@ impl Run<()> {
             }
         };
 
+        debug!("Creating run directory: {}", run_dir.display());
         std::fs::create_dir_all(&run_dir)?;
+        debug!("Run directory created successfully");
+
         Ok(Run {
             id: self.id,
             name: self.name.clone(),
@@ -149,6 +162,8 @@ impl Run<PathBuf> {
         let program = &self.command[0];
         let args: Vec<&str> = self.command[1..].iter().map(String::as_str).collect();
 
+        debug!("Executing command: {} with {} args", program, args.len());
+
         let mut env_vars = HashMap::new();
         env_vars.insert("CAPSULA_RUN_ID", self.id.to_string());
         env_vars.insert("CAPSULA_RUN_NAME", self.name.clone());
@@ -171,8 +186,14 @@ impl Run<PathBuf> {
             self.project_root.to_string_lossy().to_string(),
         );
 
+        debug!(
+            "Setting {} environment variables for command execution",
+            env_vars.len()
+        );
+
         let start = Instant::now();
 
+        debug!("Spawning child process");
         let mut child = Command::new(program)
             .args(&args)
             .envs(&env_vars)
@@ -223,8 +244,11 @@ impl Run<PathBuf> {
             Ok(cap)
         });
 
+        debug!("Waiting for child process to complete");
         let status = child.wait()?;
         let duration = start.elapsed();
+        debug!("Child process completed in {:?}", duration);
+
         let cap_out = t_out
             .join()
             .map_err(|_| io::Error::other("stdout capture thread panicked"))??;
@@ -233,6 +257,12 @@ impl Run<PathBuf> {
             .map_err(|_| io::Error::other("stderr capture thread panicked"))??;
 
         let exit_code = exit_code_from_status(status);
+        debug!(
+            "Command finished with exit code {}, captured {} bytes stdout, {} bytes stderr",
+            exit_code,
+            cap_out.len(),
+            cap_err.len()
+        );
 
         Ok(RunOutput {
             exit_code,
@@ -246,12 +276,16 @@ impl Run<PathBuf> {
 fn setup_vault(path: impl AsRef<std::path::Path>) -> io::Result<()> {
     let path = path.as_ref();
     if path.exists() {
+        debug!("Vault directory already exists: {}", path.display());
         return Ok(());
     }
+
+    debug!("Creating vault directory: {}", path.display());
     std::fs::create_dir_all(path)?;
 
     // Place a .gitignore file to ignore all contents
     let gitignore_path = path.join(".gitignore");
+    debug!("Creating .gitignore in vault directory");
     std::fs::write(
         gitignore_path,
         "\

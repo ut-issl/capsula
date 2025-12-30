@@ -5,6 +5,7 @@ use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct EnvVarHookConfig {
@@ -47,7 +48,21 @@ where
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
+        debug!(
+            "EnvVarHook: Capturing environment variable: {}",
+            self.config.name
+        );
         let value = std::env::var(&self.config.name).ok();
+        if let Some(ref val) = value {
+            debug!(
+                "EnvVarHook: Variable '{}' = '{}' ({} bytes)",
+                self.config.name,
+                val,
+                val.len()
+            );
+        } else {
+            debug!("EnvVarHook: Variable '{}' not found", self.config.name);
+        }
         Ok(EnvVarCaptured { value })
     }
 }

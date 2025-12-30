@@ -7,7 +7,7 @@ use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::{Path, PathBuf};
-use tracing::warn;
+use tracing::{debug, warn};
 
 /// Configuration for the Slack notification hook
 ///
@@ -42,9 +42,16 @@ fn resolve_attachment_globs(
     globs: &[String],
     base_dir: &Path,
 ) -> Result<Vec<PathBuf>, SlackNotifyError> {
+    debug!(
+        "Resolving {} attachment glob patterns from base: {}",
+        globs.len(),
+        base_dir.display()
+    );
+
     let mut files = Vec::new();
 
     for pattern in globs {
+        debug!("Processing glob pattern: {}", pattern);
         // Resolve pattern relative to base_dir
         let full_pattern = base_dir.join(pattern);
         let pattern_str = full_pattern
@@ -64,17 +71,31 @@ fn resolve_attachment_globs(
         })?;
 
         // Collect successful matches, skip errors
+        let mut pattern_matches = 0;
         for entry in paths {
             match entry {
-                Ok(path) if path.is_file() => files.push(path),
+                Ok(path) if path.is_file() => {
+                    files.push(path);
+                    pattern_matches += 1;
+                }
                 Ok(_) | Err(_) => {} // Skip directories and glob errors (e.g., permission denied)
             }
         }
+        debug!("Pattern '{}' matched {} files", pattern, pattern_matches);
     }
 
     // Limit to 10 files (Slack API limit)
+    let original_count = files.len();
     files.truncate(10);
 
+    if original_count > 10 {
+        debug!(
+            "Truncated attachment list from {} to 10 files (Slack API limit)",
+            original_count
+        );
+    }
+
+    debug!("Total files resolved: {}", files.len());
     Ok(files)
 }
 
@@ -90,14 +111,17 @@ fn upload_file_to_slack(
         .unwrap_or("file")
         .to_string();
 
+    debug!("Reading file content: {}", path.display());
     let file_content = std::fs::read(path).map_err(|e| SlackNotifyError::FileIo {
         path: path.display().to_string(),
         source: e,
     })?;
 
     let file_size = file_content.len();
+    debug!("File size: {} bytes", file_size);
 
     // Get upload URL (must use form parameters, not JSON)
+    debug!("Requesting upload URL from Slack for file: {}", file_name);
     let form = reqwest::blocking::multipart::Form::new()
         .text("filename", file_name.clone())
         .text("length", file_size.to_string());
@@ -111,6 +135,8 @@ fn upload_file_to_slack(
 
     let upload_url_json: serde_json::Value =
         upload_url_res.json().map_err(SlackNotifyError::from)?;
+
+    debug!("Received upload URL response");
 
     if !upload_url_json
         .get("ok")
@@ -149,12 +175,14 @@ fn upload_file_to_slack(
         })?;
 
     // Upload file to the URL
+    debug!("Uploading file content to URL (file_id: {})", file_id);
     client
         .post(upload_url)
         .body(file_content)
         .send()
         .map_err(SlackNotifyError::from)?;
 
+    debug!("File upload completed successfully");
     Ok((file_id.to_string(), file_name))
 }
 
@@ -168,6 +196,12 @@ fn send_simple_message(
     blocks: &[serde_json::Value],
     thread_ts: Option<&str>,
 ) -> Result<(String, Option<String>), SlackNotifyError> {
+    debug!(
+        "Sending simple message to channel: {} (thread: {})",
+        channel,
+        thread_ts.unwrap_or("none")
+    );
+
     let mut payload = json!({
         "channel": channel,
         "text": text,
@@ -186,6 +220,8 @@ fn send_simple_message(
         .send()
         .map_err(SlackNotifyError::from)?;
 
+    debug!("Received response from chat.postMessage");
+
     if !res.status().is_success() {
         return Err(SlackNotifyError::SlackApi {
             message: format!("Failed to send Slack notification: {}", res.status()),
@@ -203,6 +239,10 @@ fn send_simple_message(
 }
 
 /// Send a message with optional file attachments to Slack
+#[expect(
+    clippy::too_many_lines,
+    reason = "TODO: Refactor into smaller functions"
+)]
 fn send_slack_message(
     token: &str,
     channel: &str,
@@ -211,10 +251,14 @@ fn send_slack_message(
     attachment_paths: &[PathBuf],
     run_name: &str,
 ) -> Result<(String, Vec<String>), SlackNotifyError> {
+    tracing::debug!("Sending Slack message to channel: {}", channel);
+    tracing::debug!("Attachment paths: {} files", attachment_paths.len());
+
     let client = reqwest::blocking::Client::new();
 
     // If no attachments, use simple chat.postMessage
     if attachment_paths.is_empty() {
+        tracing::debug!("No attachments, sending simple message");
         let (response, _ts) = send_simple_message(&client, token, channel, text, blocks, None)?;
         return Ok((response, Vec::new()));
     }
@@ -228,13 +272,21 @@ fn send_slack_message(
     let mut attached_files = Vec::new();
 
     // Step 1 & 2: Get upload URL and upload each file
+    tracing::debug!("Uploading {} files to Slack", attachment_paths.len());
     for path in attachment_paths {
+        tracing::debug!("Uploading file: {}", path.display());
         let (file_id, file_name) = upload_file_to_slack(&client, token, path)?;
+        tracing::debug!(
+            "File uploaded successfully: {} (ID: {})",
+            file_name,
+            file_id
+        );
         file_ids.push(file_id);
         attached_files.push(file_name);
     }
 
     // Step 4: Send the main message with blocks first
+    tracing::debug!("Sending main message with blocks");
     let (message_response, thread_ts) =
         send_simple_message(&client, token, channel, text, blocks, None)?;
 
@@ -242,6 +294,7 @@ fn send_slack_message(
     let ts = thread_ts.ok_or_else(|| SlackNotifyError::SlackApi {
         message: "Failed to get timestamp from message response".to_string(),
     })?;
+    tracing::debug!("Main message sent, thread timestamp: {}", ts);
 
     let files_json = serde_json::to_string(
         &file_ids
@@ -253,6 +306,7 @@ fn send_slack_message(
 
     // Complete upload WITHOUT sharing to channel - just finalize the upload
     // This way the file is uploaded but not posted anywhere yet
+    tracing::debug!("Completing file upload without sharing to channel");
     let complete_form = reqwest::blocking::multipart::Form::new().text("files", files_json);
 
     let complete_res = client
@@ -285,17 +339,24 @@ fn send_slack_message(
     }
 
     // Step 6: Extract file permalinks from response for broadcast message
+    tracing::debug!("Extracting file permalinks from response");
     let mut file_permalinks = Vec::new();
 
     if let Some(files_info) = complete_json.get("files").and_then(|v| v.as_array()) {
         for file in files_info {
             if let Some(permalink) = file.get("permalink").and_then(|v| v.as_str()) {
+                tracing::debug!("Found permalink: {}", permalink);
                 file_permalinks.push(permalink.to_string());
             }
         }
     }
+    tracing::debug!("Extracted {} permalinks", file_permalinks.len());
 
     // Step 7: Post a broadcast message with file links
+    tracing::debug!(
+        "Posting broadcast message with file links for run: {}",
+        run_name
+    );
     let file_links_text = if file_permalinks.is_empty() {
         format!(
             "📎 `{}`: {} file(s) attached",
@@ -328,7 +389,9 @@ fn send_slack_message(
         .send()
         .map_err(SlackNotifyError::from)?;
 
-    if !broadcast_res.status().is_success() {
+    if broadcast_res.status().is_success() {
+        debug!("Broadcast message sent successfully");
+    } else {
         // Don't fail the whole operation if broadcast fails
         warn!(
             "Warning: Failed to broadcast file message: {}",
@@ -388,6 +451,11 @@ impl Hook<PreRun> for SlackNotifyHook {
         metadata: &PreparedRun,
         _params: &RuntimeParams<PreRun>,
     ) -> CapsulaResult<Self::Output> {
+        debug!(
+            "SlackNotifyHook (PreRun): Sending notification for run '{}' (ID: {})",
+            metadata.name, metadata.id
+        );
+
         // Create fallback text for notifications
         let fallback_text = format!(
             "Run `{}` (ID: `{}`) is starting.",
@@ -453,6 +521,11 @@ impl Hook<PreRun> for SlackNotifyHook {
             &metadata.name,
         )?;
 
+        debug!(
+            "SlackNotifyHook (PreRun): Notification sent successfully with {} attachments",
+            attached_files.len()
+        );
+
         Ok(SlackNotifyCaptured {
             message: "Slack notification sent successfully".to_string(),
             response: Some(response),
@@ -490,6 +563,11 @@ impl Hook<PostRun> for SlackNotifyHook {
         metadata: &PreparedRun,
         _params: &RuntimeParams<PostRun>,
     ) -> CapsulaResult<Self::Output> {
+        debug!(
+            "SlackNotifyHook (PostRun): Sending notification for run '{}' (ID: {})",
+            metadata.name, metadata.id
+        );
+
         // Create fallback text for notifications
         let fallback_text = format!(
             "Run `{}` (ID: `{}`) has completed.",
@@ -554,6 +632,11 @@ impl Hook<PostRun> for SlackNotifyHook {
             &attachment_paths,
             &metadata.name,
         )?;
+
+        debug!(
+            "SlackNotifyHook (PostRun): Notification sent successfully with {} attachments",
+            attached_files.len()
+        );
 
         Ok(SlackNotifyCaptured {
             message: "Slack notification sent successfully".to_string(),

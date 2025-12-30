@@ -9,7 +9,7 @@ use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::path::PathBuf;
-use tracing::warn;
+use tracing::{debug, warn};
 
 /// Configuration for `GitHook`
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -92,6 +92,10 @@ where
             self.working_dir.clone()
         };
 
+        debug!(
+            "GitHook: Discovering repository at: {}",
+            repo_path.display()
+        );
         let repo = Repository::discover(&repo_path).map_err(|e| {
             if e.code() == git2::ErrorCode::NotFound {
                 GitHookError::NotARepository
@@ -100,18 +104,22 @@ where
             }
         })?;
 
+        debug!("GitHook: Getting HEAD commit");
         let head = repo.head().map_err(GitHookError::from)?;
         let oid = head.target().ok_or_else(|| GitHookError::HeadNotFound {
             message: "HEAD does not point to a valid commit".to_string(),
         })?;
+        debug!("GitHook: HEAD commit SHA: {}", oid);
 
         // Check if repository is dirty (excluding ignored files to match git status behavior)
+        debug!("GitHook: Checking repository status");
         let mut status_opts = git2::StatusOptions::new();
         status_opts.include_untracked(true).include_ignored(false);
         let statuses = repo
             .statuses(Some(&mut status_opts))
             .map_err(GitHookError::from)?;
         let is_dirty = !statuses.is_empty();
+        debug!("GitHook: Repository is dirty: {}", is_dirty);
 
         // If dirty and not allowed, we'll signal abort through the Captured trait
         // rather than returning an error, so other hooks can still be captured
@@ -121,10 +129,12 @@ where
 
         // Output diff content if dirty
         if is_dirty {
+            debug!("GitHook: Generating diff patch for dirty repository");
             let run_dir = &metadata.run_dir;
             let diff_content = Self::diff_content(&repo)?;
             // Output to a patch file in the run directory
             let patch_file_path = run_dir.join(format!("{}.patch", self.config.name));
+            debug!("GitHook: Writing patch to: {}", patch_file_path.display());
             std::fs::write(&patch_file_path, diff_content).map_err(GitHookError::IoError)?;
         }
 

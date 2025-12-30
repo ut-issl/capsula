@@ -14,7 +14,7 @@ use names::Generator;
 use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt};
 use ulid::Ulid;
 
@@ -54,8 +54,13 @@ fn build_and_run_hooks<P: PhaseMarker>(
     hook_registry: &capsula_registry::HookRegistry<P>,
     project_root: &std::path::Path,
 ) -> Result<(Vec<serde_json::Value>, bool)> {
+    debug!(
+        "Building {} hooks from configuration",
+        hook_phase_config.hooks.len()
+    );
     let hooks = capsula_config::build_hooks(hook_phase_config, project_root, hook_registry)
         .context("Failed to build hooks from configuration")?;
+    debug!("Successfully built {} hook instances", hooks.len());
 
     let results: Vec<_> = hooks
         .iter()
@@ -70,8 +75,10 @@ fn build_and_run_hooks<P: PhaseMarker>(
                 .config_as_json()
                 .unwrap_or_else(|_| json!({ "__error": "Failed to serialize hook config" }));
 
+            debug!("Running hook: {}", hook_identifier);
             match hook.run(run_metadata, runtime_params) {
                 Ok(captured) => {
+                    debug!("Hook '{}' completed successfully", hook_identifier);
                     let should_abort = captured.abort_requested();
 
                     // Convert to JSON and add metadata object
@@ -200,11 +207,13 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
 )]
 fn run() -> Result<()> {
     // Create the registry with all available hook types
+    debug!("Creating hook registries");
     let pre_run_hook_registry = create_pre_run_hook_registry();
     let post_run_hook_registry = create_post_run_hook_registry();
 
     let cli = Cli::parse();
     let config_file_path = cli.config.unwrap_or_else(|| PathBuf::from("capsula.toml"));
+    debug!("Using configuration file: {}", config_file_path.display());
 
     // Check if the config file exists
     if !config_file_path.exists() {
@@ -241,12 +250,14 @@ path = \".\"
         .ok_or_else(|| anyhow::anyhow!("Failed to determine project root from config file"))?
         .to_path_buf();
 
+    debug!("Loading configuration from: {}", config_file_path.display());
     let config = CapsulaConfig::from_file(&config_file_path).with_context(|| {
         format!(
             "Failed to load configuration from {}",
             config_file_path.display()
         )
     })?;
+    debug!("Configuration loaded successfully");
 
     // TODO: Resolving paths against project_root should be done in config parsing
     let vault_dir = if config.vault.path.is_absolute() {
@@ -298,6 +309,7 @@ path = \".\"
                 anyhow::bail!("No command specified to run");
             }
 
+            debug!("Creating run metadata");
             // Setup
             let run = Run::<()> {
                 id: Ulid::new(),
@@ -311,6 +323,7 @@ path = \".\"
 
             // Display run ID and name
             info!("Run ID: {}, Name: {}", run.id, run.name);
+            debug!("Setting up run directory in vault: {}", vault_dir.display());
             let run = run.setup_run_dir(&vault_dir, 5)?;
             info!("Run directory: {}", run.run_dir.to_string_lossy());
 
@@ -335,6 +348,7 @@ path = \".\"
             )?;
 
             // Pre-run hooks capture
+            debug!("Executing pre-run hooks");
             let pre_params = RuntimeParams::<PreRun>::default();
             let (pre_json, should_abort) = build_and_run_hooks(
                 &run,
@@ -344,6 +358,7 @@ path = \".\"
                 &project_root,
             )
             .context("Failed to execute pre-run hooks")?;
+            debug!("Pre-run hooks completed");
 
             // Save pre_json to capsula_dir/pre.json
             let pre_json_path = capsula_dir.join("pre-run.json");
@@ -362,7 +377,12 @@ path = \".\"
             }
 
             // Execute the command
+            debug!("Executing command: {:?}", run.command);
             let run_output = run.exec().context("Failed to execute command")?;
+            debug!(
+                "Command completed with exit code: {:?}",
+                run_output.exit_code
+            );
             // Save run_output to capsula_dir/command.json
             let run_json_path = capsula_dir.join("command.json");
             std::fs::write(&run_json_path, serde_json::to_string_pretty(&run_output)?)
@@ -371,6 +391,7 @@ path = \".\"
                 })?;
 
             // Post-run hooks capture
+            debug!("Executing post-run hooks");
             let post_params = RuntimeParams::<PostRun>::default();
             let (post_json, _should_abort) = build_and_run_hooks::<PostRun>(
                 &run,
@@ -380,6 +401,7 @@ path = \".\"
                 &project_root,
             )
             .context("Failed to execute post-run hooks")?;
+            debug!("Post-run hooks completed");
 
             // Save post_json to run_dir/post.json
             let post_json_path = capsula_dir.join("post-run.json");
