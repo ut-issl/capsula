@@ -48,6 +48,8 @@ impl From<ConfigError> for CapsulaError {
 pub struct CapsulaConfig {
     pub vault: VaultConfig,
     #[serde(default)]
+    pub dotenv: Option<PathBuf>,
+    #[serde(default)]
     pub pre_run: HookPhaseConfig,
     #[serde(default)]
     pub post_run: HookPhaseConfig,

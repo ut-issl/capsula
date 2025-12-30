@@ -26,6 +26,7 @@ capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.9.2"
 capsula-registry = { path = "crates/capsula-registry", version = "0.9.2" }
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
+dotenvy = "0.15.7"
 git2 = "0.20"
 glob = "0.3"
 names = { version = "0.14", default-features = false }

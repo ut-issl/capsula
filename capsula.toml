@@ -1,3 +1,5 @@
+dotenv = ".env"
+
 [vault]
 name = "capsula"  # Should be unique in the storage
 

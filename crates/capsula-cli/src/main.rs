@@ -205,6 +205,10 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     clippy::too_many_lines,
     reason = "TODO: Refactor into smaller functions"
 )]
+#[expect(
+    clippy::cognitive_complexity,
+    reason = "TODO: Refactor into smaller functions"
+)]
 fn run() -> Result<()> {
     // Create the registry with all available hook types
     debug!("Creating hook registries");
@@ -258,6 +262,33 @@ path = \".\"
         )
     })?;
     debug!("Configuration loaded successfully");
+
+    // Load dotenv file if specified
+    if let Some(dotenv_path) = &config.dotenv {
+        let dotenv_full_path = if dotenv_path.is_absolute() {
+            dotenv_path.clone()
+        } else {
+            project_root.join(dotenv_path)
+        };
+
+        debug!("Loading dotenv file from: {}", dotenv_full_path.display());
+
+        match dotenvy::from_path(&dotenv_full_path) {
+            Ok(()) => {
+                info!(
+                    "Loaded environment variables from: {}",
+                    dotenv_full_path.display()
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to load dotenv file from {}: {}",
+                    dotenv_full_path.display(),
+                    e
+                );
+            }
+        }
+    }
 
     // TODO: Resolving paths against project_root should be done in config parsing
     let vault_dir = if config.vault.path.is_absolute() {
