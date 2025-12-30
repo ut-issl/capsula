@@ -343,14 +343,14 @@ path = \".\"
                 &pre_run_hook_registry,
                 &project_root,
             )
-            .context("Failed to execute pre-phase hooks")?;
+            .context("Failed to execute pre-run hooks")?;
 
             // Save pre_json to capsula_dir/pre.json
             let pre_json_path = capsula_dir.join("pre-run.json");
             std::fs::write(&pre_json_path, serde_json::to_string_pretty(&pre_json)?).with_context(
                 || {
                     format!(
-                        "Failed to write pre-phase results to {}",
+                        "Failed to write pre-run hook results to {}",
                         pre_json_path.display()
                     )
                 },
@@ -386,7 +386,7 @@ path = \".\"
             std::fs::write(&post_json_path, serde_json::to_string_pretty(&post_json)?)
                 .with_context(|| {
                     format!(
-                        "Failed to write post-phase results to {}",
+                        "Failed to write post-run hook results to {}",
                         post_json_path.display()
                     )
                 })?;
@@ -415,10 +415,10 @@ fn main() {
 
         if verbose {
             // Show full error chain with backtrace
-            error!("Error: {err:?}");
+            error!("{err:?}");
         } else {
             // Show user-friendly error message
-            error!("Error: {err:#}\n\nFor more details, run with RUST_BACKTRACE=1");
+            error!("{err:#}\n\nFor more details, run with RUST_BACKTRACE=1");
         }
 
         std::process::exit(1);
