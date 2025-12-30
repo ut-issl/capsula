@@ -283,7 +283,7 @@ token = "xoxb-..."          # Slack bot token (optional, can use SLACK_BOT_TOKEN
 # Send as a DM to a user
 [[post-run.hooks]]
 id = "notify-slack"
-channel = "U01234ABCD"      # Slack user ID for DMs (not @username)
+channel = "D01234ABCD"      # Channel ID for DM with bot
 # Token will be read from SLACK_BOT_TOKEN env var
 
 # Post-run notification with file attachments
@@ -355,7 +355,7 @@ To use the Slack notification hook, you need to:
 4. Copy the bot token (starts with `xoxb-`)
 5. Set the `SLACK_BOT_TOKEN` environment variable or add it to your config
 6. For channel notifications: Invite the bot to the channel you want to post to
-7. For DM notifications: Find the user ID by clicking the user's profile → "More" → "Copy member ID" (format: `U01234ABCD`)
+7. For DM notifications: Go to the DM with the bot and click the Bot's name to find the channel ID (e.g., `D01234ABCD`)
 
 ## CLI Usage
 
