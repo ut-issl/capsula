@@ -63,7 +63,6 @@ hash = "sha256"
 capsula run python train_model.py
 ```
 
-
 ## Configuration
 
 ### Basic Structure
@@ -363,7 +362,7 @@ capsula run python train.py --epochs 100 --lr 0.01
 When executing a command with `capsula run`, the following environment variables are automatically set and available to your command:
 
 | Variable | Description | Example |
-|----------|-------------|---------|
+| ---------- | ------------- | --------- |
 | `CAPSULA_RUN_ID` | Unique ULID identifier for this run | `01K8WSYC91YAE21R7CWHQ4KYN2` |
 | `CAPSULA_RUN_NAME` | Human-readable generated name | `chubby-back` |
 | `CAPSULA_RUN_DIRECTORY` | Absolute path to the run directory in the vault | `/path/to/.capsula/vault-name/2025-10-31/093525-chubby-back` |
@@ -427,10 +426,10 @@ TIMESTAMP (UTC)      NAME                  COMMAND
 ```
 
 The output shows:
+
 - **Timestamp**: UTC time when the command was executed
 - **Name**: Human-readable generated name for the run
 - **Command**: The command that was executed (truncated if too long)
-
 
 ## Output Structure
 
