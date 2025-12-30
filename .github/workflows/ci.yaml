@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Spell check with typos
-        uses: crates-ci/typos@v1.40.1
+        uses: crate-ci/typos@v1.40.1
 
   collect:
     needs: [checks, tests, typos]
