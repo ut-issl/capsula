@@ -249,14 +249,10 @@ fn send_slack_message(
     )
     .map_err(SlackNotifyError::Serialization)?;
 
-    // Use form data for sharing files in thread with initial_comment
+    // Complete upload and share to thread (without initial_comment for cleaner workaround)
     let mut complete_form = reqwest::blocking::multipart::Form::new()
         .text("files", files_json)
-        .text(
-            "initial_comment",
-            format!("📎 {} file(s) attached", attached_files.len()),
-        )
-        .text("thread_ts", ts);
+        .text("thread_ts", ts.clone());
 
     // Add channel
     if channel.starts_with('C') {
@@ -292,6 +288,53 @@ fn send_slack_message(
         return Err(SlackNotifyError::SlackApi {
             message: format!("Failed to share files in thread: {error_msg}"),
         });
+    }
+
+    // Step 6: Extract file permalinks from response for broadcast message
+    let mut file_permalinks = Vec::new();
+    if let Some(files_info) = complete_json.get("files").and_then(|v| v.as_array()) {
+        for file in files_info {
+            if let Some(permalink) = file.get("permalink").and_then(|v| v.as_str()) {
+                file_permalinks.push(permalink.to_string());
+            }
+        }
+    }
+
+    // Step 7: Post a broadcast message with file links
+    let file_links_text = if file_permalinks.is_empty() {
+        format!("📎 {} file(s) attached", attached_files.len())
+    } else {
+        let links = file_permalinks
+            .iter()
+            .zip(&attached_files)
+            .map(|(link, name)| format!("<{}|{}>", link, name))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!("📎 Attached files:\n{}", links)
+    };
+
+    let broadcast_payload = json!({
+        "channel": channel,
+        "thread_ts": ts,
+        "reply_broadcast": true,
+        "text": file_links_text,
+        "unfurl_links": true,
+        "unfurl_media": true,
+    });
+
+    let broadcast_res = client
+        .post("https://slack.com/api/chat.postMessage")
+        .bearer_auth(token)
+        .json(&broadcast_payload)
+        .send()
+        .map_err(SlackNotifyError::from)?;
+
+    if !broadcast_res.status().is_success() {
+        // Don't fail the whole operation if broadcast fails
+        eprintln!(
+            "Warning: Failed to broadcast file message: {}",
+            broadcast_res.status()
+        );
     }
 
     Ok((message_response, attached_files))
