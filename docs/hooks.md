@@ -53,14 +53,16 @@ Hooks are configured in `capsula.toml`:
 [vault]
 name = "my-vault"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "my-repo"
+path = "."
 allow_dirty = false
 
-[[post_run]]
-type = "capture_file"
-path = "output.txt"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "output.txt"
+mode = "copy"
 ```
 
 ## Hook Execution
@@ -70,15 +72,18 @@ copy = true
 Hooks execute sequentially in the order they appear in the configuration:
 
 ```toml
-[[pre_run]]
-type = "capture_git_repo"  # 1st
+[[pre-run.hooks]]
+id = "capture-git-repo"  # 1st
+name = "my-repo"
+path = "."
 
-[[pre_run]]
-type = "capture_env"       # 2nd
+[[pre-run.hooks]]
+id = "capture-env"       # 2nd
+name = "PATH"
 
-[[pre_run]]
-type = "capture_file"      # 3rd
-path = "config.yaml"
+[[pre-run.hooks]]
+id = "capture-file"      # 3rd
+glob = "config.yaml"
 ```
 
 ### Error Handling
@@ -123,29 +128,35 @@ All hooks produce JSON output with a `__meta` field:
 name = "experiments"
 
 # Pre-run: Capture initial state
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "experiment-repo"
+path = "."
 
-[[pre_run]]
-type = "capture_env"
-include = ["PATH", "PYTHONPATH"]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
 
-[[pre_run]]
-type = "capture_file"
-path = "config.yaml"
-copy = true
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PYTHONPATH"
+
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
 
 # Post-run: Capture results
-[[post_run]]
-type = "capture_file"
-path = "results/output.json"
-copy = true
-compute_hash = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/output.json"
+mode = "copy"
+hash = "sha256"
 
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = "Experiment {run_name} completed!"
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
+attachment_globs = ["results/*.png"]
 ```
 
 ## Next Steps

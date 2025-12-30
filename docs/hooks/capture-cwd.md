@@ -1,12 +1,12 @@
-# capture_cwd
+# capture-cwd
 
 Captures the current working directory.
 
 ## Configuration
 
 ```toml
-[[pre_run]]
-type = "capture_cwd"
+[[pre-run.hooks]]
+id = "capture-cwd"
 ```
 
 ## Parameters
@@ -23,7 +23,7 @@ This hook has no configuration parameters.
 ```json
 {
   "__meta": {
-    "id": "capture_cwd",
+    "id": "capture-cwd",
     "config": {},
     "success": true
   },
@@ -42,8 +42,8 @@ This hook has no configuration parameters.
 Capture where your command was executed:
 
 ```toml
-[[pre_run]]
-type = "capture_cwd"
+[[pre-run.hooks]]
+id = "capture-cwd"
 ```
 
 ### Track Directory Changes
@@ -51,11 +51,11 @@ type = "capture_cwd"
 Compare working directory before and after execution:
 
 ```toml
-[[pre_run]]
-type = "capture_cwd"
+[[pre-run.hooks]]
+id = "capture-cwd"
 
-[[post_run]]
-type = "capture_cwd"
+[[post-run.hooks]]
+id = "capture-cwd"
 ```
 
 ## Examples
@@ -66,8 +66,8 @@ type = "capture_cwd"
 [vault]
 name = "my-experiments"
 
-[[pre_run]]
-type = "capture_cwd"
+[[pre-run.hooks]]
+id = "capture-cwd"
 ```
 
 ```bash

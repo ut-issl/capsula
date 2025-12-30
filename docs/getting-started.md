@@ -37,15 +37,17 @@ Create a `capsula.toml` file in your project directory:
 [vault]
 name = "my-project"
 
-[[pre_run]]
-type = "capture_cwd"
+[[pre-run.hooks]]
+id = "capture-cwd"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "my-repo"
+path = "."
 
-[[post_run]]
-type = "capture_command"
-command = "echo 'Post-run complete'"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["echo", "Post-run complete"]
 ```
 
 ### 2. Run a Command
@@ -109,23 +111,29 @@ cat .capsula/my-project/*/latest/_capsula/pre-run.json
 [vault]
 name = "ml-experiments"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "ml-project"
+path = "."
 allow_dirty = false  # Fail if repo is dirty
 
-[[pre_run]]
-type = "capture_env"
-include = ["PYTHONPATH", "CUDA_VISIBLE_DEVICES"]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PYTHONPATH"
 
-[[pre_run]]
-type = "capture_file"
-path = "config.yaml"
-copy = true
+[[pre-run.hooks]]
+id = "capture-env"
+name = "CUDA_VISIBLE_DEVICES"
 
-[[post_run]]
-type = "capture_file"
-path = "results/metrics.json"
-copy = true
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
+
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/metrics.json"
+mode = "copy"
 ```
 
 Run your script:
@@ -140,16 +148,18 @@ capsula run python train.py --config config.yaml
 [vault]
 name = "builds"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "build-project"
+path = "."
 
-[[pre_run]]
-type = "capture_command"
-command = "rustc --version"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["rustc", "--version"]
 
-[[post_run]]
-type = "capture_command"
-command = "ls -lh target/release/"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["ls", "-lh", "target/release/"]
 ```
 
 Run your build:

@@ -8,12 +8,12 @@ Capsula is configured using a `capsula.toml` file in your project directory.
 [vault]
 name = "my-vault"
 
-[[pre_run]]
-type = "hook_type"
+[[pre-run.hooks]]
+id = "hook_type"
 # hook-specific configuration
 
-[[post_run]]
-type = "hook_type"
+[[post-run.hooks]]
+id = "hook_type"
 # hook-specific configuration
 ```
 
@@ -41,13 +41,19 @@ Hooks are executed in the order they appear in the configuration file.
 Pre-run hooks are executed before your command runs. Use them to capture initial state.
 
 ```toml
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "my-repo"
+path = "."
 allow_dirty = true
 
-[[pre_run]]
-type = "capture_env"
-include = ["PATH", "HOME"]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "HOME"
 ```
 
 ### Post-Run Hooks
@@ -55,10 +61,10 @@ include = ["PATH", "HOME"]
 Post-run hooks are executed after your command completes. Use them to capture results.
 
 ```toml
-[[post_run]]
-type = "capture_file"
-path = "output.txt"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "output.txt"
+mode = "copy"
 ```
 
 ## Hook Configuration
@@ -70,87 +76,90 @@ Each hook type has its own configuration options.
 Captures the current working directory.
 
 ```toml
-[[pre_run]]
-type = "capture_cwd"
+[[pre-run.hooks]]
+id = "capture-cwd"
 ```
 
 **Output**: Working directory path
 
 **Config**: None
 
-### `capture_env`
+### `capture-env`
 
 Captures environment variables.
 
 ```toml
-[[pre_run]]
-type = "capture_env"
-include = ["PATH", "PYTHONPATH", "HOME"]
-exclude = ["SECRET_KEY"]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PYTHONPATH"
 ```
 
 **Config**:
 
-- `include` (optional): List of environment variables to capture. If not specified, captures all.
-- `exclude` (optional): List of environment variables to exclude from capture.
+- `name` (required): Environment variable name to capture
 
-**Output**: Dictionary of environment variable names and values
+**Output**: Dictionary containing the variable name and its value (or null if not set)
 
-### `capture_git_repo`
+### `capture-git-repo`
 
 Captures Git repository state.
 
 ```toml
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "my-repo"
+path = "."
 allow_dirty = false
 ```
 
 **Config**:
 
-- `allow_dirty` (optional, default: `true`): If `false`, aborts the run if the repository has uncommitted changes.
+- `name` (required): Name for this repository (used for patch file naming)
+- `path` (required): Path to the repository (relative to project root, or absolute)
+- `allow_dirty` (optional, default: `false`): If `false`, aborts the run if the repository has uncommitted changes
 
 **Output**:
 
-- Commit hash
-- Branch name
-- Remote URL
+- Working directory path
+- Commit SHA
 - Dirty status (uncommitted changes)
+- Patch file (if dirty)
 
-### `capture_file`
+### `capture-file`
 
 Captures file content or computes hash.
 
 ```toml
-[[post_run]]
-type = "capture_file"
-path = "results/model.pkl"
-copy = true
-compute_hash = true
-algorithm = "sha256"
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/model.pkl"
+mode = "copy"
+hash = "sha256"
 ```
 
 **Config**:
 
-- `path` (required): Path to the file (relative to project root)
-- `copy` (optional, default: `false`): Copy the file to the run directory
-- `compute_hash` (optional, default: `false`): Compute file hash
-- `algorithm` (optional, default: `"sha256"`): Hash algorithm (`"sha256"`, `"md5"`, `"sha1"`)
+- `glob` (required): Glob pattern to match files (e.g., "*.txt", "results/**/*.pkl")
+- `mode` (optional, default: `"copy"`): File handling mode - `"copy"`, `"move"`, or `"none"`
+- `hash` (optional, default: `"sha256"`): Hash algorithm - `"sha256"` or `"none"`
 
 **Output**:
 
 - File path
-- File size
-- Hash (if `compute_hash = true`)
-- Copied path (if `copy = true`)
+- Copied path (if mode is `"copy"` or `"move"`)
+- Hash (if hash is `"sha256"`)
 
 ### `capture_machine`
 
 Captures system information.
 
 ```toml
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 ```
 
 **Config**: None
@@ -162,53 +171,46 @@ type = "capture_machine"
 - Total memory
 - Hostname
 
-### `capture_command`
+### `capture-command`
 
 Executes a shell command and captures its output.
 
 ```toml
-[[post_run]]
-type = "capture_command"
-command = "ls -la results/"
-shell = "/bin/bash"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["ls", "-la", "results/"]
+abort_on_failure = false
 ```
 
 **Config**:
 
-- `command` (required): Shell command to execute
-- `shell` (optional, default: `"/bin/sh"`): Shell to use for execution
+- `command` (required): Array of command and arguments (e.g., `["python", "--version"]`)
+- `abort_on_failure` (optional, default: `false`): If `true`, aborts the run if command exits with non-zero status
 
 **Output**:
 
-- Command executed
-- Exit code
 - Standard output
 - Standard error
+- Exit status code
 
-### `notify_slack`
+### `notify-slack`
 
 Sends a notification to Slack.
 
 ```toml
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = "Experiment completed!"
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
+attachment_globs = ["*.png", "results/*.jpg"]
 ```
 
 **Config**:
 
-- `webhook_url_env` (required): Environment variable containing the Slack webhook URL
-- `message` (optional): Message to send. Supports template variables.
+- `channel` (required): Slack channel ID (e.g., "C1234567890")
+- `token` (optional): Slack bot token (defaults to `SLACK_BOT_TOKEN` environment variable)
+- `attachment_globs` (optional): Array of glob patterns for files to attach (up to 10 files)
 
-**Template Variables**:
-
-- `{run_id}`: Run ID
-- `{run_name}`: Run name
-- `{command}`: Command executed
-- `{timestamp}`: Run timestamp
-
-**Output**: Slack API response
+**Output**: Slack API response with attachment information
 
 ## Complete Example
 
@@ -217,48 +219,57 @@ message = "Experiment completed!"
 name = "research-experiments"
 
 # Capture initial state
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "research-repo"
+path = "."
 allow_dirty = false  # Fail if repo has uncommitted changes
 
-[[pre_run]]
-type = "capture_env"
-include = [
-    "PATH",
-    "PYTHONPATH",
-    "CUDA_VISIBLE_DEVICES",
-    "OMP_NUM_THREADS",
-]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
 
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PYTHONPATH"
 
-[[pre_run]]
-type = "capture_file"
-path = "config.yaml"
-copy = true
-compute_hash = true
+[[pre-run.hooks]]
+id = "capture-env"
+name = "CUDA_VISIBLE_DEVICES"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "OMP_NUM_THREADS"
+
+[[pre-run.hooks]]
+id = "capture-machine"
+
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
+hash = "sha256"
 
 # Capture results
-[[post_run]]
-type = "capture_file"
-path = "results/metrics.json"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/metrics.json"
+mode = "copy"
 
-[[post_run]]
-type = "capture_file"
-path = "results/model.pkl"
-compute_hash = true
-algorithm = "sha256"
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/model.pkl"
+mode = "none"
+hash = "sha256"
 
-[[post_run]]
-type = "capture_command"
-command = "python -c 'import sys; print(sys.version)'"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["python", "-c", "import sys; print(sys.version)"]
 
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = "Experiment {run_name} completed at {timestamp}"
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
+attachment_globs = ["results/*.png"]
 ```
 
 ## Configuration Location

@@ -45,16 +45,21 @@ Configure hooks using a simple TOML file:
 [vault]
 name = "my-experiments"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "my-repo"
+path = "."
+allow_dirty = true
 
-[[pre_run]]
-type = "capture_env"
-include = ["PATH", "PYTHONPATH"]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
 
-[[post_run]]
-type = "capture_file"
-path = "output.txt"
+[[post-run.hooks]]
+id = "capture-file"
+glob = "output.txt"
+mode = "copy"
+hash = "sha256"
 ```
 
 ### Environment Variables

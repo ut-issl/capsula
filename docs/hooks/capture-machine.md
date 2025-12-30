@@ -5,8 +5,8 @@ Captures system information including hostname, OS, CPU, and memory.
 ## Configuration
 
 ```toml
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 ```
 
 ## Parameters
@@ -67,8 +67,8 @@ This hook has no configuration parameters.
 Record hardware specifications for reproducibility:
 
 ```toml
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 ```
 
 ### Debug Hardware-Specific Issues
@@ -79,11 +79,11 @@ Capture system info when investigating platform-specific bugs:
 [vault]
 name = "bug-reports"
 
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 
-[[pre_run]]
-type = "capture_env"
+[[pre-run.hooks]]
+id = "capture-env"
 include = ["PATH", "SHELL"]
 ```
 
@@ -95,11 +95,11 @@ Document available resources for resource-intensive tasks:
 [vault]
 name = "training-runs"
 
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 
-[[pre_run]]
-type = "capture_env"
+[[pre-run.hooks]]
+id = "capture-env"
 include = ["CUDA_VISIBLE_DEVICES"]
 ```
 
@@ -111,8 +111,8 @@ include = ["CUDA_VISIBLE_DEVICES"]
 [vault]
 name = "experiments"
 
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 ```
 
 ```bash
@@ -154,19 +154,19 @@ Output in `pre-run.json`:
 [vault]
 name = "ml-experiments"
 
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 
-[[pre_run]]
-type = "capture_env"
+[[pre-run.hooks]]
+id = "capture-env"
 include = [
     "CUDA_VISIBLE_DEVICES",
     "OMP_NUM_THREADS",
     "MKL_NUM_THREADS"
 ]
 
-[[pre_run]]
-type = "capture_command"
+[[pre-run.hooks]]
+id = "capture-command"
 command = "nvidia-smi --query-gpu=name,memory.total --format=csv"
 ```
 
@@ -176,15 +176,15 @@ command = "nvidia-smi --query-gpu=name,memory.total --format=csv"
 [vault]
 name = "platform-tests"
 
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 
-[[pre_run]]
-type = "capture_env"
+[[pre-run.hooks]]
+id = "capture-env"
 include = ["ARCH", "PLATFORM"]
 
-[[post_run]]
-type = "capture_command"
+[[post-run.hooks]]
+id = "capture-command"
 command = "uname -a"
 ```
 
@@ -266,11 +266,11 @@ When running experiments across multiple machines:
 [vault]
 name = "distributed-training"
 
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 
-[[pre_run]]
-type = "capture_env"
+[[pre-run.hooks]]
+id = "capture-env"
 include = [
     "SLURM_JOB_ID",
     "SLURM_NODELIST",
@@ -286,11 +286,11 @@ Track which cloud instance type was used:
 [vault]
 name = "cloud-experiments"
 
-[[pre_run]]
-type = "capture_machine"
+[[pre-run.hooks]]
+id = "capture-machine"
 
-[[pre_run]]
-type = "capture_env"
+[[pre-run.hooks]]
+id = "capture-env"
 include = [
     "AWS_INSTANCE_TYPE",
     "GCP_MACHINE_TYPE",

@@ -1,35 +1,28 @@
-# capture_env
+# capture-env
 
-Captures environment variables.
+Captures a single environment variable.
 
 ## Configuration
 
 ```toml
-# Capture all environment variables
-[[pre_run]]
-type = "capture_env"
+# Capture a specific environment variable
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
 
-# Capture specific variables
-[[pre_run]]
-type = "capture_env"
-include = ["PATH", "PYTHONPATH", "HOME"]
+# Capture multiple variables (use multiple hook instances)
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PYTHONPATH"
 
-# Exclude specific variables
-[[pre_run]]
-type = "capture_env"
-exclude = ["SECRET_KEY", "API_TOKEN"]
-
-# Combine include and exclude
-[[pre_run]]
-type = "capture_env"
-include = ["PYTHON*"]
-exclude = ["PYTHONHASHSEED"]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "HOME"
 ```
 
 ## Parameters
 
-- `include` (optional): Array of environment variable names to capture. If not specified, captures all variables.
-- `exclude` (optional): Array of environment variable names to exclude from capture.
+- `name` (required): Name of the environment variable to capture
 
 ## Phases
 
@@ -41,73 +34,70 @@ exclude = ["PYTHONHASHSEED"]
 ```json
 {
   "__meta": {
-    "id": "capture_env",
+    "id": "capture-env",
     "config": {
-      "include": ["PATH", "HOME"]
+      "name": "PATH"
     },
     "success": true
   },
-  "env": {
-    "PATH": "/usr/local/bin:/usr/bin:/bin",
-    "HOME": "/Users/alice"
-  }
+  "value": "/usr/local/bin:/usr/bin:/bin"
 }
 ```
 
 ### Fields
 
-- `env` (object): Dictionary of environment variable names and their values
+- `value` (string or null): Value of the environment variable, or `null` if not set
 
 ## Use Cases
 
 ### Capture Python Environment
 
 ```toml
-[[pre_run]]
-type = "capture_env"
-include = [
-    "PYTHONPATH",
-    "VIRTUAL_ENV",
-    "CONDA_DEFAULT_ENV",
-    "PYTHON_VERSION"
-]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PYTHONPATH"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "VIRTUAL_ENV"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "CONDA_DEFAULT_ENV"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PYTHON_VERSION"
 ```
 
 ### Capture CUDA Configuration
 
 ```toml
-[[pre_run]]
-type = "capture_env"
-include = [
-    "CUDA_VISIBLE_DEVICES",
-    "CUDA_HOME",
-    "LD_LIBRARY_PATH"
-]
-```
+[[pre-run.hooks]]
+id = "capture-env"
+name = "CUDA_VISIBLE_DEVICES"
 
-### Capture All Except Secrets
+[[pre-run.hooks]]
+id = "capture-env"
+name = "CUDA_HOME"
 
-```toml
-[[pre_run]]
-type = "capture_env"
-exclude = [
-    "AWS_SECRET_ACCESS_KEY",
-    "GITHUB_TOKEN",
-    "API_KEY",
-    "PASSWORD"
-]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "LD_LIBRARY_PATH"
 ```
 
 ### Compare Environment Changes
 
-Capture environment before and after to detect changes:
+Capture environment variables before and after to detect changes:
 
 ```toml
-[[pre_run]]
-type = "capture_env"
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
 
-[[post_run]]
-type = "capture_env"
+[[post-run.hooks]]
+id = "capture-env"
+name = "PATH"
 ```
 
 ## Examples
@@ -118,9 +108,17 @@ type = "capture_env"
 [vault]
 name = "env-tracking"
 
-[[pre_run]]
-type = "capture_env"
-include = ["PATH", "USER", "HOME"]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "USER"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "HOME"
 ```
 
 ```bash
@@ -133,55 +131,53 @@ Output in `pre-run.json`:
 [
   {
     "__meta": {
-      "id": "capture_env",
+      "id": "capture-env",
       "config": {
-        "include": ["PATH", "USER", "HOME"]
+        "name": "PATH"
       },
       "success": true
     },
-    "env": {
-      "PATH": "/usr/local/bin:/usr/bin:/bin",
-      "USER": "alice",
-      "HOME": "/Users/alice"
-    }
+    "value": "/usr/local/bin:/usr/bin:/bin"
+  },
+  {
+    "__meta": {
+      "id": "capture-env",
+      "config": {
+        "name": "USER"
+      },
+      "success": true
+    },
+    "value": "alice"
+  },
+  {
+    "__meta": {
+      "id": "capture-env",
+      "config": {
+        "name": "HOME"
+      },
+      "success": true
+    },
+    "value": "/Users/alice"
   }
-]
-```
-
-### Exclude Sensitive Variables
-
-```toml
-[vault]
-name = "safe-env-capture"
-
-[[pre_run]]
-type = "capture_env"
-exclude = [
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "GITHUB_TOKEN",
-    "SLACK_WEBHOOK_URL"
 ]
 ```
 
 ## Security Considerations
 
 !!! warning "Sensitive Data"
-    Be careful when capturing all environment variables. Many applications store secrets in environment variables. Always use `exclude` to prevent capturing sensitive data.
+    Be careful when capturing environment variables. Many applications store secrets in environment variables. Only capture variables you need and avoid capturing sensitive data.
 
-Recommended exclusions:
+Variables to avoid capturing:
 
-- API keys and tokens
+- API keys and tokens (e.g., `GITHUB_TOKEN`, `API_KEY`)
 - Passwords
-- Webhook URLs
-- AWS credentials
+- Webhook URLs (e.g., `SLACK_WEBHOOK_URL`)
+- AWS credentials (e.g., `AWS_SECRET_ACCESS_KEY`)
 - SSH keys or passphrases
 
 ## Error Handling
 
-This hook rarely fails. Possible errors:
-
-- Environment variable specified in `include` doesn't exist (non-fatal, variable is skipped)
+This hook rarely fails. If the environment variable doesn't exist, the `value` field will be `null`.
 
 ## See Also
 

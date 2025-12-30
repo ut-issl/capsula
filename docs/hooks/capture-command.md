@@ -1,34 +1,31 @@
-# capture_command
+# capture-command
 
-Executes a shell command and captures its output, exit code, and duration.
+Executes a command and captures its output and exit status.
 
 ## Configuration
 
 ```toml
 # Simple command
-[[post_run]]
-type = "capture_command"
-command = "python --version"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["python", "--version"]
 
-# Custom shell
-[[post_run]]
-type = "capture_command"
-command = "ls -la results/"
-shell = "/bin/bash"
+# Command with arguments
+[[post-run.hooks]]
+id = "capture-command"
+command = ["ls", "-la", "results/"]
 
-# Multi-line command
-[[post_run]]
-type = "capture_command"
-command = """
-echo "Experiment Summary:"
-cat results/metrics.json | jq '.accuracy'
-"""
+# Abort on failure
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["git", "diff", "--quiet"]
+abort_on_failure = true
 ```
 
 ## Parameters
 
-- `command` (required): Shell command to execute
-- `shell` (optional, default: `"/bin/sh"`): Shell interpreter to use
+- `command` (required): Array of command and arguments (e.g., `["python", "--version"]`)
+- `abort_on_failure` (optional, default: `false`): If `true`, aborts the run if command exits with non-zero status
 
 ## Phases
 
@@ -40,28 +37,24 @@ cat results/metrics.json | jq '.accuracy'
 ```json
 {
   "__meta": {
-    "id": "capture_command",
+    "id": "capture-command",
     "config": {
-      "command": "python --version",
-      "shell": "/bin/sh"
+      "command": ["python", "--version"],
+      "abort_on_failure": false
     },
     "success": true
   },
-  "command": "python --version",
-  "exit_code": 0,
   "stdout": "Python 3.11.5\n",
   "stderr": "",
-  "duration_ms": 42
+  "status": 0
 }
 ```
 
 ### Fields
 
-- `command` (string): Command that was executed
-- `exit_code` (number): Process exit code (0 = success)
 - `stdout` (string): Standard output from the command
 - `stderr` (string): Standard error from the command
-- `duration_ms` (number): Execution time in milliseconds
+- `status` (number): Process exit status code (0 = success)
 
 ## Use Cases
 
@@ -70,17 +63,17 @@ cat results/metrics.json | jq '.accuracy'
 Document versions of tools used:
 
 ```toml
-[[pre_run]]
-type = "capture_command"
-command = "python --version"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["python", "--version"]
 
-[[pre_run]]
-type = "capture_command"
-command = "pip list | grep torch"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["pip", "show", "torch"]
 
-[[pre_run]]
-type = "capture_command"
-command = "git --version"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["git", "--version"]
 ```
 
 ### Run Diagnostic Commands
@@ -88,17 +81,17 @@ command = "git --version"
 Check system configuration:
 
 ```toml
-[[pre_run]]
-type = "capture_command"
-command = "nvidia-smi"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["nvidia-smi"]
 
-[[pre_run]]
-type = "capture_command"
-command = "df -h"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["df", "-h"]
 
-[[pre_run]]
-type = "capture_command"
-command = "free -h"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["free", "-h"]
 ```
 
 ### Generate Summary Reports
@@ -106,31 +99,33 @@ command = "free -h"
 Create summaries after execution:
 
 ```toml
-[[post_run]]
-type = "capture_command"
-command = "ls -lh results/"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["ls", "-lh", "results/"]
 
-[[post_run]]
-type = "capture_command"
-command = "cat results/summary.txt"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["cat", "results/summary.txt"]
 
-[[post_run]]
-type = "capture_command"
-command = "wc -l results/*.csv"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["wc", "-l", "results/output.csv"]
 ```
 
-### Process Results
+### Validate Environment
 
-Extract specific metrics:
+Abort if prerequisites aren't met:
 
 ```toml
-[[post_run]]
-type = "capture_command"
-command = "jq '.accuracy' results/metrics.json"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["which", "python3"]
+abort_on_failure = true
 
-[[post_run]]
-type = "capture_command"
-command = "tail -n 10 training.log"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["test", "-f", "config.yaml"]
+abort_on_failure = true
 ```
 
 ## Examples
@@ -141,17 +136,17 @@ command = "tail -n 10 training.log"
 [vault]
 name = "python-experiments"
 
-[[pre_run]]
-type = "capture_command"
-command = "python --version"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["python", "--version"]
 
-[[pre_run]]
-type = "capture_command"
-command = "python -c 'import sys; print(sys.executable)'"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["python", "-c", "import sys; print(sys.executable)"]
 
-[[pre_run]]
-type = "capture_command"
-command = "pip list"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["pip", "list"]
 ```
 
 Output:
@@ -159,20 +154,30 @@ Output:
 ```json
 [
   {
-    "__meta": { "id": "capture_command", "success": true },
-    "command": "python --version",
-    "exit_code": 0,
+    "__meta": {
+      "id": "capture-command",
+      "config": {
+        "command": ["python", "--version"],
+        "abort_on_failure": false
+      },
+      "success": true
+    },
     "stdout": "Python 3.11.5\n",
     "stderr": "",
-    "duration_ms": 38
+    "status": 0
   },
   {
-    "__meta": { "id": "capture_command", "success": true },
-    "command": "python -c 'import sys; print(sys.executable)'",
-    "exit_code": 0,
+    "__meta": {
+      "id": "capture-command",
+      "config": {
+        "command": ["python", "-c", "import sys; print(sys.executable)"],
+        "abort_on_failure": false
+      },
+      "success": true
+    },
     "stdout": "/usr/local/bin/python3.11\n",
     "stderr": "",
-    "duration_ms": 42
+    "status": 0
   }
 ]
 ```
@@ -180,101 +185,41 @@ Output:
 ### GPU Information
 
 ```toml
-[[pre_run]]
-type = "capture_command"
-command = "nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv"]
 ```
 
 Output:
 
 ```json
 {
-  "__meta": { "id": "capture_command", "success": true },
-  "command": "nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv",
-  "exit_code": 0,
+  "__meta": {
+    "id": "capture-command",
+    "config": {
+      "command": ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv"],
+      "abort_on_failure": false
+    },
+    "success": true
+  },
   "stdout": "name, memory.total [MiB], driver_version\nNVIDIA A100-SXM4-40GB, 40960 MiB, 535.129.03\n",
   "stderr": "",
-  "duration_ms": 156
+  "status": 0
 }
 ```
 
-### Results Summary
+## Running Shell Scripts
+
+If you need to run shell scripts with pipes, redirections, or other shell features, invoke the shell explicitly:
 
 ```toml
-[[post_run]]
-type = "capture_command"
-command = """
-echo "=== Results Summary ==="
-echo "Files created:"
-ls -1 results/
-echo ""
-echo "Total size:"
-du -sh results/
-"""
-```
+[[post-run.hooks]]
+id = "capture-command"
+command = ["sh", "-c", "echo 'Files:' && ls -1 results/"]
 
-### Multi-Step Analysis
-
-```toml
-[[post_run]]
-type = "capture_command"
-command = """
-echo "Best accuracy:"
-cat results/metrics.json | jq -r '.best_accuracy'
-echo "Training time:"
-cat results/metrics.json | jq -r '.total_time_seconds'
-"""
-shell = "/bin/bash"
-```
-
-## Shell Selection
-
-### Default Shell (`/bin/sh`)
-
-```toml
-[[post_run]]
-type = "capture_command"
-command = "echo $SHELL"
-```
-
-### Bash-Specific Features
-
-```toml
-[[post_run]]
-type = "capture_command"
-command = "echo ${BASH_VERSION}"
-shell = "/bin/bash"
-```
-
-### Custom Shell
-
-```toml
-[[post_run]]
-type = "capture_command"
-command = "echo 'Hello from zsh'"
-shell = "/bin/zsh"
-```
-
-## Multi-Line Commands
-
-Use TOML triple-quoted strings:
-
-```toml
-[[post_run]]
-type = "capture_command"
-command = """
-#!/bin/bash
-set -e
-
-echo "Analyzing results..."
-
-if [ -f "results/metrics.json" ]; then
-    jq '.' results/metrics.json
-else
-    echo "No metrics file found"
-fi
-"""
-shell = "/bin/bash"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["bash", "-c", "grep -r 'ERROR' logs/ | wc -l"]
 ```
 
 ## Command Exit Codes
@@ -283,32 +228,33 @@ shell = "/bin/bash"
 
 ```json
 {
-  "exit_code": 0,
   "stdout": "Success output",
-  "stderr": ""
+  "stderr": "",
+  "status": 0
 }
 ```
 
 ### Failed Command
 
-Non-zero exit codes are captured but don't stop execution:
+Non-zero exit codes are captured but don't stop execution (unless `abort_on_failure = true`):
 
 ```json
 {
   "__meta": {
-    "id": "capture_command",
-    "success": true,
-    "config": { "command": "grep NOTFOUND file.txt" }
+    "id": "capture-command",
+    "config": {
+      "command": ["grep", "NOTFOUND", "file.txt"],
+      "abort_on_failure": false
+    },
+    "success": true
   },
-  "command": "grep NOTFOUND file.txt",
-  "exit_code": 1,
   "stdout": "",
   "stderr": "grep: file.txt: No such file or directory\n",
-  "duration_ms": 5
+  "status": 1
 }
 ```
 
-Note: `success: true` indicates the hook executed successfully (captured the command output), not that the command succeeded.
+Note: `success: true` in `__meta` indicates the hook executed successfully (captured the command output), not that the command succeeded. The command's exit status is in the `status` field.
 
 ## Error Handling
 
@@ -319,28 +265,29 @@ If the command cannot be executed at all:
 ```json
 {
   "__meta": {
-    "id": "capture_command",
+    "id": "capture-command",
     "success": false,
     "error": "Failed to execute command: No such file or directory"
   }
 }
 ```
 
-### Shell Not Found
+### Abort on Failure
 
-```json
-{
-  "__meta": {
-    "id": "capture_command",
-    "success": false,
-    "error": "Shell not found: /bin/nonexistent"
-  }
-}
+If `abort_on_failure = true` and the command fails, the run will be aborted after hooks complete:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["test", "-f", "required-file.txt"]
+abort_on_failure = true
 ```
+
+If `required-file.txt` doesn't exist, the command exits with status 1, and Capsula will abort before running the main command.
 
 ### Non-Fatal Behavior
 
-Command failures are non-fatal:
+By default (`abort_on_failure = false`), command failures are non-fatal:
 
 1. Exit code and error output are captured
 2. Hook succeeds (marked as `success: true`)
@@ -353,9 +300,9 @@ Command failures are non-fatal:
 Commands run synchronously and block execution:
 
 ```toml
-[[post_run]]
-type = "capture_command"
-command = "sleep 60"  # Blocks for 60 seconds
+[[post-run.hooks]]
+id = "capture-command"
+command = ["sleep", "60"]  # Blocks for 60 seconds
 ```
 
 Avoid long-running commands in hooks. Instead:
@@ -369,25 +316,27 @@ Currently, there is no timeout mechanism. Commands run until completion.
 
 ## Security Considerations
 
-!!! warning "Command Injection"
-    Commands are executed via shell. Be careful with:
+Commands are executed directly (not via shell unless you explicitly invoke a shell). This provides some protection against command injection, but you should still be careful:
 
-    - User input in commands
-    - Environment variables in commands
-    - Dynamic command construction
+- Avoid constructing commands from untrusted user input
+- Be cautious when using environment variables in commands
+- When invoking a shell with `-c`, be extra careful about quoting
 
-Avoid:
+Safe:
 
 ```toml
-# Unsafe if $USER_INPUT is untrusted
-command = "echo $USER_INPUT"
+[[post-run.hooks]]
+id = "capture-command"
+command = ["echo", "Static text"]  # Safe - no shell interpolation
 ```
 
-Prefer:
+Potentially unsafe:
 
 ```toml
-# Safe - no variable interpolation
-command = "echo 'Static text'"
+[[post-run.hooks]]
+id = "capture-command"
+# If USER_INPUT contains shell metacharacters, this could be dangerous
+command = ["sh", "-c", "echo $USER_INPUT"]
 ```
 
 ## See Also

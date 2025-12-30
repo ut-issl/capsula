@@ -1,44 +1,47 @@
-# capture_file
+# capture-file
 
-Captures file content, computes hashes, and copies files to the run directory.
+Captures files matching glob patterns, computes hashes, and copies/moves files to the run directory.
 
 ## Configuration
 
 ```toml
 # Copy file to run directory
-[[post_run]]
-type = "capture_file"
-path = "output.txt"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "output.txt"
+mode = "copy"
 
-# Compute file hash
-[[pre_run]]
-type = "capture_file"
-path = "config.yaml"
-compute_hash = true
-algorithm = "sha256"
+# Compute file hash only
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "none"
+hash = "sha256"
 
 # Both copy and hash
-[[post_run]]
-type = "capture_file"
-path = "model.pkl"
-copy = true
-compute_hash = true
-algorithm = "md5"
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*.pkl"
+mode = "copy"
+hash = "sha256"
 ```
 
 ## Parameters
 
-- `path` (required): File path relative to project root
-- `copy` (optional, default: `false`): Copy the file to the run directory
-- `compute_hash` (optional, default: `false`): Compute cryptographic hash of the file
-- `algorithm` (optional, default: `"sha256"`): Hash algorithm to use
+- `glob` (required): Glob pattern to match files (e.g., "*.txt", "results/**/*.pkl")
+- `mode` (optional, default: `"copy"`): File handling mode
+- `hash` (optional, default: `"sha256"`): Hash algorithm to use
+
+### File Modes
+
+- `"copy"` - Copy files to run directory (default)
+- `"move"` - Move files to run directory
+- `"none"` - Don't copy or move, only record metadata
 
 ### Hash Algorithms
 
-- `"sha256"` - SHA-256 (recommended, default)
-- `"sha1"` - SHA-1
-- `"md5"` - MD5
+- `"sha256"` - SHA-256 (default)
+- `"none"` - Don't compute hash
 
 ## Phases
 
@@ -50,30 +53,30 @@ algorithm = "md5"
 ```json
 {
   "__meta": {
-    "id": "capture_file",
+    "id": "capture-file",
     "config": {
-      "path": "results/model.pkl",
-      "copy": true,
-      "compute_hash": true,
-      "algorithm": "sha256"
+      "glob": "results/model.pkl",
+      "mode": "copy",
+      "hash": "sha256"
     },
     "success": true
   },
-  "path": "results/model.pkl",
-  "size": 1048576,
-  "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "algorithm": "sha256",
-  "copied_to": ".capsula/experiments/2025-12-30/143022-chubby-back/model.pkl"
+  "files": [
+    {
+      "path": "results/model.pkl",
+      "copied_path": ".capsula/experiments/2025-12-30/143022-chubby-back/model.pkl",
+      "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
 }
 ```
 
 ### Fields
 
-- `path` (string): Original file path
-- `size` (number): File size in bytes
-- `hash` (string, optional): Cryptographic hash (if `compute_hash = true`)
-- `algorithm` (string, optional): Hash algorithm used (if `compute_hash = true`)
-- `copied_to` (string, optional): Destination path (if `copy = true`)
+- `files` (array): Array of captured file objects
+  - `path` (string): Original file path
+  - `copied_path` (string, optional): Destination path (if mode is `"copy"` or `"move"`)
+  - `hash` (string, optional): Cryptographic hash prefixed with algorithm (e.g., `"sha256:..."`) (if hash is `"sha256"`)
 
 ## Use Cases
 
@@ -82,10 +85,10 @@ algorithm = "md5"
 Preserve configuration files used for experiments:
 
 ```toml
-[[pre_run]]
-type = "capture_file"
-path = "config.yaml"
-copy = true
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
 ```
 
 ### Archive Output Files
@@ -93,10 +96,10 @@ copy = true
 Save experiment results:
 
 ```toml
-[[post_run]]
-type = "capture_file"
-path = "results/metrics.json"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/metrics.json"
+mode = "copy"
 ```
 
 ### Verify File Integrity
@@ -104,17 +107,17 @@ copy = true
 Compute hashes to verify files haven't changed:
 
 ```toml
-[[pre_run]]
-type = "capture_file"
-path = "data/train.csv"
-compute_hash = true
-algorithm = "sha256"
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "data/train.csv"
+mode = "none"
+hash = "sha256"
 
-[[post_run]]
-type = "capture_file"
-path = "data/train.csv"
-compute_hash = true
-algorithm = "sha256"
+[[post-run.hooks]]
+id = "capture-file"
+glob = "data/train.csv"
+mode = "none"
+hash = "sha256"
 ```
 
 ### Track Large Files Without Copying
@@ -122,11 +125,27 @@ algorithm = "sha256"
 For large model files, compute hash instead of copying:
 
 ```toml
-[[post_run]]
-type = "capture_file"
-path = "models/large_model.bin"
-compute_hash = true
-copy = false  # Don't copy, just hash
+[[post-run.hooks]]
+id = "capture-file"
+glob = "models/large_model.bin"
+mode = "none"
+hash = "sha256"
+```
+
+### Capture Multiple Files with Glob Patterns
+
+Use glob patterns to capture multiple files:
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*.json"
+mode = "copy"
+
+[[post-run.hooks]]
+id = "capture-file"
+glob = "outputs/**/*.png"
+mode = "copy"
 ```
 
 ## Examples
@@ -138,18 +157,18 @@ copy = false  # Don't copy, just hash
 name = "training-runs"
 
 # Capture input configuration
-[[pre_run]]
-type = "capture_file"
-path = "config.yaml"
-copy = true
-compute_hash = true
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
+hash = "sha256"
 
 # Capture trained model
-[[post_run]]
-type = "capture_file"
-path = "model.pkl"
-copy = true
-compute_hash = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "model.pkl"
+mode = "copy"
+hash = "sha256"
 ```
 
 ### Multiple Output Files
@@ -158,20 +177,20 @@ compute_hash = true
 [vault]
 name = "analysis"
 
-[[post_run]]
-type = "capture_file"
-path = "results/summary.txt"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*.txt"
+mode = "copy"
 
-[[post_run]]
-type = "capture_file"
-path = "results/plots.png"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*.png"
+mode = "copy"
 
-[[post_run]]
-type = "capture_file"
-path = "results/data.csv"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*.csv"
+mode = "copy"
 ```
 
 ### Hash-Only for Large Files
@@ -181,11 +200,11 @@ copy = true
 name = "big-data-processing"
 
 # Don't copy large files, just record their hashes
-[[post_run]]
-type = "capture_file"
-path = "output/processed_data.parquet"
-compute_hash = true
-copy = false
+[[post-run.hooks]]
+id = "capture-file"
+glob = "output/processed_data.parquet"
+mode = "none"
+hash = "sha256"
 ```
 
 Output:
@@ -193,19 +212,20 @@ Output:
 ```json
 {
   "__meta": {
-    "id": "capture_file",
+    "id": "capture-file",
     "config": {
-      "path": "output/processed_data.parquet",
-      "compute_hash": true,
-      "copy": false,
-      "algorithm": "sha256"
+      "glob": "output/processed_data.parquet",
+      "mode": "none",
+      "hash": "sha256"
     },
     "success": true
   },
-  "path": "output/processed_data.parquet",
-  "size": 524288000,
-  "hash": "a1b2c3d4e5f6...",
-  "algorithm": "sha256"
+  "files": [
+    {
+      "path": "output/processed_data.parquet",
+      "hash": "sha256:a1b2c3d4e5f6..."
+    }
+  ]
 }
 ```
 
@@ -214,43 +234,67 @@ Output:
 Check that input data wasn't modified during execution:
 
 ```toml
-[[pre_run]]
-type = "capture_file"
-path = "data/input.csv"
-compute_hash = true
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "data/input.csv"
+mode = "none"
+hash = "sha256"
 
-[[post_run]]
-type = "capture_file"
-path = "data/input.csv"
-compute_hash = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "data/input.csv"
+mode = "none"
+hash = "sha256"
 ```
 
 Compare the hashes in `pre-run.json` and `post-run.json` to verify integrity.
 
-## File Paths
+## Glob Patterns
 
-### Relative Paths
+### Basic Patterns
 
-Paths are relative to the project root (where `capsula.toml` is located):
-
-```toml
-[[post_run]]
-type = "capture_file"
-path = "results/output.txt"  # ./results/output.txt
-```
-
-### Nested Directories
-
-Files in nested directories are preserved when copied:
+Glob patterns are relative to the project root (where `capsula.toml` is located):
 
 ```toml
-[[post_run]]
-type = "capture_file"
-path = "deep/nested/path/file.txt"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/output.txt"  # Single file
+
+[[post-run.hooks]]
+id = "capture-file"
+glob = "*.log"  # All .log files in project root
+
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*.json"  # All .json files in results/
 ```
 
-Copied to: `.capsula/vault/date/time-name/deep/nested/path/file.txt`
+### Recursive Patterns
+
+Use `**` for recursive matching:
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "**/*.py"  # All .py files recursively
+
+[[post-run.hooks]]
+id = "capture-file"
+glob = "outputs/**/data.csv"  # All data.csv files under outputs/
+```
+
+### File Names in Output
+
+When files are copied, only the filename is preserved (not the directory structure):
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "deep/nested/path/file.txt"
+mode = "copy"
+```
+
+Copied to: `.capsula/vault/date/time-name/file.txt` (not `deep/nested/path/file.txt`)
 
 ## Performance Considerations
 
@@ -273,9 +317,8 @@ Copying files:
 
 For very large output files, consider:
 
-1. Computing hash only (`copy = false, compute_hash = true`)
-2. Using symbolic links (not currently supported)
-3. Storing files elsewhere and recording their path
+1. Computing hash only (`mode = "none", hash = "sha256"`)
+2. Storing files elsewhere and recording their path
 
 ## Error Handling
 

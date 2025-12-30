@@ -327,8 +327,8 @@ Create a test configuration `test-config.toml`:
 [vault]
 name = "test-myfeature"
 
-[[pre_run]]
-type = "capture_myfeature"
+[[pre-run.hooks]]
+id = "capture-myfeature"
 some_option = "hello"
 ```
 
@@ -470,10 +470,10 @@ impl Captured for MyFeatureCaptured {
 ### Naming Conventions
 
 - Hook crates: `capsula-{action}-{target}` (e.g., `capsula-capture-env`)
-- Hook IDs: `{action}_{target}` (e.g., `capture_env`)
-- Config structs: `{Target}HookConfig` (e.g., `EnvHookConfig`)
-- Output structs: `{Target}Captured` (e.g., `EnvCaptured`)
-- Hook structs: `{Target}Hook` (e.g., `EnvHook`)
+- Hook IDs: `{action}-{target}` (e.g., `capture-env`)
+- Config structs: `{Target}HookConfig` (e.g., `EnvVarHookConfig`)
+- Output structs: `{Target}Captured` (e.g., `EnvVarCaptured`)
+- Hook structs: `{Target}Hook` (e.g., `EnvVarHook`)
 
 ### Documentation
 
@@ -526,8 +526,8 @@ Create minimal config with only your hook:
 [vault]
 name = "debug"
 
-[[pre_run]]
-type = "my_hook"
+[[pre-run.hooks]]
+id = "my-hook"
 ```
 
 ### Use `dbg!` Macro

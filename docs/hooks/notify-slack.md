@@ -1,27 +1,34 @@
-# notify_slack
+# notify-slack
 
-Sends notifications to Slack channels via webhooks.
+Sends notifications to Slack channels using Block Kit with optional file attachments.
 
 ## Configuration
 
 ```toml
 # Simple notification
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = "Experiment completed!"
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
 
-# With template variables
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = "Run {run_name} (ID: {run_id}) completed at {timestamp}"
+# With file attachments
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
+attachment_globs = ["*.png", "results/*.jpg"]
+
+# With custom token
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
+token = "xoxb-your-bot-token"
+attachment_globs = ["outputs/**/*.pdf"]
 ```
 
 ## Parameters
 
-- `webhook_url_env` (required): Name of environment variable containing the Slack webhook URL
-- `message` (optional): Message text to send (supports template variables)
+- `channel` (required): Slack channel ID (e.g., "C1234567890")
+- `token` (optional): Slack bot token (defaults to `SLACK_BOT_TOKEN` environment variable)
+- `attachment_globs` (optional): Array of glob patterns for files to attach (up to 10 files)
 
 ## Phases
 
@@ -33,106 +40,104 @@ message = "Run {run_name} (ID: {run_id}) completed at {timestamp}"
 ```json
 {
   "__meta": {
-    "id": "notify_slack",
+    "id": "notify-slack",
     "config": {
-      "webhook_url_env": "SLACK_WEBHOOK_URL",
-      "message": "Run chubby-back completed!"
+      "channel": "C1234567890",
+      "token": "xoxb-***",
+      "attachment_globs": ["*.png"]
     },
     "success": true
   },
-  "status": "sent",
-  "message": "Run chubby-back completed!",
-  "response_code": 200
+  "message": "Slack notification sent successfully",
+  "response": "{\"ok\":true,\"channel\":\"C1234567890\",\"ts\":\"1234567890.123456\"}",
+  "attached_files": ["plot.png", "results.png"]
 }
 ```
 
 ### Fields
 
-- `status` (string): Notification status ("sent" or "failed")
-- `message` (string): Actual message that was sent
-- `response_code` (number): HTTP response code from Slack API
+- `message` (string): Status message
+- `response` (string, optional): Slack API response JSON
+- `attached_files` (array, optional): List of files that were attached
 
 ## Setup
 
-### 1. Create Slack Webhook
+### 1. Create Slack App
 
-1. Go to <https://api.slack.com/messaging/webhooks>
-2. Click "Create your Slack app"
+1. Go to <https://api.slack.com/apps>
+2. Click "Create New App"
 3. Choose "From scratch"
-4. Name your app (e.g., "Capsula Notifications")
+4. Name your app (e.g., "Capsula Bot")
 5. Select your workspace
-6. Navigate to "Incoming Webhooks"
-7. Activate incoming webhooks
-8. Click "Add New Webhook to Workspace"
-9. Select the channel to post to
-10. Copy the webhook URL
 
-### 2. Store Webhook URL
+### 2. Add Bot Token Scopes
 
-Store the webhook URL in an environment variable:
+1. Navigate to "OAuth & Permissions"
+2. Under "Scopes" → "Bot Token Scopes", add:
+   - `chat:write` - Required for sending messages
+   - `files:write` - Required for uploading files (if using attachments)
+3. Click "Install to Workspace"
+4. Copy the "Bot User OAuth Token" (starts with `xoxb-`)
+
+### 3. Get Channel ID
+
+To find your channel ID:
+
+1. Open Slack in a web browser
+2. Navigate to the channel
+3. Copy the ID from the URL: `https://app.slack.com/client/T.../C1234567890`
+   - The part after the last slash is your channel ID (e.g., `C1234567890`)
+
+Alternatively, right-click the channel → "View channel details" → at the bottom you'll see the channel ID.
+
+### 4. Store Bot Token
+
+Store the bot token in an environment variable:
 
 ```bash
-export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX"
+export SLACK_BOT_TOKEN="xoxb-your-bot-token-here"
 ```
 
 For persistent storage, add to your shell profile:
 
 ```bash
 # ~/.bashrc or ~/.zshrc
-export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
+export SLACK_BOT_TOKEN="xoxb-..."
 ```
 
-Or use a `.env` file with `dotenv`:
+### 5. Invite Bot to Channel
 
-```bash
-# .env
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+In the Slack channel, type:
+
+```
+/invite @Capsula Bot
 ```
 
-### 3. Configure Capsula
+Replace "Capsula Bot" with your bot's name.
+
+### 6. Configure Capsula
 
 ```toml
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = "Experiment completed!"
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"  # Your channel ID
 ```
 
-## Template Variables
+## Message Format
 
-The `message` field supports template variables:
+The hook automatically creates a rich Slack message using Block Kit with the following information:
 
-| Variable | Description | Example |
-| ---------- | ------------- | --------- |
-| `{run_id}` | Unique run identifier (ULID) | `01HQZX3Y2J8K9M6N7P8Q9R` |
-| `{run_name}` | Human-readable run name | `chubby-back` |
-| `{command}` | Command that was executed | `python train.py` |
-| `{timestamp}` | ISO 8601 timestamp | `2025-12-30T14:30:22Z` |
+**Pre-run phase:**
 
-### Example with Variables
+- 🚀 Header: "Capsula Run Starting"
+- Run name, ID, timestamp, and command
 
-```toml
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = """
-:rocket: Experiment Complete!
-• Run: {run_name}
-• ID: {run_id}
-• Command: {command}
-• Completed: {timestamp}
-"""
-```
+**Post-run phase:**
 
-Slack message:
+- ✅ Header: "Capsula Run Completed"
+- Run name, ID, timestamp, and command
 
-```
-🚀 Experiment Complete!
-• Run: chubby-back
-• ID: 01HQZX3Y2J8K9M6N7P8Q9R
-• Command: python train.py --epochs 100
-• Completed: 2025-12-30T14:30:22Z
-```
+You don't need to configure the message content - it's automatically generated from the run metadata.
 
 ## Use Cases
 
@@ -144,45 +149,52 @@ Get notified when experiments complete:
 [vault]
 name = "training-runs"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "training-repo"
+path = "."
 
-[[post_run]]
-type = "capture_file"
-path = "results/metrics.json"
-copy = true
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/metrics.json"
+mode = "copy"
 
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = ":white_check_mark: Training run {run_name} completed!"
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
 ```
 
-### Team Notifications
+### Share Results with Attachments
 
-Alert team members about important runs:
+Automatically share plots and results:
 
 ```toml
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "TEAM_SLACK_WEBHOOK"
-message = "@channel Production model training completed: {run_name}"
+[[post-run.hooks]]
+id = "capture-file"
+glob = "plots/*.png"
+mode = "copy"
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
+attachment_globs = ["plots/*.png", "results/summary.txt"]
 ```
 
-### Experiment Tracking
+### Multiple Channel Notifications
 
-Track experiment progress remotely:
+Notify different channels for different purposes:
 
 ```toml
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = """
-Experiment {run_name} finished
-Command: {command}
-Time: {timestamp}
-Check results at: .capsula/experiments/{run_name}/
-"""
+# Notify team channel
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1111111111"  # #team-experiments
+
+# Notify personal channel with attachments
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C2222222222"  # #my-experiments
+attachment_globs = ["*.png"]
 ```
 
 ## Examples
@@ -193,103 +205,91 @@ Check results at: .capsula/experiments/{run_name}/
 [vault]
 name = "experiments"
 
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = "Experiment completed successfully!"
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
 ```
 
 ```bash
 capsula run python experiment.py
 ```
 
-### Rich Notification
+### Notification with Attachments
 
 ```toml
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-message = """
-:chart_with_upwards_trend: Experiment Results
+[vault]
+name = "ml-experiments"
 
-*Run*: {run_name}
-*Command*: `{command}`
-*Timestamp*: {timestamp}
+[[post-run.hooks]]
+id = "capture-file"
+glob = "plots/*.png"
+mode = "copy"
 
-View details: `.capsula/vault/2025-12-30/{run_name}/`
-"""
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
+attachment_globs = ["plots/*.png", "results/*.csv"]
 ```
 
-### Conditional Notifications
+### Development vs Production Channels
 
-Use multiple webhook URLs for different channels:
+Use different channels for different environments:
 
 ```toml
-# Success notification
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_SUCCESS_WEBHOOK"
-message = ":white_check_mark: Run {run_name} succeeded"
+# Development experiments - personal channel
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1111111111"  # Your personal channel
 
-# Also notify failures channel (you would check logs)
-[[post_run]]
-type = "notify_slack"
-webhook_url_env = "SLACK_MONITORING_WEBHOOK"
-message = "Run {run_name} completed at {timestamp}"
+# Production runs - team channel with attachments
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C2222222222"  # Team channel
+attachment_globs = ["metrics.json", "model_summary.txt"]
 ```
 
-## Slack Formatting
+## File Attachments
 
-Slack supports markdown-like formatting:
+### Glob Patterns
+
+The `attachment_globs` parameter accepts glob patterns:
 
 ```toml
-message = """
-*Bold text*
-_Italic text_
-~Strikethrough~
-`Code`
-```code block```
-> Quote
-"""
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "C1234567890"
+attachment_globs = [
+    "*.png",              # All PNG files in project root
+    "results/*.json",     # All JSON files in results/
+    "outputs/**/*.pdf",   # All PDF files under outputs/ recursively
+]
 ```
 
-### Emoji
+### File Limit
 
-Use emoji shortcodes:
+- Maximum of 10 files per notification (Slack API limit)
+- If more than 10 files match, only the first 10 are attached
+- Files are resolved relative to the project root
 
-```toml
-message = ":rocket: Launch successful :white_check_mark:"
-```
+### Attachment Behavior
 
-Common emoji:
+When attachments are specified:
 
-- `:white_check_mark:` ✅
-- `:x:` ❌
-- `:rocket:` 🚀
-- `:chart_with_upwards_trend:` 📈
-- `:warning:` ⚠️
-- `:tada:` 🎉
-
-### Mentions
-
-Mention users or channels:
-
-```toml
-message = "<@U123456> Your experiment completed!"
-message = "<!channel> Production model ready"
-message = "<!here> Results available"
-```
+1. Files matching the glob patterns are uploaded to Slack
+2. A main message is posted with run details
+3. File links are posted as a threaded reply
+4. The thread reply is broadcast to the channel so all members can see it
 
 ## Error Handling
 
-### Webhook URL Not Found
+### Bot Token Not Found
 
 ```json
 {
   "__meta": {
-    "id": "notify_slack",
+    "id": "notify-slack",
     "success": false,
-    "error": "Environment variable not found: SLACK_WEBHOOK_URL"
+    "error": "Missing Slack bot token: SLACK_BOT_TOKEN environment variable not set"
   }
 }
 ```
@@ -299,25 +299,33 @@ message = "<!here> Results available"
 ```json
 {
   "__meta": {
-    "id": "notify_slack",
+    "id": "notify-slack",
     "success": false,
     "error": "Failed to send notification: Connection refused"
   }
 }
 ```
 
-### Invalid Webhook
+### Invalid Token or Missing Scopes
 
 ```json
 {
   "__meta": {
-    "id": "notify_slack",
+    "id": "notify-slack",
     "success": false,
-    "error": "Slack API error: invalid_token (HTTP 403)"
-  },
-  "status": "failed",
-  "response_code": 403
+    "error": "Failed to upload file: missing_scope. The Slack bot needs the 'files:write' OAuth scope."
+  }
 }
+```
+
+If you see a `missing_scope` error, go to your Slack app settings → OAuth & Permissions → Bot Token Scopes and add the required scope (`chat:write` or `files:write`), then reinstall the app to the workspace.
+
+### Bot Not in Channel
+
+If the bot hasn't been invited to the channel, you'll see an error. Make sure to invite the bot:
+
+```
+/invite @Capsula Bot
 ```
 
 ### Non-Fatal Behavior
@@ -332,16 +340,17 @@ Your command results are still captured even if notifications fail.
 
 ## Security Considerations
 
-!!! warning "Webhook URL Security"
-    Webhook URLs are sensitive. Anyone with a webhook URL can post to your Slack channel.
+!!! warning "Bot Token Security"
+    Bot tokens are sensitive credentials. Anyone with a bot token can act as your bot.
 
 Best practices:
 
-1. **Never commit webhook URLs to version control**
-2. **Use environment variables** (not hardcoded values)
-3. **Restrict webhook permissions** to specific channels
-4. **Rotate webhooks** if compromised
-5. **Use separate webhooks** for dev/prod environments
+1. **Never commit bot tokens to version control**
+2. **Use environment variables** (not hardcoded values in config)
+3. **Use workspace-specific tokens** - don't share tokens across workspaces
+4. **Rotate tokens** if compromised
+5. **Use separate bots** for dev/prod environments
+6. **Limit bot permissions** - only add the scopes you need
 
 ### Example .gitignore
 
@@ -349,24 +358,36 @@ Best practices:
 # .gitignore
 .env
 capsula.local.toml
-**/SLACK_WEBHOOK_URL
+**/SLACK_BOT_TOKEN
+```
+
+### Token Storage
+
+```bash
+# Good - environment variable
+export SLACK_BOT_TOKEN="xoxb-..."
+
+# Bad - in config file (committed to git)
+token = "xoxb-..."  # DON'T DO THIS
 ```
 
 ## Rate Limiting
 
-Slack imposes rate limits on webhook calls:
+Slack imposes rate limits on API calls:
 
-- **1 message per second** per webhook URL
-- Exceeding limits results in `429 Too Many Requests`
+- **Tier 1 methods**: 1+ requests per minute
+- **File uploads**: Can be slower for large files
 
 If you're running many experiments rapidly, consider:
 
-1. Batching notifications
-2. Using separate webhook URLs
+1. Only notifying important runs
+2. Using separate channels for high-frequency notifications
 3. Implementing delay between experiments
 
 ## See Also
 
-- [Slack Webhook Documentation](https://api.slack.com/messaging/webhooks)
-- [Slack Message Formatting](https://api.slack.com/reference/surfaces/formatting)
-- [capture_command](capture-command.md) - Run commands for more complex notifications
+- [Slack API Documentation](https://api.slack.com/)
+- [Slack Block Kit](https://api.slack.com/block-kit)
+- [Slack File Uploads](https://api.slack.com/methods/files.upload)
+- [capture-file](capture-file.md) - Capture files for attachments
+- [capture-command](capture-command.md) - Run commands before notifications

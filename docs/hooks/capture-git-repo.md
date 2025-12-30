@@ -1,24 +1,30 @@
-# capture_git_repo
+# capture-git-repo
 
-Captures Git repository state including commit hash, branch, and dirty status.
+Captures Git repository state including commit hash and dirty status.
 
 ## Configuration
 
 ```toml
 # Allow execution with uncommitted changes
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "my-repo"
+path = "."
 allow_dirty = true
 
 # Abort if repository has uncommitted changes
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "my-repo"
+path = "."
 allow_dirty = false
 ```
 
 ## Parameters
 
-- `allow_dirty` (optional, default: `true`): If `false`, aborts the run when the repository has uncommitted changes.
+- `name` (required): Name for this repository (used for patch file naming)
+- `path` (required): Path to the repository (relative to project root, or absolute)
+- `allow_dirty` (optional, default: `false`): If `false`, aborts the run when the repository has uncommitted changes
 
 ## Phases
 
@@ -30,27 +36,27 @@ allow_dirty = false
 ```json
 {
   "__meta": {
-    "id": "capture_git_repo",
+    "id": "capture-git-repo",
     "config": {
+      "name": "my-repo",
+      "path": ".",
       "allow_dirty": false
     },
     "success": true
   },
-  "commit": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-  "branch": "main",
-  "remote": "https://github.com/ut-issl/capsula.git",
-  "dirty": false,
-  "status": "clean"
+  "working_dir": "/Users/alice/projects/capsula",
+  "sha": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+  "is_dirty": false
 }
 ```
 
 ### Fields
 
-- `commit` (string): Full commit hash (SHA-1)
-- `branch` (string): Current branch name
-- `remote` (string): Remote repository URL
-- `dirty` (boolean): Whether repository has uncommitted changes
-- `status` (string): Human-readable status ("clean" or "dirty")
+- `working_dir` (string): Absolute path to the repository working directory
+- `sha` (string): Full commit hash (SHA-1)
+- `is_dirty` (boolean): Whether repository has uncommitted changes
+
+If the repository is dirty, a patch file is also created at `.capsula/{vault}/{date}/{time-name}/{name}.patch`
 
 ## Use Cases
 
@@ -59,8 +65,10 @@ allow_dirty = false
 Require clean repository state for experiments:
 
 ```toml
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "main-repo"
+path = "."
 allow_dirty = false
 ```
 
@@ -77,8 +85,10 @@ Commit or stash your changes, or set allow_dirty = true
 Capture which commit produced specific results:
 
 ```toml
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "main-repo"
+path = "."
 allow_dirty = true
 ```
 
@@ -87,11 +97,31 @@ allow_dirty = true
 Compare repository state before and after:
 
 ```toml
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "main-repo"
+path = "."
 
-[[post_run]]
-type = "capture_git_repo"
+[[post-run.hooks]]
+id = "capture-git-repo"
+name = "main-repo"
+path = "."
+```
+
+### Monitor Multiple Repositories
+
+Track multiple repositories (e.g., code and data):
+
+```toml
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "code"
+path = "."
+
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "data"
+path = "../data-repo"
 ```
 
 ## Examples
@@ -102,13 +132,15 @@ type = "capture_git_repo"
 [vault]
 name = "research-experiments"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "research-repo"
+path = "."
 allow_dirty = false  # Force clean repository
 
-[[pre_run]]
-type = "capture_env"
-include = ["PATH"]
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
 ```
 
 ```bash
@@ -122,8 +154,10 @@ capsula run python train_model.py
 [vault]
 name = "development-runs"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "dev-repo"
+path = "."
 allow_dirty = true  # Allow uncommitted changes
 ```
 
@@ -132,19 +166,21 @@ Output when repository is dirty:
 ```json
 {
   "__meta": {
-    "id": "capture_git_repo",
+    "id": "capture-git-repo",
     "config": {
+      "name": "dev-repo",
+      "path": ".",
       "allow_dirty": true
     },
     "success": true
   },
-  "commit": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-  "branch": "feature/new-model",
-  "remote": "https://github.com/ut-issl/capsula.git",
-  "dirty": true,
-  "status": "dirty (2 modified, 1 untracked)"
+  "working_dir": "/Users/alice/projects/capsula",
+  "sha": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+  "is_dirty": true
 }
 ```
+
+A patch file is also created at `.capsula/development-runs/2025-12-30/143022-chubby-back/dev-repo.patch`.
 
 ### Compare Before and After
 
@@ -152,12 +188,16 @@ Output when repository is dirty:
 [vault]
 name = "code-generation"
 
-[[pre_run]]
-type = "capture_git_repo"
+[[pre-run.hooks]]
+id = "capture-git-repo"
+name = "codegen-repo"
+path = "."
 allow_dirty = true
 
-[[post_run]]
-type = "capture_git_repo"
+[[post-run.hooks]]
+id = "capture-git-repo"
+name = "codegen-repo"
+path = "."
 ```
 
 This captures whether your command modified any files:
@@ -182,19 +222,22 @@ Pre-run output with abort:
 [
   {
     "__meta": {
-      "id": "capture_git_repo",
+      "id": "capture-git-repo",
       "config": {
+        "name": "my-repo",
+        "path": ".",
         "allow_dirty": false
       },
-      "success": false,
-      "error": "Repository is dirty and allow_dirty=false"
+      "success": true
     },
-    "commit": "a1b2c3d4...",
-    "dirty": true,
-    "abort_requested": true
+    "working_dir": "/Users/alice/projects/capsula",
+    "sha": "a1b2c3d4...",
+    "is_dirty": true
   }
 ]
 ```
+
+The run will be aborted after pre-run hooks complete because `allow_dirty = false` and the repository is dirty.
 
 ## Error Handling
 
