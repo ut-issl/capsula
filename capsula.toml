@@ -11,7 +11,7 @@ id = "capture-cwd"
 id = "capture-git-repo"
 name = "capsula"
 path = "."  # Relative to the project root.
-allow_dirty = false
+allow_dirty = true
 
 [[pre-run.hooks]]
 id = "capture-file"
@@ -53,3 +53,5 @@ channel = "#random"
 id = "notify-slack"
 channel = "#random"
 # token is read from environment variable `SLACK_BOT_TOKEN`
+# Optional: attach files matching glob patterns (up to 10 files)
+# attachment_globs = ["*.png", "outputs/*.jpg"]
