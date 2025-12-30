@@ -4,10 +4,8 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
-        //exclude_types: [html, svg]
       - id: check-toml
       - id: check-yaml
-        //args: ["--allow-multiple-documents", "--unsafe"]
       - id: check-json
       - id: check-added-large-files
         args: ["--enforce-all"]
@@ -21,4 +19,13 @@ repos:
       - id: fix-byte-order-marker
       - id: forbid-submodules
       - id: no-commit-to-branch
-        args: ["--branch=rust", "--branch=main"]
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.47.0
+    hooks:
+      - id: markdownlint
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.40.1
+    hooks:
+      - id: typos

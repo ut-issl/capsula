@@ -46,10 +46,10 @@ abort_on_failure = false
 
 [[pre-run.hooks]]
 id = "notify-slack"
-channel = "#paperpile"
+channel = "#random"
 # token is read from environment variable `SLACK_BOT_TOKEN`
 
 [[post-run.hooks]]
 id = "notify-slack"
-channel = "#paperpile"
+channel = "#random"
 # token is read from environment variable `SLACK_BOT_TOKEN`

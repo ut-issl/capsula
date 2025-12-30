@@ -101,7 +101,6 @@ impl<P: PhaseMarker> HookRegistry<P> {
                 CapsulaError::HookFailed { .. } => e,
                 _ => CapsulaError::HookFailed {
                     hook: hook_id.to_string(),
-                    message: e.to_string(),
                     source: Box::new(e),
                 },
             }

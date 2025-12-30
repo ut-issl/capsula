@@ -60,7 +60,7 @@ pub trait HookErased<P: PhaseMarker>: Send + Sync {
     fn run(
         &self,
         metadata: &PreparedRun,
-        parmas: &RuntimeParams<P>,
+        params: &RuntimeParams<P>,
     ) -> Result<Box<dyn super::captured::Captured>, CapsulaError>;
 }
 

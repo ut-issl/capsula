@@ -24,10 +24,9 @@ pub enum CapsulaError {
 
     /// Hook execution failed
     /// This variant wraps hook-specific errors while preserving the error chain
-    #[error("Hook '{hook}' failed: {message}")]
+    #[error("Hook '{hook}' failed")]
     HookFailed {
         hook: String,
-        message: String,
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
     },

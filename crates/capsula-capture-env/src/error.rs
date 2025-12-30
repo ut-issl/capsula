@@ -26,7 +26,6 @@ impl From<EnvHookError> for CapsulaError {
     fn from(err: EnvHookError) -> Self {
         Self::HookFailed {
             hook: "capture-env".to_string(),
-            message: err.to_string(),
             source: Box::new(err),
         }
     }

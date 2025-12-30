@@ -52,7 +52,6 @@ impl From<FileHookError> for CapsulaError {
     fn from(err: FileHookError) -> Self {
         Self::HookFailed {
             hook: "capture-file".to_string(),
-            message: err.to_string(),
             source: Box::new(err),
         }
     }
