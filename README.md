@@ -5,6 +5,8 @@
 
 A powerful CLI tool for running hooks and capturing their output before and after your command executions. Capsula automatically records the state of your project environment before and after running commands, making your workflows reproducible and auditable.
 
+📚 **[Documentation](https://www.space.t.u-tokyo.ac.jp/capsula/)** - Complete guide with examples and API reference
+
 > [!NOTE]
 > The Python version of Capsula is deprecated and can be found at the `python` branch of this repository.
 
