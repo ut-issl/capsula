@@ -24,3 +24,8 @@ repos:
     rev: v0.47.0
     hooks:
       - id: markdownlint
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.40.1
+    hooks:
+      - id: typos

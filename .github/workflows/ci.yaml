@@ -36,8 +36,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
+  typos:
+    name: Spell check with Typos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Spell check with typos
+        uses: crates-ci/typos@v1.40.1
+
   collect:
-    needs: [checks, tests]
+    needs: [checks, tests, typos]
     runs-on: ubuntu-latest
     steps:
       - name: Collect results
