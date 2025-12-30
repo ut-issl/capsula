@@ -61,10 +61,10 @@ fn build_and_run_hooks<P: PhaseMarker>(
         .iter()
         .enumerate()
         .map(|(idx, hook)| {
-            let hook_identifier = hook_phase_config
-                .hooks
-                .get(idx)
-                .map_or_else(|| format!("hook[{idx}]"),|config_hook| config_hook.id.clone());
+            let hook_identifier = hook_phase_config.hooks.get(idx).map_or_else(
+                || format!("hook[{idx}]"),
+                |config_hook| config_hook.id.clone(),
+            );
 
             let hook_config_json = hook
                 .config_as_json()
@@ -90,7 +90,7 @@ fn build_and_run_hooks<P: PhaseMarker>(
                 }
                 Err(e) => {
                     let error = anyhow::anyhow!(e);
-                    error!("Warning: Failed to capture {hook_identifier} (config index {idx}): {error:#}");
+                    error!("Failed to run {hook_identifier} (config index {idx}): {error:#}");
                     // Only include the metadata with error information
                     let json = json!({
                         "__meta": json!({
@@ -159,7 +159,7 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
                         Ok(metadata) => runs.push(metadata),
                         Err(e) => {
                             warn!(
-                                "Warning: Failed to parse metadata from {}: {}",
+                                "Failed to parse metadata from {}: {}",
                                 metadata_path.display(),
                                 e
                             );
@@ -167,7 +167,7 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
                     },
                     Err(e) => {
                         warn!(
-                            "Warning: Failed to read metadata from {}: {}",
+                            "Failed to read metadata from {}: {}",
                             metadata_path.display(),
                             e
                         );
@@ -404,7 +404,7 @@ fn main() {
         .compact()
         // Filtering
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 

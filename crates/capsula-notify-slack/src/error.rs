@@ -16,6 +16,18 @@ pub enum SlackNotifyError {
     /// Slack token not provided
     #[error("Slack token not provided in config and SLACK_BOT_TOKEN environment variable not set")]
     MissingToken,
+    /// Glob pattern error
+    #[error("Invalid glob pattern '{pattern}': {source}")]
+    GlobPattern {
+        pattern: String,
+        source: glob::PatternError,
+    },
+    /// File I/O error
+    #[error("Failed to read attachment file '{path}': {source}")]
+    FileIo {
+        path: String,
+        source: std::io::Error,
+    },
 }
 
 /// Convert `SlackNotifyError` to `CapsulaError`

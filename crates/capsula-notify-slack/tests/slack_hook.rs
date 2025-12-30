@@ -1,3 +1,4 @@
+//! Tests for the `SlackNotifyHook` implementation.
 #![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
 
 use capsula_core::hook::{Hook, PreRun};
@@ -69,5 +70,56 @@ fn slack_hook_has_correct_id() {
         <SlackNotifyHook as Hook<PreRun>>::ID,
         "notify-slack",
         "Hook ID should be 'notify-slack'"
+    );
+}
+
+#[test]
+fn slack_hook_parses_config_with_attachments() {
+    // Arrange
+    let config = json!({
+        "channel": "#test-channel",
+        "token": "xoxb-test-token",
+        "attachment_globs": ["*.png", "outputs/*.jpg"]
+    });
+
+    // Act
+    let hook = <SlackNotifyHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config should succeed");
+
+    // Assert
+    let hook_config = <SlackNotifyHook as Hook<PreRun>>::config(&hook);
+    let config_value = serde_json::to_value(hook_config).unwrap();
+    let attachment_globs = config_value
+        .get("attachment_globs")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>());
+
+    assert_eq!(attachment_globs, Some(vec!["*.png", "outputs/*.jpg"]));
+}
+
+#[test]
+fn slack_hook_parses_config_without_attachments() {
+    // Arrange - config without attachment_globs should default to empty vec
+    let config = json!({
+        "channel": "#test-channel",
+        "token": "xoxb-test-token"
+    });
+
+    // Act
+    let hook = <SlackNotifyHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config should succeed");
+
+    // Assert
+    let hook_config = <SlackNotifyHook as Hook<PreRun>>::config(&hook);
+    let config_value = serde_json::to_value(hook_config).unwrap();
+    let attachment_globs = config_value
+        .get("attachment_globs")
+        .and_then(|v| v.as_array())
+        .map(Vec::len);
+
+    assert_eq!(
+        attachment_globs,
+        Some(0),
+        "attachment_globs should default to empty vec"
     );
 }

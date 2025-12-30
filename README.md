@@ -271,7 +271,7 @@ id = "capture-machine"
 
 #### Slack Notification Hook
 
-Sends notifications to a Slack channel when a run starts (pre-run phase) or completes (post-run phase).
+Sends notifications to a Slack channel when a run starts (pre-run phase) or completes (post-run phase). Optionally attach files matching glob patterns.
 
 ```toml
 # Send to a channel
@@ -285,22 +285,48 @@ token = "xoxb-..."          # Slack bot token (optional, can use SLACK_BOT_TOKEN
 id = "notify-slack"
 channel = "U01234ABCD"      # Slack user ID for DMs (not @username)
 # Token will be read from SLACK_BOT_TOKEN env var
+
+# Post-run notification with file attachments
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#random"
+attachment_globs = ["*.png", "outputs/*.jpg"]  # Optional: attach files (up to 10 files)
 ```
 
 > [!TIP]
 > It's recommended to set the Slack bot token via the `SLACK_BOT_TOKEN` environment variable instead of storing it in the configuration file. If the `token` field is omitted from the configuration, Capsula will automatically read it from the environment variable.
 
-**Pre-run notification message:**
+**File Attachments:**
 
-```
-Run `chubby-back` (ID: `01K8WSYC91YAE21R7CWHQ4KYN2`) is starting.
-```
+The `attachment_globs` field allows you to attach files to Slack notifications:
 
-**Post-run notification message:**
+- Accepts an array of glob patterns (e.g., `["*.png", "outputs/*.jpg"]`)
+- Glob patterns are resolved relative to the project root
+- Up to 10 files can be attached per notification (Slack API limit)
+- Files are uploaded and shared to the specified channel along with the notification message
+- If more than 10 files match the patterns, only the first 10 are attached
 
-```
-Run `chubby-back` (ID: `01K8WSYC91YAE21R7CWHQ4KYN2`) has completed.
-```
+> [!TIP]
+> Consider hook order when using `attachment_globs`. If a `capture-file` hook with `mode = "move"` is defined before the `notify-slack` hook, files will already be moved to the run directory when searching for attachments, and won't be found at their original locations. Either:
+>
+> 1. Place the `notify-slack` hook before the `capture-file` hook, or
+> 2. Use `mode = "copy"` in the `capture-file` hook to keep files at their original locations
+
+**Message Format:**
+
+Notifications are sent using Slack's Block Kit for rich formatting, displaying:
+
+- **Pre-run**: Header "🚀 Capsula Run Starting"
+- **Post-run**: Header "✅ Capsula Run Completed"
+
+Each message includes:
+
+- Run Name
+- Run ID
+- Timestamp (formatted in your local timezone)
+- Command being executed
+
+The messages use a structured layout similar to GitHub's Slack notifications for better readability.
 
 **Output Example:**
 
