@@ -108,12 +108,18 @@ fn upload_file_to_slack(
         .send()
         .map_err(SlackNotifyError::from)?;
 
-    let upload_url_json: serde_json::Value = upload_url_res
-        .json()
-        .map_err(SlackNotifyError::from)?;
+    let upload_url_json: serde_json::Value =
+        upload_url_res.json().map_err(SlackNotifyError::from)?;
 
-    if !upload_url_json.get("ok").and_then(serde_json::Value::as_bool).unwrap_or(false) {
-        let error_msg = upload_url_json.get("error").and_then(|v| v.as_str()).unwrap_or("unknown error");
+    if !upload_url_json
+        .get("ok")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+    {
+        let error_msg = upload_url_json
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
 
         // Provide helpful message for missing_scope error
         let message = if error_msg == "missing_scope" {
@@ -151,16 +157,18 @@ fn upload_file_to_slack(
     Ok((file_id.to_string(), file_name))
 }
 
-/// Send a simple message to Slack without attachments
+/// Send a simple message to Slack without attachments using Block Kit
 fn send_simple_message(
     client: &reqwest::blocking::Client,
     token: &str,
     channel: &str,
     text: &str,
+    blocks: &[serde_json::Value],
 ) -> Result<String, SlackNotifyError> {
     let payload = json!({
         "channel": channel,
         "text": text,
+        "blocks": blocks,
     });
 
     let res = client
@@ -184,13 +192,14 @@ fn send_slack_message(
     token: &str,
     channel: &str,
     text: &str,
+    blocks: &[serde_json::Value],
     attachment_paths: &[PathBuf],
 ) -> Result<(String, Vec<String>), SlackNotifyError> {
     let client = reqwest::blocking::Client::new();
 
     // If no attachments, use simple chat.postMessage
     if attachment_paths.is_empty() {
-        let response = send_simple_message(&client, token, channel, text)?;
+        let response = send_simple_message(&client, token, channel, text, blocks)?;
         return Ok((response, Vec::new()));
     }
 
@@ -245,12 +254,17 @@ fn send_slack_message(
     }
 
     // Check if the Slack API returned an error in the response
-    let complete_json: serde_json::Value = complete_res
-        .json()
-        .map_err(SlackNotifyError::from)?;
+    let complete_json: serde_json::Value = complete_res.json().map_err(SlackNotifyError::from)?;
 
-    if !complete_json.get("ok").and_then(serde_json::Value::as_bool).unwrap_or(false) {
-        let error_msg = complete_json.get("error").and_then(|v| v.as_str()).unwrap_or("unknown error");
+    if !complete_json
+        .get("ok")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+    {
+        let error_msg = complete_json
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown error");
         return Err(SlackNotifyError::SlackApi {
             message: format!("Failed to complete file upload: {error_msg}"),
         });
@@ -311,10 +325,56 @@ impl Hook<PreRun> for SlackNotifyHook {
         metadata: &PreparedRun,
         _params: &RuntimeParams<PreRun>,
     ) -> CapsulaResult<Self::Output> {
-        let text = format!(
+        // Create fallback text for notifications
+        let fallback_text = format!(
             "Run `{}` (ID: `{}`) is starting.",
             metadata.name, metadata.id
         );
+
+        // Format command for display
+        let command_display = shlex::try_join(metadata.command.iter().map(String::as_str))
+            .unwrap_or_else(|_| metadata.command.join(" "));
+
+        // Build Block Kit message
+        let blocks = vec![
+            // Header
+            json!({
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Capsula Run Starting",
+                    "emoji": true
+                }
+            }),
+            // Divider
+            json!({
+                "type": "divider"
+            }),
+            // Run details
+            json!({
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": format!("*Run Name:*\n{}", metadata.name)
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": format!("*Run ID:*\n`{}`", metadata.id)
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": format!("*Timestamp:*\n<!date^{}^{{date_num}} {{time_secs}}|{}>",
+                            metadata.timestamp().timestamp(),
+                            metadata.timestamp().to_rfc3339())
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": format!("*Command:*\n```{}```", command_display)
+                    }
+                ]
+            }),
+        ];
 
         // Resolve attachment globs relative to project root
         let attachment_paths =
@@ -324,7 +384,8 @@ impl Hook<PreRun> for SlackNotifyHook {
         let (response, attached_files) = send_slack_message(
             &self.config.token,
             &self.config.channel,
-            &text,
+            &fallback_text,
+            &blocks,
             &attachment_paths,
         )?;
 
@@ -365,10 +426,56 @@ impl Hook<PostRun> for SlackNotifyHook {
         metadata: &PreparedRun,
         _params: &RuntimeParams<PostRun>,
     ) -> CapsulaResult<Self::Output> {
-        let text = format!(
+        // Create fallback text for notifications
+        let fallback_text = format!(
             "Run `{}` (ID: `{}`) has completed.",
             metadata.name, metadata.id
         );
+
+        // Format command for display
+        let command_display = shlex::try_join(metadata.command.iter().map(String::as_str))
+            .unwrap_or_else(|_| metadata.command.join(" "));
+
+        // Build Block Kit message
+        let blocks = vec![
+            // Header
+            json!({
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "✅ Capsula Run Completed",
+                    "emoji": true
+                }
+            }),
+            // Divider
+            json!({
+                "type": "divider"
+            }),
+            // Run details
+            json!({
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": format!("*Run Name:*\n{}", metadata.name)
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": format!("*Run ID:*\n`{}`", metadata.id)
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": format!("*Timestamp:*\n<!date^{}^{{date_num}} {{time_secs}}|{}>",
+                            metadata.timestamp().timestamp(),
+                            metadata.timestamp().to_rfc3339())
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": format!("*Command:*\n```{}```", command_display)
+                    }
+                ]
+            }),
+        ];
 
         // Resolve attachment globs relative to project root
         let attachment_paths =
@@ -378,7 +485,8 @@ impl Hook<PostRun> for SlackNotifyHook {
         let (response, attached_files) = send_slack_message(
             &self.config.token,
             &self.config.channel,
-            &text,
+            &fallback_text,
+            &blocks,
             &attachment_paths,
         )?;
 

@@ -312,17 +312,21 @@ The `attachment_globs` field allows you to attach files to Slack notifications:
 > 1. Place the `notify-slack` hook before the `capture-file` hook, or
 > 2. Use `mode = "copy"` in the `capture-file` hook to keep files at their original locations
 
-**Pre-run notification message:**
+**Message Format:**
 
-```
-Run `chubby-back` (ID: `01K8WSYC91YAE21R7CWHQ4KYN2`) is starting.
-```
+Notifications are sent using Slack's Block Kit for rich formatting, displaying:
 
-**Post-run notification message:**
+- **Pre-run**: Header "🚀 Capsula Run Starting"
+- **Post-run**: Header "✅ Capsula Run Completed"
 
-```
-Run `chubby-back` (ID: `01K8WSYC91YAE21R7CWHQ4KYN2`) has completed.
-```
+Each message includes:
+
+- Run Name
+- Run ID
+- Timestamp (formatted in your local timezone)
+- Command being executed
+
+The messages use a structured layout similar to GitHub's Slack notifications for better readability.
 
 **Output Example:**
 

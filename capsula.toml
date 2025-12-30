@@ -55,3 +55,4 @@ channel = "#random"
 # token is read from environment variable `SLACK_BOT_TOKEN`
 # Optional: attach files matching glob patterns (up to 10 files)
 # attachment_globs = ["*.png", "outputs/*.jpg"]
+attachment_globs = [".local/*.png"]
