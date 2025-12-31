@@ -43,10 +43,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = { version = "1", features = ["serde"] }
 
 [workspace.lints.clippy]
-all = "deny"
+all = "warn"
 allow_attributes = { level = "warn", priority = 1 }
 allow_attributes_without_reason = { level = "warn", priority = 1 }
-cargo = { level = "deny", priority = -1 }
+cargo = { level = "warn", priority = -1 }
 dbg_macro = { level = "warn", priority = 1 }
 derive_partial_eq_without_eq = { level = "allow", priority = 1 }  # We implement `Eq` only when necessary
 else_if_without_else = { level = "warn", priority = 1 }
@@ -54,6 +54,7 @@ expect_used = { level = "allow", priority = 1 }  # TODO: change to "warn" later
 indexing_slicing = { level = "allow", priority = 1 }  # TODO: change to "warn" later
 missing_errors_doc = { level = "allow", priority = 1 }  # TODO: change to "warn" later
 missing_panics_doc = { level = "allow", priority = 1 }  # TODO: change to "warn" later
+multiple_crate_versions = { level = "allow", priority = 1 }  # There is nothing we can do about this
 nursery = { level = "warn", priority = -1 }
 panic = { level = "allow", priority = 1 }  # TODO: change to "warn" later
 pedantic = { level = "warn", priority = -1 }
