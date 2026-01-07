@@ -48,12 +48,12 @@ abort_on_failure = false
 
 [[pre-run.hooks]]
 id = "notify-slack"
-channel = "D0A61JQ7DFY"
+channel = "D0A61JQ7DFY"  # Channel ID of DM with Capsula Bot
 # token is read from environment variable `SLACK_BOT_TOKEN`
 
 [[post-run.hooks]]
 id = "notify-slack"
-channel = "D0A61JQ7DFY"
+channel = "D0A61JQ7DFY"  # Channel ID of DM with Capsula Bot
 # token is read from environment variable `SLACK_BOT_TOKEN`
 # Optional: attach files matching glob patterns (up to 10 files)
 # attachment_globs = ["*.png", "outputs/*.jpg"]
