@@ -18,12 +18,16 @@ use tracing::{debug, error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt};
 use ulid::Ulid;
 
-const VERSION: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
-    " (commit: ",
-    env!("GIT_HASH"),
-    ")"
-);
+const VERSION: &str = if env!("GIT_HASH").is_empty() {
+    env!("CARGO_PKG_VERSION")
+} else {
+    concat!(
+        env!("CARGO_PKG_VERSION"),
+        " (commit: ",
+        env!("GIT_HASH"),
+        ")"
+    )
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "capsula", bin_name = "capsula", version = VERSION, about = "Capsula CLI")]
