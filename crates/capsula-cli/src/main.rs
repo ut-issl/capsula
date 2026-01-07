@@ -18,8 +18,15 @@ use tracing::{debug, error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt};
 use ulid::Ulid;
 
+const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (commit: ",
+    env!("GIT_HASH"),
+    ")"
+);
+
 #[derive(Parser, Debug)]
-#[command(name = "capsula", bin_name = "capsula", version, about = "Capsula CLI")]
+#[command(name = "capsula", bin_name = "capsula", version = VERSION, about = "Capsula CLI")]
 struct Cli {
     #[arg(short, long, global(true))]
     config: Option<PathBuf>,
