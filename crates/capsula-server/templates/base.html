@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Capsula Server{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <h1><a href="/">Capsula</a></h1>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/runs">Runs</a></li>
+            </ul>
+        </div>
+    </nav>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <div class="container">
+            <p>Capsula Server</p>
+        </div>
+    </footer>
+</body>
+</html>

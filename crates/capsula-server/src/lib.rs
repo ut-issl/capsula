@@ -1,9 +1,11 @@
+use askama::Template;
+use askama_web::WebTemplate;
 use axum::{
     Router,
     body::Body,
     extract::{Multipart, Path, Query, State},
     http::{StatusCode, header},
-    response::{Html, IntoResponse, Json, Response},
+    response::{IntoResponse, Json, Response},
     routing::{get, post},
 };
 use serde_json::json;
@@ -11,9 +13,14 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use tower_http::services::ServeDir;
 use tracing::{error, info};
 
 mod models;
+
+#[derive(Template, WebTemplate)]
+#[template(path = "index.html")]
+struct IndexTemplate;
 
 pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     sqlx::postgres::PgPoolOptions::new()
@@ -24,8 +31,10 @@ pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
 }
 
 pub fn build_app(pool: PgPool) -> Router {
+    let static_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
+    
     Router::new()
-        .route("/", get(handler))
+        .route("/", get(index))
         .route("/health", get(health_check))
         .route("/api/vaults", get(list_vaults))
         .route("/api/vaults/{name}", get(get_vault_info))
@@ -33,11 +42,12 @@ pub fn build_app(pool: PgPool) -> Router {
         .route("/api/runs/{id}", get(get_run))
         .route("/api/runs/{id}/files/{*path}", get(download_file))
         .route("/api/upload", post(upload_files))
+        .nest_service("/static", ServeDir::new(static_dir))
         .with_state(pool)
 }
 
-async fn handler() -> Html<&'static str> {
-    Html("<h1>Capsula Server</h1><p>Hello World!</p>")
+async fn index() -> impl IntoResponse {
+    IndexTemplate
 }
 
 async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
