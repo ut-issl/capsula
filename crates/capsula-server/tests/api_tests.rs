@@ -171,3 +171,26 @@ async fn test_pagination() {
     assert_eq!(body["limit"], 1);
     assert_eq!(body["offset"], 1);
 }
+
+#[tokio::test]
+async fn test_multipart_upload() {
+    let client = reqwest::Client::new();
+
+    // Create a multipart form with test files
+    let form = reqwest::multipart::Form::new()
+        .text("file1", "content of file 1")
+        .text("file2", "content of file 2");
+
+    let response = client
+        .post(format!("{BASE_URL}/api/upload"))
+        .multipart(form)
+        .send()
+        .await
+        .expect("Failed to send multipart request");
+
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["status"], "ok");
+    assert_eq!(body["files_processed"], 2);
+    assert!(body["total_bytes"].as_u64().unwrap() > 0);
+}

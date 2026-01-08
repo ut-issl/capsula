@@ -1,6 +1,6 @@
 use axum::{
     Router,
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     response::{Html, IntoResponse, Json},
     routing::{get, post},
 };
@@ -45,6 +45,7 @@ async fn main() {
         .route("/api/vaults/{name}", get(get_vault_info))
         .route("/api/runs", post(create_run).get(list_runs))
         .route("/api/runs/{id}", get(get_run))
+        .route("/api/upload", post(upload_files))
         .with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
@@ -341,4 +342,49 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
             }))
         }
     }
+}
+
+async fn upload_files(mut multipart: Multipart) -> impl IntoResponse {
+    info!("Received file upload request");
+
+    let mut files_processed = 0;
+    let mut total_bytes = 0u64;
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let name = field.name().unwrap_or("unknown").to_string();
+        let file_name = field.file_name().unwrap_or("unknown").to_string();
+        let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
+
+        info!(
+            "Processing field: name={}, file_name={}, content_type={}",
+            name, file_name, content_type
+        );
+
+        match field.bytes().await {
+            Ok(data) => {
+                let size = data.len();
+                total_bytes += size as u64;
+                files_processed += 1;
+                info!("Successfully read field '{}': {} bytes", name, size);
+            }
+            Err(e) => {
+                error!("Failed to read field '{}': {}", name, e);
+                return Json(json!({
+                    "status": "error",
+                    "error": format!("Failed to read field '{}': {}", name, e)
+                }));
+            }
+        }
+    }
+
+    info!(
+        "Upload complete: {} files, {} bytes total",
+        files_processed, total_bytes
+    );
+
+    Json(json!({
+        "status": "ok",
+        "files_processed": files_processed,
+        "total_bytes": total_bytes
+    }))
 }
