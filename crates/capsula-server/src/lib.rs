@@ -15,7 +15,10 @@ mod filters {
         }
     }
 
-    pub fn pretty_json<T: std::fmt::Display>(s: T, _: &dyn askama::Values) -> ::askama::Result<String> {
+    pub fn pretty_json<T: std::fmt::Display>(
+        s: T,
+        _: &dyn askama::Values,
+    ) -> ::askama::Result<String> {
         let s_str = s.to_string();
         // Try to parse as JSON and pretty-print with 2-space indentation
         if let Ok(value) = serde_json::from_str::<serde_json::Value>(&s_str) {
@@ -288,7 +291,7 @@ async fn run_detail_page(
     let hook_outputs_result = sqlx::query_as!(
         models::RunOutputRow,
         r#"
-        SELECT phase, hook_id, output, success, error
+        SELECT phase, hook_id, config, output, success, error
         FROM run_outputs
         WHERE run_id = $1
         ORDER BY id
@@ -307,7 +310,7 @@ async fn run_detail_page(
                 let hook_output = models::HookOutput {
                     meta: models::HookMeta {
                         id: row.hook_id,
-                        config: None,
+                        config: row.config,
                         success: row.success,
                         error: row.error,
                     },
@@ -616,7 +619,7 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
             let hook_outputs_result = sqlx::query_as!(
                 models::RunOutputRow,
                 r#"
-                SELECT phase, hook_id, output, success, error
+                SELECT phase, hook_id, config, output, success, error
                 FROM run_outputs
                 WHERE run_id = $1
                 ORDER BY id
@@ -635,7 +638,7 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
                         let hook_output = models::HookOutput {
                             meta: models::HookMeta {
                                 id: row.hook_id,
-                                config: None, // Config not stored in database currently
+                                config: row.config,
                                 success: row.success,
                                 error: row.error,
                             },
@@ -929,11 +932,12 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
             for hook in hooks {
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO run_outputs (run_id, phase, hook_id, output, success, error)
-                    VALUES ($1, 'pre', $2, $3, $4, $5)
+                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)
+                    VALUES ($1, 'pre', $2, $3, $4, $5, $6)
                     "#,
                     rid,
                     hook.meta.id,
+                    hook.meta.config,
                     hook.output,
                     hook.meta.success,
                     hook.meta.error
@@ -961,11 +965,12 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
             for hook in hooks {
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO run_outputs (run_id, phase, hook_id, output, success, error)
-                    VALUES ($1, 'post', $2, $3, $4, $5)
+                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)
+                    VALUES ($1, 'post', $2, $3, $4, $5, $6)
                     "#,
                     rid,
                     hook.meta.id,
+                    hook.meta.config,
                     hook.output,
                     hook.meta.success,
                     hook.meta.error

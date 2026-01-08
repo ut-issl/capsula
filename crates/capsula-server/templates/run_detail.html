@@ -109,6 +109,14 @@
                 </div>
                 {% when None %}
                 {% endmatch %}
+                {% match hook.meta.config %}
+                {% when Some with (config) %}
+                <details class="hook-details">
+                    <summary>View Config</summary>
+                    <pre class="hook-output">{{ config|pretty_json }}</pre>
+                </details>
+                {% when None %}
+                {% endmatch %}
                 <details class="hook-details">
                     <summary>View Output</summary>
                     <pre class="hook-output">{{ hook.output|pretty_json }}</pre>
@@ -138,6 +146,14 @@
                 <div class="hook-error">
                     <strong>Error:</strong> {{ error_msg }}
                 </div>
+                {% when None %}
+                {% endmatch %}
+                {% match hook.meta.config %}
+                {% when Some with (config) %}
+                <details class="hook-details">
+                    <summary>View Config</summary>
+                    <pre class="hook-output">{{ config|pretty_json }}</pre>
+                </details>
                 {% when None %}
                 {% endmatch %}
                 <details class="hook-details">

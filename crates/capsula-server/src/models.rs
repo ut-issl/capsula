@@ -67,6 +67,7 @@ pub struct HookMeta {
 pub struct RunOutputRow {
     pub phase: String,
     pub hook_id: String,
+    pub config: Option<JsonValue>,
     pub output: JsonValue,
     pub success: bool,
     pub error: Option<String>,
