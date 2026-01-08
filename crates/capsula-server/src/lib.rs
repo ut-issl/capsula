@@ -2,7 +2,10 @@ use askama::Template;
 use askama_web::WebTemplate;
 
 mod filters {
-    #[allow(clippy::unnecessary_wraps)]
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "Askama filter API requires Result return type"
+    )]
     pub fn format_command(s: &str, _: &dyn askama::Values) -> ::askama::Result<String> {
         // Try to parse as JSON array
         Ok(serde_json::from_str::<Vec<String>>(s).map_or_else(
@@ -14,7 +17,10 @@ mod filters {
         ))
     }
 
-    #[allow(clippy::unnecessary_wraps)]
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "Askama filter API requires Result return type"
+    )]
     pub fn pretty_json<T: std::fmt::Display>(
         s: T,
         _: &dyn askama::Values,

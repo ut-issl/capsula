@@ -1,3 +1,11 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::uninlined_format_args,
+    clippy::redundant_closure_for_method_calls,
+    deprecated,
+    reason = "Test code doesn't need production-level error handling"
+)]
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;

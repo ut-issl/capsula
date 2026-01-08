@@ -6,6 +6,9 @@ rust-version.workspace = true
 readme.workspace = true
 repository.workspace = true
 license.workspace = true
+description = "HTTP client library for Capsula server"
+keywords = ["capsula", "client", "http"]
+categories = ["api-bindings"]
 
 [dependencies]
 reqwest = { workspace = true, features = ["blocking"] }
