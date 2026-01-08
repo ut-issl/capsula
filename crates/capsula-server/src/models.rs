@@ -40,4 +40,6 @@ pub struct VaultInfo {
 #[derive(Debug, Deserialize)]
 pub struct ListRunsQuery {
     pub vault: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }

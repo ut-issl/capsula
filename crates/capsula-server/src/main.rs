@@ -169,10 +169,13 @@ async fn list_runs(
     State(pool): State<PgPool>,
     Query(params): Query<models::ListRunsQuery>,
 ) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(100);
+    let offset = params.offset.unwrap_or(0);
+
     if let Some(ref vault) = params.vault {
-        info!("Listing runs for vault: {}", vault);
+        info!("Listing runs for vault: {} (limit={}, offset={})", vault, limit, offset);
     } else {
-        info!("Listing all runs");
+        info!("Listing all runs (limit={}, offset={})", limit, offset);
     }
 
     let result = if let Some(vault) = params.vault {
@@ -185,8 +188,11 @@ async fn list_runs(
             FROM runs
             WHERE vault = $1
             ORDER BY timestamp DESC
+            LIMIT $2 OFFSET $3
             "#,
-            vault
+            vault,
+            limit,
+            offset
         )
         .fetch_all(&pool)
         .await
@@ -199,7 +205,10 @@ async fn list_runs(
                    created_at, updated_at
             FROM runs
             ORDER BY timestamp DESC
-            "#
+            LIMIT $1 OFFSET $2
+            "#,
+            limit,
+            offset
         )
         .fetch_all(&pool)
         .await
@@ -210,7 +219,9 @@ async fn list_runs(
             info!("Found {} runs", runs.len());
             Json(json!({
                 "status": "ok",
-                "runs": runs
+                "runs": runs,
+                "limit": limit,
+                "offset": offset
             }))
         }
         Err(e) => {
