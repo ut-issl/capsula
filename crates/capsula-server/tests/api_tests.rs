@@ -501,3 +501,87 @@ async fn test_file_download() {
         .expect("Failed to send request");
     assert_eq!(response.status(), 404);
 }
+
+#[tokio::test]
+async fn test_hook_outputs_storage() {
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    // Create a run
+    let run_data = json!({
+        "id": "01HOOKTEST123456789ABCDE",
+        "name": "test-hooks",
+        "timestamp": "2026-01-08T13:00:00Z",
+        "command": "cargo test",
+        "vault": "test-vault",
+        "project_root": "/tmp/test",
+        "exit_code": 0,
+        "duration_ms": 1000,
+        "stdout": null,
+        "stderr": null
+    });
+
+    let response = client
+        .post(format!("{}/api/runs", ctx.base_url()))
+        .json(&run_data)
+        .send()
+        .await
+        .expect("Failed to create run");
+    assert_eq!(response.status(), 200);
+
+    // Create hook outputs JSON
+    let pre_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "git",
+                "config": {"allow_dirty": false},
+                "success": true,
+                "error": null
+            },
+            "commit": "abc123",
+            "branch": "main",
+            "dirty": false
+        },
+        {
+            "__meta": {
+                "id": "env",
+                "config": null,
+                "success": true,
+                "error": null
+            },
+            "PATH": "/usr/bin",
+            "HOME": "/home/user"
+        }
+    ]);
+
+    let post_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "file",
+                "config": {"paths": ["output.txt"]},
+                "success": true,
+                "error": null
+            },
+            "files": ["output.txt"]
+        }
+    ]);
+
+    // Upload with hook outputs
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", "01HOOKTEST123456789ABCDE")
+        .text("pre_run", pre_run_hooks.to_string())
+        .text("post_run", post_run_hooks.to_string());
+
+    let response = client
+        .post(format!("{}/api/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("Failed to upload hooks");
+
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["status"], "ok");
+    assert_eq!(body["pre_run_hooks"], 2);
+    assert_eq!(body["post_run_hooks"], 1);
+}

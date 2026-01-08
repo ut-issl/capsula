@@ -324,6 +324,8 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
     let mut total_bytes = 0u64;
     let mut run_id: Option<String> = None;
     let mut pending_paths: VecDeque<String> = VecDeque::new();
+    let mut pre_run_hooks: Option<Vec<models::HookOutput>> = None;
+    let mut post_run_hooks: Option<Vec<models::HookOutput>> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let field_name = field.name().unwrap_or("unknown").to_string();
@@ -353,6 +355,54 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
                     return Json(json!({
                         "status": "error",
                         "error": format!("Failed to read path: {}", e)
+                    }));
+                }
+            }
+        } else if field_name == "pre_run" {
+            match field.text().await {
+                Ok(text) => match serde_json::from_str::<Vec<models::HookOutput>>(&text) {
+                    Ok(hooks) => {
+                        info!("Parsed {} pre-run hooks", hooks.len());
+                        pre_run_hooks = Some(hooks);
+                        continue;
+                    }
+                    Err(e) => {
+                        error!("Failed to parse pre_run JSON: {}", e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to parse pre_run JSON: {}", e)
+                        }));
+                    }
+                },
+                Err(e) => {
+                    error!("Failed to read pre_run field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read pre_run: {}", e)
+                    }));
+                }
+            }
+        } else if field_name == "post_run" {
+            match field.text().await {
+                Ok(text) => match serde_json::from_str::<Vec<models::HookOutput>>(&text) {
+                    Ok(hooks) => {
+                        info!("Parsed {} post-run hooks", hooks.len());
+                        post_run_hooks = Some(hooks);
+                        continue;
+                    }
+                    Err(e) => {
+                        error!("Failed to parse post_run JSON: {}", e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to parse post_run JSON: {}", e)
+                        }));
+                    }
+                },
+                Err(e) => {
+                    error!("Failed to read post_run field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read post_run: {}", e)
                     }));
                 }
             }
@@ -483,10 +533,87 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
         files_processed, total_bytes
     );
 
+    // Store hook outputs if provided
+    let mut pre_run_count = 0;
+    let mut post_run_count = 0;
+
+    if let Some(ref rid) = run_id {
+        if let Some(hooks) = pre_run_hooks {
+            for hook in hooks {
+                let result = sqlx::query!(
+                    r#"
+                    INSERT INTO run_outputs (run_id, phase, hook_id, output, success, error)
+                    VALUES ($1, 'pre', $2, $3, $4, $5)
+                    "#,
+                    rid,
+                    hook.meta.id,
+                    hook.output,
+                    hook.meta.success,
+                    hook.meta.error
+                )
+                .execute(&pool)
+                .await;
+
+                match result {
+                    Ok(_) => {
+                        pre_run_count += 1;
+                        info!("Stored pre-run hook: {}", hook.meta.id);
+                    }
+                    Err(e) => {
+                        error!("Failed to store pre-run hook {}: {}", hook.meta.id, e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to store pre-run hook {}: {}", hook.meta.id, e)
+                        }));
+                    }
+                }
+            }
+        }
+
+        if let Some(hooks) = post_run_hooks {
+            for hook in hooks {
+                let result = sqlx::query!(
+                    r#"
+                    INSERT INTO run_outputs (run_id, phase, hook_id, output, success, error)
+                    VALUES ($1, 'post', $2, $3, $4, $5)
+                    "#,
+                    rid,
+                    hook.meta.id,
+                    hook.output,
+                    hook.meta.success,
+                    hook.meta.error
+                )
+                .execute(&pool)
+                .await;
+
+                match result {
+                    Ok(_) => {
+                        post_run_count += 1;
+                        info!("Stored post-run hook: {}", hook.meta.id);
+                    }
+                    Err(e) => {
+                        error!("Failed to store post-run hook {}: {}", hook.meta.id, e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to store post-run hook {}: {}", hook.meta.id, e)
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    info!(
+        "Hook outputs stored: {} pre-run, {} post-run",
+        pre_run_count, post_run_count
+    );
+
     Json(json!({
         "status": "ok",
         "files_processed": files_processed,
-        "total_bytes": total_bytes
+        "total_bytes": total_bytes,
+        "pre_run_hooks": pre_run_count,
+        "post_run_hooks": post_run_count
     }))
 }
 

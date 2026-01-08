@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Run {
@@ -42,4 +43,20 @@ pub struct ListRunsQuery {
     pub vault: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HookOutput {
+    #[serde(rename = "__meta")]
+    pub meta: HookMeta,
+    #[serde(flatten)]
+    pub output: JsonValue,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HookMeta {
+    pub id: String,
+    pub config: Option<JsonValue>,
+    pub success: bool,
+    pub error: Option<String>,
 }
