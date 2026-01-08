@@ -34,7 +34,7 @@
             <tr>
                 <td>{{ run.timestamp.format("%Y-%m-%d %H:%M:%S") }}</td>
                 <td><a href="/runs/{{ run.id }}">{{ run.name }}</a></td>
-                <td><code>{{ run.command }}</code></td>
+                <td><code>{{ run.command|format_command }}</code></td>
                 <td><a href="/runs?vault={{ run.vault }}">{{ run.vault }}</a></td>
                 <td>
                     {% match run.duration_ms %}

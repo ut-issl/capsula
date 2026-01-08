@@ -1,5 +1,21 @@
 use askama::Template;
 use askama_web::WebTemplate;
+
+mod filters {
+    pub fn format_command(s: &str, _: &dyn askama::Values) -> ::askama::Result<String> {
+        // Try to parse as JSON array
+        if let Ok(cmd_array) = serde_json::from_str::<Vec<String>>(s) {
+            // Use shlex to join with proper quoting
+            let result = shlex::try_join(cmd_array.iter().map(String::as_str))
+                .unwrap_or_else(|_| cmd_array.join(" "));
+            Ok(result)
+        } else {
+            // If not a JSON array, return as-is
+            Ok(s.to_string())
+        }
+    }
+}
+
 use axum::{
     Router,
     body::Body,
