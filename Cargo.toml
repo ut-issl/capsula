@@ -23,6 +23,7 @@ capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.9.3"
 capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.9.3" }
 capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.9.3" }
 capsula-cli = { path = "crates/capsula-cli", version = "0.9.3" }
+capsula-client = { path = "crates/capsula-client", version = "0.9.3" }
 capsula-config = { path = "crates/capsula-config", version = "0.9.3" }
 capsula-core = { path = "crates/capsula-core", version = "0.9.3" }
 capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.9.3" }
