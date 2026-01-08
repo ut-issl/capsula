@@ -94,7 +94,7 @@ async fn test_create_and_get_run() {
     });
 
     let response = client
-        .post(format!("{}/api/runs", ctx.base_url()))
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
         .json(&run_data)
         .send()
         .await
@@ -107,7 +107,7 @@ async fn test_create_and_get_run() {
 
     let response = client
         .get(format!(
-            "{}/api/runs/01TEST123456789ABCDEFGHIJ",
+            "{}/api/v1/runs/01TEST123456789ABCDEFGHIJ",
             ctx.base_url()
         ))
         .send()
@@ -126,7 +126,7 @@ async fn test_list_vaults() {
     let ctx = TestContext::new().await;
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/vaults", ctx.base_url()))
+        .get(format!("{}/api/v1/vaults", ctx.base_url()))
         .send()
         .await
         .expect("Failed to get vaults");
@@ -156,7 +156,7 @@ async fn test_get_vault_info() {
     });
 
     let response = client
-        .post(format!("{}/api/runs", ctx.base_url()))
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
         .json(&run_data)
         .send()
         .await
@@ -164,7 +164,7 @@ async fn test_get_vault_info() {
     assert_eq!(response.status(), 200);
 
     let response = client
-        .get(format!("{}/api/vaults/default", ctx.base_url()))
+        .get(format!("{}/api/v1/vaults/default", ctx.base_url()))
         .send()
         .await
         .expect("Failed to get vault");
@@ -176,7 +176,7 @@ async fn test_get_vault_info() {
 
     let response = client
         .get(format!(
-            "{}/api/vaults/nonexistent-vault-xyz",
+            "{}/api/v1/vaults/nonexistent-vault-xyz",
             ctx.base_url()
         ))
         .send()
@@ -195,7 +195,7 @@ async fn test_list_runs_with_filters() {
     let client = reqwest::Client::new();
 
     let response = client
-        .get(format!("{}/api/runs", ctx.base_url()))
+        .get(format!("{}/api/v1/runs", ctx.base_url()))
         .send()
         .await
         .expect("Failed to list runs");
@@ -206,7 +206,7 @@ async fn test_list_runs_with_filters() {
     assert!(body["runs"].is_array());
 
     let response = client
-        .get(format!("{}/api/runs?vault=default", ctx.base_url()))
+        .get(format!("{}/api/v1/runs?vault=default", ctx.base_url()))
         .send()
         .await
         .expect("Failed to list runs");
@@ -228,7 +228,7 @@ async fn test_pagination() {
     let client = reqwest::Client::new();
 
     let response = client
-        .get(format!("{}/api/runs?limit=2", ctx.base_url()))
+        .get(format!("{}/api/v1/runs?limit=2", ctx.base_url()))
         .send()
         .await
         .expect("Failed to list runs");
@@ -243,7 +243,7 @@ async fn test_pagination() {
     assert!(runs.len() <= 2);
 
     let response = client
-        .get(format!("{}/api/runs?limit=1&offset=1", ctx.base_url()))
+        .get(format!("{}/api/v1/runs?limit=1&offset=1", ctx.base_url()))
         .send()
         .await
         .expect("Failed to list runs");
@@ -264,7 +264,7 @@ async fn test_multipart_upload() {
         .text("file2", "content of file 2");
 
     let response = client
-        .post(format!("{}/api/upload", ctx.base_url()))
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
         .multipart(form)
         .send()
         .await
@@ -296,7 +296,7 @@ async fn test_single_file_upload_with_storage() {
     });
 
     let response = client
-        .post(format!("{}/api/runs", ctx.base_url()))
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
         .json(&run_data)
         .send()
         .await
@@ -316,7 +316,7 @@ async fn test_single_file_upload_with_storage() {
         );
 
     let response = client
-        .post(format!("{}/api/upload", ctx.base_url()))
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
         .multipart(form)
         .send()
         .await
@@ -348,7 +348,7 @@ async fn test_multiple_file_upload_with_storage() {
     });
 
     let response = client
-        .post(format!("{}/api/runs", ctx.base_url()))
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
         .json(&run_data)
         .send()
         .await
@@ -377,7 +377,7 @@ async fn test_multiple_file_upload_with_storage() {
         );
 
     let response = client
-        .post(format!("{}/api/upload", ctx.base_url()))
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
         .multipart(form)
         .send()
         .await
@@ -413,7 +413,7 @@ async fn test_file_download() {
     });
 
     let response = client
-        .post(format!("{}/api/runs", ctx.base_url()))
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
         .json(&run_data)
         .send()
         .await
@@ -434,7 +434,7 @@ async fn test_file_download() {
         );
 
     let response = client
-        .post(format!("{}/api/upload", ctx.base_url()))
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
         .multipart(form)
         .send()
         .await
@@ -444,7 +444,7 @@ async fn test_file_download() {
     // Download the file
     let response = client
         .get(format!(
-            "{}/api/runs/01FILEDOWNLOAD123456789AB/files/output/result.txt",
+            "{}/api/v1/runs/01FILEDOWNLOAD123456789AB/files/output/result.txt",
             ctx.base_url()
         ))
         .send()
@@ -482,7 +482,7 @@ async fn test_file_download() {
     // Test 404 for non-existent file
     let response = client
         .get(format!(
-            "{}/api/runs/01FILEDOWNLOAD123456789AB/files/nonexistent.txt",
+            "{}/api/v1/runs/01FILEDOWNLOAD123456789AB/files/nonexistent.txt",
             ctx.base_url()
         ))
         .send()
@@ -493,7 +493,7 @@ async fn test_file_download() {
     // Test 404 for non-existent run
     let response = client
         .get(format!(
-            "{}/api/runs/01NONEXISTENT123456789AB/files/result.txt",
+            "{}/api/v1/runs/01NONEXISTENT123456789AB/files/result.txt",
             ctx.base_url()
         ))
         .send()
@@ -522,7 +522,7 @@ async fn test_hook_outputs_storage() {
     });
 
     let response = client
-        .post(format!("{}/api/runs", ctx.base_url()))
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
         .json(&run_data)
         .send()
         .await
@@ -573,7 +573,7 @@ async fn test_hook_outputs_storage() {
         .text("post_run", post_run_hooks.to_string());
 
     let response = client
-        .post(format!("{}/api/upload", ctx.base_url()))
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
         .multipart(form)
         .send()
         .await
@@ -585,10 +585,10 @@ async fn test_hook_outputs_storage() {
     assert_eq!(body["pre_run_hooks"], 2);
     assert_eq!(body["post_run_hooks"], 1);
 
-    // Verify we can retrieve the hooks via GET /api/runs/:id
+    // Verify we can retrieve the hooks via GET /api/v1/runs/:id
     let response = client
         .get(format!(
-            "{}/api/runs/01HOOKTEST123456789ABCDE",
+            "{}/api/v1/runs/01HOOKTEST123456789ABCDE",
             ctx.base_url()
         ))
         .send()

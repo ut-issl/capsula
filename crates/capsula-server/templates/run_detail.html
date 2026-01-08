@@ -154,7 +154,7 @@
                     <span class="file-path">{{ file.path }}</span>
                     <span class="file-size">{{ file.size }} bytes</span>
                 </div>
-                <a href="/api/runs/{{ run.id }}/files/{{ file.path }}" class="button-secondary" download>Download</a>
+                <a href="/api/v1/runs/{{ run.id }}/files/{{ file.path }}" class="button-secondary" download>Download</a>
             </div>
             {% endfor %}
         </div>
