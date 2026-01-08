@@ -47,9 +47,22 @@ enum Commands {
     },
     List,
     Push {
-        /// Run ID to push (from a previous run)
+        /// Run ID or name to push (e.g., 01HQXYZ... or chubby-back)
         run_id: String,
 
+        /// Server URL (e.g., http://localhost:3000)
+        #[arg(long, env = "CAPSULA_SERVER_URL")]
+        server: Option<String>,
+    },
+    Vaults {
+        #[command(subcommand)]
+        command: VaultsCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum VaultsCommands {
+    List {
         /// Server URL (e.g., http://localhost:3000)
         #[arg(long, env = "CAPSULA_SERVER_URL")]
         server: Option<String>,
@@ -242,15 +255,23 @@ fn find_run_dir(vault_dir: &std::path::Path, run_id: &str) -> Result<PathBuf> {
         let metadata_content = std::fs::read_to_string(&metadata_path)?;
         let metadata: serde_json::Value = serde_json::from_str(&metadata_content)?;
 
-        if let Some(id) = metadata.get("id").and_then(|v| v.as_str()) {
-            if id == run_id {
-                return Ok(entry.path().to_path_buf());
-            }
+        // Check if ID matches
+        if let Some(id) = metadata.get("id").and_then(|v| v.as_str())
+            && id == run_id
+        {
+            return Ok(entry.path().to_path_buf());
+        }
+
+        // Check if name matches
+        if let Some(name) = metadata.get("name").and_then(|v| v.as_str())
+            && name == run_id
+        {
+            return Ok(entry.path().to_path_buf());
         }
     }
 
     anyhow::bail!(
-        "Run with ID {} not found in vault {}",
+        "Run with ID or name '{}' not found in vault {}",
         run_id,
         vault_dir.display()
     )
@@ -500,11 +521,14 @@ path = \".\"
                 })?;
         }
         Commands::Push { run_id, server } => {
-            let server_url = server.ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Server URL not specified. Use --server <URL> or set CAPSULA_SERVER_URL environment variable"
-                )
-            })?;
+            // Priority: CLI flag > Environment variable > Config file
+            let server_url = server
+                .or_else(|| config.server.clone())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
+                    )
+                })?;
 
             info!("Pushing run {} to server {}", run_id, server_url);
 
@@ -545,8 +569,30 @@ path = \".\"
                 serde_json::json!({})
             };
 
-            // Create run on server
+            // Create client and check if vault exists
             let client = capsula_client::CapsulaClient::new(&server_url);
+
+            // Get vault name from metadata
+            let vault_name = metadata
+                .get("vault")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Vault name not found in metadata"))?;
+
+            // Check if vault exists on server
+            match client.vault_exists(vault_name) {
+                Ok(None) => {
+                    warn!(
+                        "Vault '{}' does not exist on server {}. A new vault will be created.",
+                        vault_name, server_url
+                    );
+                }
+                Ok(Some(_)) => {
+                    debug!("Vault '{}' exists on server", vault_name);
+                }
+                Err(e) => {
+                    warn!("Failed to check vault existence: {}. Continuing anyway.", e);
+                }
+            }
 
             let create_run_payload = serde_json::json!({
                 "id": run_id,
@@ -562,7 +608,7 @@ path = \".\"
             });
 
             // Post the run metadata
-            let url = format!("{}/api/v1/runs", server_url);
+            let url = format!("{server_url}/api/v1/runs");
             let http_client = reqwest::blocking::Client::new();
             let response = http_client.post(&url).json(&create_run_payload).send()?;
 
@@ -601,6 +647,36 @@ path = \".\"
 
             info!("Push completed successfully");
         }
+        Commands::Vaults { command } => match command {
+            VaultsCommands::List { server } => {
+                // Priority: CLI flag > Environment variable > Config file
+                let server_url = server
+                    .or_else(|| config.server.clone())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
+                        )
+                    })?;
+
+                info!("Fetching vaults from server {}", server_url);
+
+                let client = capsula_client::CapsulaClient::new(&server_url);
+                let vaults = client.list_vaults().context("Failed to list vaults")?;
+
+                if vaults.is_empty() {
+                    info!("No vaults found on server");
+                    return Ok(());
+                }
+
+                // Print header
+                println!("{:<30}  RUNS", "VAULT NAME");
+                println!("{}", "-".repeat(30 + 2 + 10));
+
+                for vault in vaults {
+                    println!("{:<30}  {}", vault.name, vault.run_count);
+                }
+            }
+        },
     }
     Ok(())
 }

@@ -1,4 +1,5 @@
 dotenv = ".env"
+server = "http://localhost:3000"
 
 [vault]
 name = "capsula"  # Should be unique in the storage

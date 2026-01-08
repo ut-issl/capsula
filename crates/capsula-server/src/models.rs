@@ -43,6 +43,8 @@ pub struct ListRunsQuery {
     pub vault: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    pub from: Option<String>, // ISO 8601 timestamp
+    pub to: Option<String>,   // ISO 8601 timestamp
 }
 
 #[derive(Debug, Serialize, Deserialize)]

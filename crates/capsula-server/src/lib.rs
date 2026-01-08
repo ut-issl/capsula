@@ -46,6 +46,14 @@ struct RunDetailTemplate {
     files: Vec<models::CapturedFile>,
 }
 
+#[derive(Template, WebTemplate)]
+#[template(path = "error.html")]
+struct ErrorTemplate {
+    status_code: u16,
+    title: String,
+    message: String,
+}
+
 pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
@@ -70,11 +78,23 @@ pub fn build_app(pool: PgPool) -> Router {
         .route("/api/v1/runs/{id}/files/{*path}", get(download_file))
         .route("/api/v1/upload", post(upload_files))
         .nest_service("/static", ServeDir::new(static_dir))
+        .fallback(not_found)
         .with_state(pool)
 }
 
 async fn index() -> impl IntoResponse {
     IndexTemplate
+}
+
+async fn not_found() -> impl IntoResponse {
+    (
+        StatusCode::NOT_FOUND,
+        ErrorTemplate {
+            status_code: 404,
+            title: "Page Not Found".to_string(),
+            message: "The page you are looking for does not exist.".to_string(),
+        },
+    )
 }
 
 async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
