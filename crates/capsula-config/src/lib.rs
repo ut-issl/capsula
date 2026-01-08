@@ -50,6 +50,8 @@ pub struct CapsulaConfig {
     #[serde(default)]
     pub dotenv: Option<PathBuf>,
     #[serde(default)]
+    pub server: Option<String>,
+    #[serde(default)]
     pub pre_run: HookPhaseConfig,
     #[serde(default)]
     pub post_run: HookPhaseConfig,

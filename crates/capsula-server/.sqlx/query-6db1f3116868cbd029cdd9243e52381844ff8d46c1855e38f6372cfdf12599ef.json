@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO runs (\n            id, name, timestamp, command, vault, project_root,\n            exit_code, duration_ms, stdout, stderr\n        ) VALUES (\n            $1, $2, $3, $4, $5, $6,\n            $7, $8, $9, $10\n        )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6db1f3116868cbd029cdd9243e52381844ff8d46c1855e38f6372cfdf12599ef"
+}

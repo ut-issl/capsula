@@ -1,0 +1,35 @@
+[package]
+name = "capsula-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "Web server for managing and viewing Capsula runs"
+keywords = ["capsula", "server", "web"]
+categories = ["web-programming::http-server"]
+
+[dependencies]
+askama = { workspace = true }
+askama_web = { workspace = true }
+axum = { workspace = true }
+chrono = { workspace = true }
+mime_guess = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+shlex = { workspace = true }
+sqlx = { workspace = true, features = ["migrate"] }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+reqwest = { workspace = true }
+testcontainers-modules = { workspace = true }
+
+[lints]
+workspace = true

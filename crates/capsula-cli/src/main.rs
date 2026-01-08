@@ -46,6 +46,31 @@ enum Commands {
         cmd: Vec<String>,
     },
     List,
+    Push {
+        /// Run ID or name to push (e.g., 01HQXYZ... or chubby-back)
+        run_id: Option<String>,
+
+        /// Push all runs in the vault
+        #[arg(long, conflicts_with = "run_id")]
+        all: bool,
+
+        /// Server URL (e.g., <http://localhost:3000>)
+        #[arg(long, env = "CAPSULA_SERVER_URL")]
+        server: Option<String>,
+    },
+    Vaults {
+        #[command(subcommand)]
+        command: VaultsCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum VaultsCommands {
+    List {
+        /// Server URL (e.g., <http://localhost:3000>)
+        #[arg(long, env = "CAPSULA_SERVER_URL")]
+        server: Option<String>,
+    },
 }
 
 fn create_pre_run_hook_registry() -> capsula_registry::HookRegistry<PreRun> {
@@ -210,6 +235,157 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     });
 
     Ok(runs)
+}
+
+fn push_single_run(
+    run_dir: &std::path::Path,
+    vault_name: &str,
+    server_url: &str,
+    client: &capsula_client::CapsulaClient,
+) -> Result<()> {
+    let capsula_dir = run_dir.join("_capsula");
+
+    // Read metadata
+    let metadata_path = capsula_dir.join("metadata.json");
+    let metadata_content = std::fs::read_to_string(&metadata_path)
+        .with_context(|| format!("Failed to read metadata from {}", metadata_path.display()))?;
+    let metadata: serde_json::Value = serde_json::from_str(&metadata_content)?;
+
+    let run_name = metadata["name"].as_str().unwrap_or("unknown");
+    info!("Pushing run: {}", run_name);
+
+    // Read pre-run and post-run hooks
+    let pre_run_path = capsula_dir.join("pre-run.json");
+    let pre_run_hooks = if pre_run_path.exists() {
+        let content = std::fs::read_to_string(&pre_run_path)?;
+        Some(serde_json::from_str::<Vec<serde_json::Value>>(&content)?)
+    } else {
+        None
+    };
+
+    let post_run_path = capsula_dir.join("post-run.json");
+    let post_run_hooks = if post_run_path.exists() {
+        let content = std::fs::read_to_string(&post_run_path)?;
+        Some(serde_json::from_str::<Vec<serde_json::Value>>(&content)?)
+    } else {
+        None
+    };
+
+    // Read command output
+    let command_json_path = capsula_dir.join("command.json");
+    let command_output = if command_json_path.exists() {
+        let content = std::fs::read_to_string(&command_json_path)?;
+        serde_json::from_str::<serde_json::Value>(&content)?
+    } else {
+        serde_json::json!({})
+    };
+
+    // Convert duration object to milliseconds
+    let duration_ms = command_output.get("duration").and_then(|d| {
+        let secs = d.get("secs")?.as_u64()?;
+        let nanos = d.get("nanos")?.as_u64()?;
+        Some((secs * 1000) + (nanos / 1_000_000))
+    });
+
+    let create_run_payload = serde_json::json!({
+        "id": metadata["id"],
+        "name": metadata["name"],
+        "timestamp": metadata["timestamp"],
+        "command": serde_json::to_string(&metadata["command"])?,
+        "vault": vault_name,
+        "project_root": metadata["project_root"],
+        "exit_code": command_output.get("exit_code"),
+        "duration_ms": duration_ms,
+        "stdout": command_output.get("stdout"),
+        "stderr": command_output.get("stderr"),
+    });
+
+    // Post the run metadata
+    let url = format!("{server_url}/api/v1/runs");
+    let http_client = reqwest::blocking::Client::new();
+    let response = http_client.post(&url).json(&create_run_payload).send()?;
+
+    if !response.status().is_success() {
+        if response.status().as_u16() == 409 {
+            // Return a special error that caller can detect
+            anyhow::bail!("Run already exists: {run_name}");
+        }
+        anyhow::bail!("Failed to create run on server: {}", response.status());
+    }
+
+    // Collect files to upload
+    let mut files = Vec::new();
+    for entry in walkdir::WalkDir::new(run_dir)
+        .into_iter()
+        .filter_entry(|e| e.file_name() != "_capsula")
+    {
+        let entry = entry?;
+        if entry.file_type().is_file() {
+            let local_path = entry.path();
+            let relative_path = local_path.strip_prefix(run_dir)?;
+            files.push((local_path.to_path_buf(), relative_path.to_path_buf()));
+        }
+    }
+
+    // Upload files and hooks
+    if !files.is_empty() || pre_run_hooks.is_some() || post_run_hooks.is_some() {
+        let actual_run_id = metadata["id"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Run ID not found in metadata"))?;
+        let response = client.upload_run(actual_run_id, &files, pre_run_hooks, post_run_hooks)?;
+        debug!(
+            "Upload complete: {} files, {} bytes",
+            response.files_processed, response.total_bytes
+        );
+    }
+
+    info!("✓ Pushed: {}", run_name);
+    Ok(())
+}
+
+fn find_run_dir(vault_dir: &std::path::Path, run_id: &str) -> Result<PathBuf> {
+    // Search for the run directory by ID or name
+    // Structure: vault_dir/{YYYY-MM-DD}/{HHMMSS-name}/
+    for entry in walkdir::WalkDir::new(vault_dir)
+        .min_depth(2)
+        .max_depth(2)
+        .into_iter()
+        .filter_entry(|e| e.file_type().is_dir())
+    {
+        let entry = entry?;
+        let capsula_dir = entry.path().join("_capsula");
+        if !capsula_dir.exists() {
+            continue;
+        }
+
+        let metadata_path = capsula_dir.join("metadata.json");
+        if !metadata_path.exists() {
+            continue;
+        }
+
+        let metadata_content = std::fs::read_to_string(&metadata_path)?;
+        let metadata: serde_json::Value = serde_json::from_str(&metadata_content)?;
+
+        // Check if ID matches
+        if let Some(id) = metadata.get("id").and_then(|v| v.as_str())
+            && id == run_id
+        {
+            return Ok(entry.path().to_path_buf());
+        }
+
+        // Check if name matches
+        if let Some(name) = metadata.get("name").and_then(|v| v.as_str())
+            && name == run_id
+        {
+            return Ok(entry.path().to_path_buf());
+        }
+    }
+
+    anyhow::bail!(
+        "Run with ID or name '{}' not found in vault {}",
+        run_id,
+        vault_dir.display()
+    )
 }
 
 #[expect(
@@ -455,6 +631,142 @@ path = \".\"
                     )
                 })?;
         }
+        Commands::Push {
+            run_id,
+            all,
+            server,
+        } => {
+            if !all && run_id.is_none() {
+                anyhow::bail!("Either provide a run ID/name or use --all flag");
+            }
+
+            // Priority: CLI flag > Environment variable > Config file
+            let server_url = server
+                .or_else(|| config.server.clone())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
+                    )
+                })?;
+
+            // Create client and check if vault exists
+            let client = capsula_client::CapsulaClient::new(&server_url);
+            let vault_name = &config.vault.name;
+
+            // Check if vault exists on server (only once)
+            match client.vault_exists(vault_name) {
+                Ok(None) => {
+                    warn!(
+                        "Vault '{}' does not exist on server {}. A new vault will be created.",
+                        vault_name, server_url
+                    );
+                }
+                Ok(Some(_)) => {
+                    debug!("Vault '{}' exists on server", vault_name);
+                }
+                Err(e) => {
+                    warn!("Failed to check vault existence: {}. Continuing anyway.", e);
+                }
+            }
+
+            if all {
+                // Push all runs in the vault
+                info!(
+                    "Pushing all runs from vault '{}' to server {}",
+                    vault_name, server_url
+                );
+
+                let mut success_count = 0;
+                let mut skip_count = 0;
+                let mut error_count = 0;
+
+                // Iterate through all run directories
+                for entry in walkdir::WalkDir::new(&vault_dir)
+                    .min_depth(2)
+                    .max_depth(2)
+                    .into_iter()
+                    .filter_entry(|e| e.file_type().is_dir())
+                {
+                    let entry = match entry {
+                        Ok(e) => e,
+                        Err(e) => {
+                            error!("Failed to read directory: {}", e);
+                            error_count += 1;
+                            continue;
+                        }
+                    };
+
+                    let run_dir = entry.path();
+                    let capsula_dir = run_dir.join("_capsula");
+
+                    if !capsula_dir.exists() {
+                        continue;
+                    }
+
+                    match push_single_run(run_dir, vault_name, &server_url, &client) {
+                        Ok(()) => success_count += 1,
+                        Err(e) => {
+                            if e.to_string().contains("already exists") {
+                                skip_count += 1;
+                            } else {
+                                error!("Failed to push run: {}", e);
+                                error_count += 1;
+                            }
+                        }
+                    }
+                }
+
+                info!(
+                    "Push all completed: {} succeeded, {} skipped (already exist), {} failed",
+                    success_count, skip_count, error_count
+                );
+
+                if error_count > 0 {
+                    anyhow::bail!("{error_count} runs failed to push");
+                }
+            } else {
+                // Push single run
+                let run_id = run_id
+                    .as_ref()
+                    .expect("run_id must be Some when all is false");
+                info!("Pushing run {} to server {}", run_id, server_url);
+
+                let run_dir = find_run_dir(&vault_dir, run_id)?;
+                push_single_run(&run_dir, vault_name, &server_url, &client)?;
+
+                info!("Push completed successfully");
+            }
+        }
+        Commands::Vaults { command } => match command {
+            VaultsCommands::List { server } => {
+                // Priority: CLI flag > Environment variable > Config file
+                let server_url = server
+                    .or_else(|| config.server.clone())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
+                        )
+                    })?;
+
+                info!("Fetching vaults from server {}", server_url);
+
+                let client = capsula_client::CapsulaClient::new(&server_url);
+                let vaults = client.list_vaults().context("Failed to list vaults")?;
+
+                if vaults.is_empty() {
+                    info!("No vaults found on server");
+                    return Ok(());
+                }
+
+                // Print header
+                println!("{:<30}  RUNS", "VAULT NAME");
+                println!("{}", "-".repeat(30 + 2 + 10));
+
+                for vault in vaults {
+                    println!("{:<30}  {}", vault.name, vault.run_count);
+                }
+            }
+        },
     }
     Ok(())
 }

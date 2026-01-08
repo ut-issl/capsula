@@ -1,0 +1,1085 @@
+use askama::Template;
+use askama_web::WebTemplate;
+
+mod filters {
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "Askama filter API requires Result return type"
+    )]
+    pub fn format_command(s: &str, _: &dyn askama::Values) -> ::askama::Result<String> {
+        // Try to parse as JSON array
+        Ok(serde_json::from_str::<Vec<String>>(s).map_or_else(
+            |_| s.to_string(),
+            |cmd_array| {
+                shlex::try_join(cmd_array.iter().map(String::as_str))
+                    .unwrap_or_else(|_| cmd_array.join(" "))
+            },
+        ))
+    }
+
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "Askama filter API requires Result return type"
+    )]
+    pub fn pretty_json<T: std::fmt::Display>(
+        s: T,
+        _: &dyn askama::Values,
+    ) -> ::askama::Result<String> {
+        let s_str = s.to_string();
+        // Try to parse as JSON and pretty-print with 2-space indentation
+        Ok(serde_json::from_str::<serde_json::Value>(&s_str)
+            .ok()
+            .and_then(|value| serde_json::to_string_pretty(&value).ok())
+            .unwrap_or(s_str))
+    }
+}
+
+use axum::{
+    Router,
+    body::Body,
+    extract::{Multipart, Path, Query, State},
+    http::{StatusCode, header},
+    response::{IntoResponse, Json, Response},
+    routing::{get, post},
+};
+use serde_json::json;
+use sha2::{Digest, Sha256};
+use sqlx::PgPool;
+use std::collections::VecDeque;
+use std::path::PathBuf;
+use tower_http::services::ServeDir;
+use tracing::{error, info, warn};
+
+mod models;
+
+#[derive(Template, WebTemplate)]
+#[template(path = "index.html")]
+struct IndexTemplate;
+
+#[derive(Template, WebTemplate)]
+#[template(path = "vaults.html")]
+struct VaultsTemplate {
+    vaults: Vec<models::VaultInfo>,
+}
+
+#[derive(Template, WebTemplate)]
+#[template(path = "runs.html")]
+struct RunsTemplate {
+    runs: Vec<models::Run>,
+    vault: Option<String>,
+    page: i64,
+    total_pages: i64,
+}
+
+#[derive(Template, WebTemplate)]
+#[template(path = "run_detail.html")]
+struct RunDetailTemplate {
+    run: models::Run,
+    pre_run_hooks: Vec<models::HookOutput>,
+    post_run_hooks: Vec<models::HookOutput>,
+    files: Vec<models::CapturedFile>,
+}
+
+#[derive(Template, WebTemplate)]
+#[template(path = "error.html")]
+struct ErrorTemplate {
+    status_code: u16,
+    title: String,
+    message: String,
+}
+
+pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(std::time::Duration::from_secs(3))
+        .connect(database_url)
+        .await
+}
+
+pub fn build_app(pool: PgPool) -> Router {
+    let static_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
+
+    Router::new()
+        .route("/", get(index))
+        .route("/vaults", get(vaults_page))
+        .route("/runs", get(runs_page))
+        .route("/runs/{id}", get(run_detail_page))
+        .route("/health", get(health_check))
+        .route("/api/v1/vaults", get(list_vaults))
+        .route("/api/v1/vaults/{name}", get(get_vault_info))
+        .route("/api/v1/runs", post(create_run).get(list_runs))
+        .route("/api/v1/runs/{id}", get(get_run))
+        .route("/api/v1/runs/{id}/files/{*path}", get(download_file))
+        .route("/api/v1/upload", post(upload_files))
+        .nest_service("/static", ServeDir::new(static_dir))
+        .fallback(not_found)
+        .with_state(pool)
+}
+
+async fn index() -> impl IntoResponse {
+    IndexTemplate
+}
+
+async fn not_found() -> impl IntoResponse {
+    (
+        StatusCode::NOT_FOUND,
+        ErrorTemplate {
+            status_code: 404,
+            title: "Page Not Found".to_string(),
+            message: "The page you are looking for does not exist.".to_string(),
+        },
+    )
+}
+
+async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
+    info!("Rendering vaults page");
+
+    let result = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        GROUP BY vault
+        ORDER BY vault
+        "#
+    )
+    .fetch_all(&pool)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            let vaults: Vec<models::VaultInfo> = rows
+                .into_iter()
+                .map(|row| models::VaultInfo {
+                    name: row.name,
+                    run_count: row.run_count,
+                })
+                .collect();
+            VaultsTemplate { vaults }
+        }
+        Err(e) => {
+            error!("Failed to fetch vaults: {}", e);
+            // Return empty vaults on error
+            VaultsTemplate { vaults: Vec::new() }
+        }
+    }
+}
+
+async fn runs_page(
+    State(pool): State<PgPool>,
+    Query(params): Query<models::ListRunsQuery>,
+) -> impl IntoResponse {
+    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(50) + 1;
+    let limit = params.limit.unwrap_or(50);
+    let offset = (page - 1) * limit;
+
+    info!(
+        "Rendering runs page: page={}, vault={:?}",
+        page, params.vault
+    );
+
+    // Get total count for pagination
+    let total_count = if let Some(ref vault) = params.vault {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)::bigint
+            FROM runs
+            WHERE vault = $1
+            "#,
+            vault
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(Some(0))
+        .unwrap_or(0)
+    } else {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)::bigint
+            FROM runs
+            "#
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(Some(0))
+        .unwrap_or(0)
+    };
+
+    let total_pages = (total_count + limit - 1) / limit;
+
+    // Fetch runs
+    let runs_result = if let Some(ref vault) = params.vault {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            WHERE vault = $1
+            ORDER BY timestamp DESC
+            LIMIT $2 OFFSET $3
+            "#,
+            vault,
+            limit,
+            offset
+        )
+        .fetch_all(&pool)
+        .await
+    } else {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            ORDER BY timestamp DESC
+            LIMIT $1 OFFSET $2
+            "#,
+            limit,
+            offset
+        )
+        .fetch_all(&pool)
+        .await
+    };
+
+    match runs_result {
+        Ok(runs) => RunsTemplate {
+            runs,
+            vault: params.vault,
+            page,
+            total_pages,
+        },
+        Err(e) => {
+            error!("Failed to fetch runs: {}", e);
+            RunsTemplate {
+                runs: Vec::new(),
+                vault: params.vault,
+                page: 1,
+                total_pages: 1,
+            }
+        }
+    }
+}
+
+async fn run_detail_page(
+    State(pool): State<PgPool>,
+    Path(id): Path<String>,
+) -> Result<RunDetailTemplate, StatusCode> {
+    info!("Rendering run detail page for: {}", id);
+
+    // Fetch run metadata
+    let run = sqlx::query_as!(
+        models::Run,
+        r#"
+        SELECT id, name, timestamp, command, vault, project_root,
+               exit_code, duration_ms, stdout, stderr,
+               created_at, updated_at
+        FROM runs
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        error!("Database error while fetching run: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or_else(|| {
+        info!("Run not found: {}", id);
+        StatusCode::NOT_FOUND
+    })?;
+
+    // Fetch hook outputs
+    let hook_outputs_result = sqlx::query_as!(
+        models::RunOutputRow,
+        r#"
+        SELECT phase, hook_id, config, output, success, error
+        FROM run_outputs
+        WHERE run_id = $1
+        ORDER BY id
+        "#,
+        id
+    )
+    .fetch_all(&pool)
+    .await;
+
+    let (pre_run_hooks, post_run_hooks) = match hook_outputs_result {
+        Ok(rows) => {
+            let mut pre_hooks = Vec::new();
+            let mut post_hooks = Vec::new();
+
+            for row in rows {
+                let hook_output = models::HookOutput {
+                    meta: models::HookMeta {
+                        id: row.hook_id,
+                        config: row.config,
+                        success: row.success,
+                        error: row.error,
+                    },
+                    output: row.output,
+                };
+
+                if row.phase == "pre" {
+                    pre_hooks.push(hook_output);
+                } else if row.phase == "post" {
+                    post_hooks.push(hook_output);
+                } else {
+                    warn!("Unknown hook phase: {}", row.phase);
+                }
+            }
+
+            (pre_hooks, post_hooks)
+        }
+        Err(e) => {
+            error!("Failed to fetch hook outputs: {}", e);
+            (Vec::new(), Vec::new())
+        }
+    };
+
+    // Fetch captured files
+    let files_result = sqlx::query_as!(
+        models::CapturedFile,
+        r#"
+        SELECT path, size, hash, storage_path, content_type
+        FROM captured_files
+        WHERE run_id = $1
+        ORDER BY path
+        "#,
+        id
+    )
+    .fetch_all(&pool)
+    .await;
+
+    let files = match files_result {
+        Ok(files) => files,
+        Err(e) => {
+            error!("Failed to fetch captured files: {}", e);
+            Vec::new()
+        }
+    };
+
+    Ok(RunDetailTemplate {
+        run,
+        pre_run_hooks,
+        post_run_hooks,
+        files,
+    })
+}
+
+async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
+    match sqlx::query("SELECT 1").fetch_one(&pool).await {
+        Ok(_) => Json(json!({
+            "status": "ok",
+            "database": "connected"
+        })),
+        Err(e) => Json(json!({
+            "status": "error",
+            "database": "disconnected",
+            "error": e.to_string()
+        })),
+    }
+}
+
+async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
+    info!("Listing all vaults");
+
+    let result = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        GROUP BY vault
+        ORDER BY vault
+        "#
+    )
+    .fetch_all(&pool)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            let vaults: Vec<models::VaultInfo> = rows
+                .into_iter()
+                .map(|row| models::VaultInfo {
+                    name: row.name,
+                    run_count: row.run_count,
+                })
+                .collect();
+            info!("Found {} vaults", vaults.len());
+            Json(json!({
+                "status": "ok",
+                "vaults": vaults
+            }))
+        }
+        Err(e) => {
+            error!("Failed to list vaults: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn get_vault_info(State(pool): State<PgPool>, Path(name): Path<String>) -> impl IntoResponse {
+    info!("Getting vault info: {}", name);
+
+    let result = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        WHERE vault = $1
+        GROUP BY vault
+        "#,
+        name
+    )
+    .fetch_optional(&pool)
+    .await;
+
+    match result {
+        Ok(Some(row)) => {
+            let vault = models::VaultInfo {
+                name: row.name,
+                run_count: row.run_count,
+            };
+            info!("Found vault: {} with {} runs", vault.name, vault.run_count);
+            Json(json!({
+                "status": "ok",
+                "exists": true,
+                "vault": vault
+            }))
+        }
+        Ok(None) => {
+            info!("Vault not found: {}", name);
+            Json(json!({
+                "status": "ok",
+                "exists": false,
+                "vault": null
+            }))
+        }
+        Err(e) => {
+            error!("Failed to get vault info: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn list_runs(
+    State(pool): State<PgPool>,
+    Query(params): Query<models::ListRunsQuery>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(100);
+    let offset = params.offset.unwrap_or(0);
+
+    if let Some(ref vault) = params.vault {
+        info!(
+            "Listing runs for vault: {} (limit={}, offset={})",
+            vault, limit, offset
+        );
+    } else {
+        info!("Listing all runs (limit={}, offset={})", limit, offset);
+    }
+
+    let result = if let Some(vault) = params.vault {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            WHERE vault = $1
+            ORDER BY timestamp DESC
+            LIMIT $2 OFFSET $3
+            "#,
+            vault,
+            limit,
+            offset
+        )
+        .fetch_all(&pool)
+        .await
+    } else {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            ORDER BY timestamp DESC
+            LIMIT $1 OFFSET $2
+            "#,
+            limit,
+            offset
+        )
+        .fetch_all(&pool)
+        .await
+    };
+
+    match result {
+        Ok(runs) => {
+            info!("Found {} runs", runs.len());
+            Json(json!({
+                "status": "ok",
+                "runs": runs,
+                "limit": limit,
+                "offset": offset
+            }))
+        }
+        Err(e) => {
+            error!("Failed to list runs: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn create_run(
+    State(pool): State<PgPool>,
+    Json(request): Json<models::CreateRunRequest>,
+) -> impl IntoResponse {
+    info!("Creating run: {}", request.id);
+
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO runs (
+            id, name, timestamp, command, vault, project_root,
+            exit_code, duration_ms, stdout, stderr
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10
+        )
+        "#,
+        request.id,
+        request.name,
+        request.timestamp,
+        request.command,
+        request.vault,
+        request.project_root,
+        request.exit_code,
+        request.duration_ms,
+        request.stdout,
+        request.stderr
+    )
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            info!("Run created successfully");
+            (
+                StatusCode::CREATED,
+                Json(json!({
+                    "status": "created",
+                    "run": request
+                })),
+            )
+        }
+        Err(e) => {
+            error!("Failed to insert run: {}", e);
+            let status = if e.to_string().contains("duplicate key") {
+                StatusCode::CONFLICT
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            (
+                status,
+                Json(json!({
+                    "status": "error",
+                    "error": e.to_string()
+                })),
+            )
+        }
+    }
+}
+
+async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl IntoResponse {
+    info!("Getting run: {}", id);
+
+    let result = sqlx::query_as!(
+        models::Run,
+        r#"
+        SELECT id, name, timestamp, command, vault, project_root,
+               exit_code, duration_ms, stdout, stderr,
+               created_at, updated_at
+        FROM runs
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&pool)
+    .await;
+
+    match result {
+        Ok(Some(run)) => {
+            info!("Found run: {}", run.id);
+
+            // Fetch hook outputs
+            let hook_outputs_result = sqlx::query_as!(
+                models::RunOutputRow,
+                r#"
+                SELECT phase, hook_id, config, output, success, error
+                FROM run_outputs
+                WHERE run_id = $1
+                ORDER BY id
+                "#,
+                id
+            )
+            .fetch_all(&pool)
+            .await;
+
+            let (pre_run_hooks, post_run_hooks) = match hook_outputs_result {
+                Ok(rows) => {
+                    let mut pre_hooks = Vec::new();
+                    let mut post_hooks = Vec::new();
+
+                    for row in rows {
+                        let hook_output = models::HookOutput {
+                            meta: models::HookMeta {
+                                id: row.hook_id,
+                                config: row.config,
+                                success: row.success,
+                                error: row.error,
+                            },
+                            output: row.output,
+                        };
+
+                        if row.phase == "pre" {
+                            pre_hooks.push(hook_output);
+                        } else if row.phase == "post" {
+                            post_hooks.push(hook_output);
+                        } else {
+                            warn!("Unknown hook phase: {}", row.phase);
+                        }
+                    }
+
+                    info!(
+                        "Found {} pre-run hooks and {} post-run hooks",
+                        pre_hooks.len(),
+                        post_hooks.len()
+                    );
+                    (pre_hooks, post_hooks)
+                }
+                Err(e) => {
+                    error!("Failed to fetch hook outputs: {}", e);
+                    (Vec::new(), Vec::new())
+                }
+            };
+
+            Json(json!({
+                "status": "ok",
+                "run": run,
+                "pre_run_hooks": pre_run_hooks,
+                "post_run_hooks": post_run_hooks
+            }))
+        }
+        Ok(None) => {
+            info!("Run not found: {}", id);
+            Json(json!({
+                "status": "not_found",
+                "error": format!("Run with id {} not found", id)
+            }))
+        }
+        Err(e) => {
+            error!("Failed to retrieve run: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+#[expect(clippy::too_many_lines, reason = "TODO: Refactor later")]
+#[expect(
+    clippy::else_if_without_else,
+    reason = "There is `continue` or `return` in each branch, so `else` is redundant"
+)]
+async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> impl IntoResponse {
+    info!("Received file upload request");
+
+    let storage_root = std::env::var("STORAGE_PATH").unwrap_or_else(|_| "./storage".to_string());
+    let storage_path = PathBuf::from(&storage_root);
+
+    if let Err(e) = tokio::fs::create_dir_all(&storage_path).await {
+        error!("Failed to create storage directory: {}", e);
+        return Json(json!({
+            "status": "error",
+            "error": format!("Failed to create storage directory: {}", e)
+        }));
+    }
+
+    let mut files_processed = 0;
+    let mut total_bytes = 0u64;
+    let mut run_id: Option<String> = None;
+    let mut pending_paths: VecDeque<String> = VecDeque::new();
+    let mut pre_run_hooks: Option<Vec<models::HookOutput>> = None;
+    let mut post_run_hooks: Option<Vec<models::HookOutput>> = None;
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let field_name = field.name().unwrap_or("unknown").to_string();
+
+        if field_name == "run_id" {
+            match field.text().await {
+                Ok(text) => {
+                    run_id = Some(text);
+                    continue;
+                }
+                Err(e) => {
+                    error!("Failed to read run_id field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read run_id: {}", e)
+                    }));
+                }
+            }
+        } else if field_name == "path" {
+            match field.text().await {
+                Ok(text) => {
+                    pending_paths.push_back(text);
+                    continue;
+                }
+                Err(e) => {
+                    error!("Failed to read path field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read path: {}", e)
+                    }));
+                }
+            }
+        } else if field_name == "pre_run" {
+            match field.text().await {
+                Ok(text) => match serde_json::from_str::<Vec<models::HookOutput>>(&text) {
+                    Ok(hooks) => {
+                        info!("Parsed {} pre-run hooks", hooks.len());
+                        pre_run_hooks = Some(hooks);
+                        continue;
+                    }
+                    Err(e) => {
+                        error!("Failed to parse pre_run JSON: {}", e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to parse pre_run JSON: {}", e)
+                        }));
+                    }
+                },
+                Err(e) => {
+                    error!("Failed to read pre_run field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read pre_run: {}", e)
+                    }));
+                }
+            }
+        } else if field_name == "post_run" {
+            match field.text().await {
+                Ok(text) => match serde_json::from_str::<Vec<models::HookOutput>>(&text) {
+                    Ok(hooks) => {
+                        info!("Parsed {} post-run hooks", hooks.len());
+                        post_run_hooks = Some(hooks);
+                        continue;
+                    }
+                    Err(e) => {
+                        error!("Failed to parse post_run JSON: {}", e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to parse post_run JSON: {}", e)
+                        }));
+                    }
+                },
+                Err(e) => {
+                    error!("Failed to read post_run field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read post_run: {}", e)
+                    }));
+                }
+            }
+        }
+
+        let file_name = field.file_name().unwrap_or("unknown").to_string();
+        let content_type = field
+            .content_type()
+            .unwrap_or("application/octet-stream")
+            .to_string();
+
+        info!(
+            "Processing file: field_name={}, file_name={}, content_type={}",
+            field_name, file_name, content_type
+        );
+
+        match field.bytes().await {
+            Ok(data) => {
+                let size = data.len();
+                total_bytes += size as u64;
+                let Ok(size_i64) = i64::try_from(size) else {
+                    error!("File too large to store size in database: {} bytes", size);
+                    return Json(json!({
+                        "status": "error",
+                        "error": "File too large to store size in database"
+                    }));
+                };
+
+                let mut hasher = Sha256::new();
+                hasher.update(&data);
+                let hash = format!("{:x}", hasher.finalize());
+
+                info!("File hash: {}, size: {} bytes", hash, size);
+
+                let hash_dir = &hash[0..2];
+                let file_storage_dir = storage_path.join(hash_dir);
+                if let Err(e) = tokio::fs::create_dir_all(&file_storage_dir).await {
+                    error!("Failed to create hash directory: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to create storage directory: {}", e)
+                    }));
+                }
+
+                let file_storage_path = file_storage_dir.join(&hash);
+                let storage_path_str = file_storage_path.to_string_lossy().to_string();
+
+                if file_storage_path.exists() {
+                    info!("File already exists (deduplicated): {}", storage_path_str);
+                } else {
+                    if let Err(e) = tokio::fs::write(&file_storage_path, &data).await {
+                        error!("Failed to write file: {}", e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to write file: {}", e)
+                        }));
+                    }
+                    info!("Saved new file: {}", storage_path_str);
+                }
+
+                if let Some(ref rid) = run_id {
+                    let relative_path = pending_paths
+                        .pop_front()
+                        .or_else(|| {
+                            if file_name == "unknown" {
+                                None
+                            } else {
+                                Some(file_name.clone())
+                            }
+                        })
+                        .unwrap_or_else(|| {
+                            if field_name != "unknown" && field_name != "file" {
+                                field_name.clone()
+                            } else {
+                                format!("file-{}", files_processed + 1)
+                            }
+                        });
+
+                    let result = sqlx::query!(
+                        r#"
+                        INSERT INTO captured_files (run_id, path, size, hash, storage_path, content_type)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (run_id, path) DO UPDATE
+                        SET size = EXCLUDED.size,
+                            hash = EXCLUDED.hash,
+                            storage_path = EXCLUDED.storage_path,
+                            content_type = EXCLUDED.content_type
+                        "#,
+                        rid,
+                        relative_path,
+                        size_i64,
+                        hash,
+                        storage_path_str,
+                        content_type
+                    )
+                    .execute(&pool)
+                    .await;
+
+                    match result {
+                        Ok(_) => {
+                            info!("Stored file metadata in database");
+                        }
+                        Err(e) => {
+                            error!("Failed to store file metadata: {}", e);
+                            return Json(json!({
+                                "status": "error",
+                                "error": format!("Failed to store file metadata: {}", e)
+                            }));
+                        }
+                    }
+                }
+
+                files_processed += 1;
+                info!("Successfully processed file: {} bytes", size);
+            }
+            Err(e) => {
+                error!("Failed to read file field: {}", e);
+                return Json(json!({
+                    "status": "error",
+                    "error": format!("Failed to read file: {}", e)
+                }));
+            }
+        }
+    }
+
+    info!(
+        "Upload complete: {} files, {} bytes total",
+        files_processed, total_bytes
+    );
+
+    // Store hook outputs if provided
+    let mut pre_run_count = 0;
+    let mut post_run_count = 0;
+
+    if let Some(ref rid) = run_id {
+        if let Some(hooks) = pre_run_hooks {
+            for hook in hooks {
+                let result = sqlx::query!(
+                    r#"
+                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)
+                    VALUES ($1, 'pre', $2, $3, $4, $5, $6)
+                    "#,
+                    rid,
+                    hook.meta.id,
+                    hook.meta.config,
+                    hook.output,
+                    hook.meta.success,
+                    hook.meta.error
+                )
+                .execute(&pool)
+                .await;
+
+                match result {
+                    Ok(_) => {
+                        pre_run_count += 1;
+                        info!("Stored pre-run hook: {}", hook.meta.id);
+                    }
+                    Err(e) => {
+                        error!("Failed to store pre-run hook {}: {}", hook.meta.id, e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to store pre-run hook {}: {}", hook.meta.id, e)
+                        }));
+                    }
+                }
+            }
+        }
+
+        if let Some(hooks) = post_run_hooks {
+            for hook in hooks {
+                let result = sqlx::query!(
+                    r#"
+                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)
+                    VALUES ($1, 'post', $2, $3, $4, $5, $6)
+                    "#,
+                    rid,
+                    hook.meta.id,
+                    hook.meta.config,
+                    hook.output,
+                    hook.meta.success,
+                    hook.meta.error
+                )
+                .execute(&pool)
+                .await;
+
+                match result {
+                    Ok(_) => {
+                        post_run_count += 1;
+                        info!("Stored post-run hook: {}", hook.meta.id);
+                    }
+                    Err(e) => {
+                        error!("Failed to store post-run hook {}: {}", hook.meta.id, e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to store post-run hook {}: {}", hook.meta.id, e)
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    info!(
+        "Hook outputs stored: {} pre-run, {} post-run",
+        pre_run_count, post_run_count
+    );
+
+    Json(json!({
+        "status": "ok",
+        "files_processed": files_processed,
+        "total_bytes": total_bytes,
+        "pre_run_hooks": pre_run_count,
+        "post_run_hooks": post_run_count
+    }))
+}
+
+async fn download_file(
+    State(pool): State<PgPool>,
+    Path((run_id, file_path)): Path<(String, String)>,
+) -> Result<Response, StatusCode> {
+    info!("Downloading file: run_id={}, path={}", run_id, file_path);
+
+    // Query the database for file metadata
+    let file_record = sqlx::query!(
+        r#"
+        SELECT storage_path, content_type, path as file_path
+        FROM captured_files
+        WHERE run_id = $1 AND path = $2
+        "#,
+        run_id,
+        file_path
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        error!("Database error while fetching file metadata: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let Some(record) = file_record else {
+        info!("File not found: run_id={}, path={}", run_id, file_path);
+        return Err(StatusCode::NOT_FOUND);
+    };
+
+    // Read the file from storage
+    let file_data = tokio::fs::read(&record.storage_path).await.map_err(|e| {
+        error!(
+            "Failed to read file from storage {}: {}",
+            record.storage_path, e
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    info!(
+        "Successfully read file: {} bytes from {}",
+        file_data.len(),
+        record.storage_path
+    );
+
+    // Determine content type (use stored value or guess from filename)
+    let content_type = record.content_type.unwrap_or_else(|| {
+        mime_guess::from_path(&record.file_path)
+            .first_or_octet_stream()
+            .to_string()
+    });
+
+    // Extract filename from path for Content-Disposition
+    let filename = std::path::Path::new(&record.file_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("download");
+
+    // Build response with appropriate headers
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("inline; filename=\"{filename}\""),
+        )
+        .body(Body::from(file_data))
+        .map_err(|e| {
+            error!("Failed to build response: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
+}

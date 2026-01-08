@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Error {{ status_code }} - Capsula Server{% endblock %}
+
+{% block content %}
+<div class="error-page">
+    <h1>{{ status_code }}</h1>
+    <h2>{{ title }}</h2>
+    <p>{{ message }}</p>
+    <a href="/" class="button">Return to Home</a>
+</div>
+
+<style>
+.error-page {
+    text-align: center;
+    padding: 4rem 2rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.error-page h1 {
+    font-size: 6rem;
+    margin: 0;
+    color: var(--error-color);
+}
+
+.error-page h2 {
+    font-size: 2rem;
+    margin: 1rem 0;
+}
+
+.error-page p {
+    color: var(--text-secondary);
+    margin: 1rem 0 2rem;
+}
+
+.error-page .button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.error-page .button:hover {
+    background-color: var(--primary-hover);
+}
+</style>
+{% endblock %}
