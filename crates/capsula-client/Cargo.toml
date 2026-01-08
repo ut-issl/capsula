@@ -7,12 +7,11 @@ readme.workspace = true
 repository.workspace = true
 license.workspace = true
 
-[lints]
-workspace = true
-
 [dependencies]
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["blocking"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+
+[lints]
+workspace = true

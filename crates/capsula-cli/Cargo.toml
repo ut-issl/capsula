@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+capsula-client = { workspace = true }
 capsula-config = { workspace = true }
 capsula-core = { workspace = true }
 capsula-registry = { workspace = true }
@@ -26,6 +27,7 @@ names = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 shlex = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 ulid = { workspace = true }

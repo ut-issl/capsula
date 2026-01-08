@@ -46,6 +46,14 @@ enum Commands {
         cmd: Vec<String>,
     },
     List,
+    Push {
+        /// Run ID to push (from a previous run)
+        run_id: String,
+        
+        /// Server URL (e.g., http://localhost:3000)
+        #[arg(long, env = "CAPSULA_SERVER_URL")]
+        server: Option<String>,
+    },
 }
 
 fn create_pre_run_hook_registry() -> capsula_registry::HookRegistry<PreRun> {
@@ -220,7 +228,7 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     clippy::cognitive_complexity,
     reason = "TODO: Refactor into smaller functions"
 )]
-fn run() -> Result<()> {
+async fn run() -> Result<()> {
     // Create the registry with all available hook types
     debug!("Creating hook registries");
     let pre_run_hook_registry = create_pre_run_hook_registry();
@@ -455,11 +463,120 @@ path = \".\"
                     )
                 })?;
         }
+        Commands::Push { run_id, server } => {
+            let server_url = server.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Server URL not specified. Use --server <URL> or set CAPSULA_SERVER_URL environment variable"
+                )
+            })?;
+
+            info!("Pushing run {} to server {}", run_id, server_url);
+
+            // Find the run directory
+            let run_dir = find_run_dir(&vault_dir, &run_id)?;
+            let capsula_dir = run_dir.join("_capsula");
+
+            // Read metadata
+            let metadata_path = capsula_dir.join("metadata.json");
+            let metadata_content = std::fs::read_to_string(&metadata_path).with_context(|| {
+                format!("Failed to read metadata from {}", metadata_path.display())
+            })?;
+            let metadata: serde_json::Value = serde_json::from_str(&metadata_content)?;
+
+            // Read pre-run and post-run hooks
+            let pre_run_path = capsula_dir.join("pre-run.json");
+            let pre_run_hooks = if pre_run_path.exists() {
+                let content = std::fs::read_to_string(&pre_run_path)?;
+                Some(serde_json::from_str::<Vec<serde_json::Value>>(&content)?)
+            } else {
+                None
+            };
+
+            let post_run_path = capsula_dir.join("post-run.json");
+            let post_run_hooks = if post_run_path.exists() {
+                let content = std::fs::read_to_string(&post_run_path)?;
+                Some(serde_json::from_str::<Vec<serde_json::Value>>(&content)?)
+            } else {
+                None
+            };
+
+            // Read command output
+            let command_json_path = capsula_dir.join("command.json");
+            let command_output = if command_json_path.exists() {
+                let content = std::fs::read_to_string(&command_json_path)?;
+                serde_json::from_str::<serde_json::Value>(&content)?
+            } else {
+                serde_json::json!({})
+            };
+
+            // Create run on server
+            let client = capsula_client::CapsulaClient::new(&server_url);
+            
+            let create_run_payload = serde_json::json!({
+                "id": run_id,
+                "name": metadata["name"],
+                "timestamp": metadata["timestamp"],
+                "command": serde_json::to_string(&metadata["command"])?,
+                "vault": metadata["vault"],
+                "project_root": metadata["project_root"],
+                "exit_code": command_output.get("exit_code"),
+                "duration_ms": command_output.get("duration_ms"),
+                "stdout": command_output.get("stdout"),
+                "stderr": command_output.get("stderr"),
+            });
+
+            // Post the run metadata
+            let url = format!("{}/api/v1/runs", server_url);
+            let http_client = reqwest::Client::new();
+            let response = http_client
+                .post(&url)
+                .json(&create_run_payload)
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                anyhow::bail!("Failed to create run on server: {}", response.status());
+            }
+
+            info!("Run metadata uploaded successfully");
+
+            // Collect files to upload
+            let mut files = Vec::new();
+            for entry in walkdir::WalkDir::new(&run_dir)
+                .into_iter()
+                .filter_entry(|e| {
+                    // Skip the _capsula directory
+                    e.file_name() != "_capsula"
+                })
+            {
+                let entry = entry?;
+                if entry.file_type().is_file() {
+                    let local_path = entry.path();
+                    let relative_path = local_path.strip_prefix(&run_dir)?;
+                    files.push((local_path.to_path_buf(), relative_path.to_path_buf()));
+                }
+            }
+
+            // Upload files and hooks
+            if !files.is_empty() || pre_run_hooks.is_some() || post_run_hooks.is_some() {
+                info!("Uploading {} files and hook outputs", files.len());
+                let response = client
+                    .upload_run(&run_id, &files, pre_run_hooks, post_run_hooks)
+                    .await?;
+                info!(
+                    "Upload complete: {} files, {} bytes",
+                    response.files_processed, response.total_bytes
+                );
+            }
+
+            info!("Push completed successfully");
+        }
     }
     Ok(())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     fmt()
         // Formatting
         .with_target(false)
@@ -472,7 +589,7 @@ fn main() {
         )
         .init();
 
-    if let Err(err) = run() {
+    if let Err(err) = run().await {
         // Check for verbose mode via environment variable
         let verbose =
             std::env::var("RUST_BACKTRACE").is_ok() || std::env::var("CAPSULA_VERBOSE").is_ok();

@@ -455,6 +455,7 @@ name = "capsula-cli"
 version = "0.9.3"
 dependencies = [
  "anyhow",
+ "capsula-client",
  "capsula-config",
  "capsula-core",
  "capsula-registry",
@@ -465,6 +466,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shlex",
+ "tokio",
  "tracing",
  "tracing-subscriber",
  "ulid",
@@ -478,7 +480,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.17",
- "tokio",
 ]
 
 [[package]]
