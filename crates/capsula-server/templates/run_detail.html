@@ -34,10 +34,12 @@
 
     <section class="detail-section">
         <h3>Command Execution</h3>
+        <div class="command-display">
+            <h4>Command</h4>
+            <code class="command-line">{{ run.command }}</code>
+        </div>
+        
         <dl class="detail-list">
-            <dt>Command</dt>
-            <dd><code class="command-line">{{ run.command }}</code></dd>
-            
             <dt>Exit Code</dt>
             <dd>
                 {% match run.exit_code %}

@@ -358,6 +358,17 @@ footer {
     font-family: 'Monaco', 'Courier New', monospace;
 }
 
+.command-display {
+    margin-bottom: 1.5rem;
+}
+
+.command-display h4 {
+    margin: 0 0 0.5rem 0;
+    color: #7f8c8d;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
 .command-line {
     display: block;
     background: #2c3e50;
