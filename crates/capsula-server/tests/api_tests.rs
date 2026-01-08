@@ -194,3 +194,56 @@ async fn test_multipart_upload() {
     assert_eq!(body["files_processed"], 2);
     assert!(body["total_bytes"].as_u64().unwrap() > 0);
 }
+
+#[tokio::test]
+async fn test_single_file_upload_with_storage() {
+    let client = reqwest::Client::new();
+
+    // First create a run to associate the file with
+    let run_data = json!({
+        "id": "01FILETEST123456789ABCDEF",
+        "name": "test-file-upload",
+        "timestamp": "2026-01-08T10:30:00Z",
+        "command": "echo test",
+        "vault": "test-vault",
+        "project_root": "/tmp/test",
+        "exit_code": 0,
+        "duration_ms": 100,
+        "stdout": null,
+        "stderr": null
+    });
+
+    let response = client
+        .post(format!("{BASE_URL}/api/runs"))
+        .json(&run_data)
+        .send()
+        .await
+        .expect("Failed to create run");
+    assert_eq!(response.status(), 200);
+
+    // Upload a file associated with this run
+    let file_content = b"This is test file content for upload";
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", "01FILETEST123456789ABCDEF")
+        .text("path", "test_file.txt")
+        .part(
+            "file",
+            reqwest::multipart::Part::bytes(file_content.to_vec())
+                .file_name("test_file.txt")
+                .mime_str("text/plain")
+                .expect("Failed to set MIME type"),
+        );
+
+    let response = client
+        .post(format!("{BASE_URL}/api/upload"))
+        .multipart(form)
+        .send()
+        .await
+        .expect("Failed to upload file");
+
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["status"], "ok");
+    assert_eq!(body["files_processed"], 1);
+    assert_eq!(body["total_bytes"], file_content.len() as u64);
+}

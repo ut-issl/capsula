@@ -5,7 +5,9 @@ use axum::{
     routing::{get, post},
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+use std::path::PathBuf;
 use tracing::{error, info};
 
 mod models;
@@ -344,34 +346,162 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
     }
 }
 
-async fn upload_files(mut multipart: Multipart) -> impl IntoResponse {
+async fn upload_files(
+    State(pool): State<PgPool>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
     info!("Received file upload request");
+
+    // Get storage root from environment, default to ./storage
+    let storage_root = std::env::var("STORAGE_PATH").unwrap_or_else(|_| "./storage".to_string());
+    let storage_path = PathBuf::from(&storage_root);
+
+    // Ensure storage directory exists
+    if let Err(e) = tokio::fs::create_dir_all(&storage_path).await {
+        error!("Failed to create storage directory: {}", e);
+        return Json(json!({
+            "status": "error",
+            "error": format!("Failed to create storage directory: {}", e)
+        }));
+    }
 
     let mut files_processed = 0;
     let mut total_bytes = 0u64;
+    let mut run_id: Option<String> = None;
+    let mut file_path: Option<String> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
-        let name = field.name().unwrap_or("unknown").to_string();
+        let field_name = field.name().unwrap_or("unknown").to_string();
+
+        // Handle metadata fields
+        if field_name == "run_id" {
+            match field.text().await {
+                Ok(text) => {
+                    run_id = Some(text);
+                    continue;
+                }
+                Err(e) => {
+                    error!("Failed to read run_id field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read run_id: {}", e)
+                    }));
+                }
+            }
+        } else if field_name == "path" {
+            match field.text().await {
+                Ok(text) => {
+                    file_path = Some(text);
+                    continue;
+                }
+                Err(e) => {
+                    error!("Failed to read path field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read path: {}", e)
+                    }));
+                }
+            }
+        }
+
+        // Handle file data
         let file_name = field.file_name().unwrap_or("unknown").to_string();
-        let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let content_type = field
+            .content_type()
+            .unwrap_or("application/octet-stream")
+            .to_string();
 
         info!(
-            "Processing field: name={}, file_name={}, content_type={}",
-            name, file_name, content_type
+            "Processing file: field_name={}, file_name={}, content_type={}",
+            field_name, file_name, content_type
         );
 
         match field.bytes().await {
             Ok(data) => {
-                let size = data.len();
+                let size = data.len() as i64;
                 total_bytes += size as u64;
+
+                // Calculate SHA-256 hash
+                let mut hasher = Sha256::new();
+                hasher.update(&data);
+                let hash = format!("{:x}", hasher.finalize());
+
+                info!("File hash: {}, size: {} bytes", hash, size);
+
+                // Create content-addressed storage path (first 2 chars as directory)
+                let hash_dir = &hash[0..2];
+                let file_storage_dir = storage_path.join(hash_dir);
+                if let Err(e) = tokio::fs::create_dir_all(&file_storage_dir).await {
+                    error!("Failed to create hash directory: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to create storage directory: {}", e)
+                    }));
+                }
+
+                let file_storage_path = file_storage_dir.join(&hash);
+                let storage_path_str = file_storage_path.to_string_lossy().to_string();
+
+                // Save file only if it doesn't exist (deduplication)
+                if !file_storage_path.exists() {
+                    if let Err(e) = tokio::fs::write(&file_storage_path, &data).await {
+                        error!("Failed to write file: {}", e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to write file: {}", e)
+                        }));
+                    }
+                    info!("Saved new file: {}", storage_path_str);
+                } else {
+                    info!("File already exists (deduplicated): {}", storage_path_str);
+                }
+
+                // Store metadata in database if we have run_id
+                if let Some(ref rid) = run_id {
+                    let relative_path = file_path.as_ref().unwrap_or(&file_name);
+
+                    let result = sqlx::query!(
+                        r#"
+                        INSERT INTO captured_files (run_id, path, size, hash, storage_path, content_type)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (run_id, path) DO UPDATE
+                        SET size = EXCLUDED.size,
+                            hash = EXCLUDED.hash,
+                            storage_path = EXCLUDED.storage_path,
+                            content_type = EXCLUDED.content_type
+                        "#,
+                        rid,
+                        relative_path,
+                        size,
+                        hash,
+                        storage_path_str,
+                        content_type
+                    )
+                    .execute(&pool)
+                    .await;
+
+                    match result {
+                        Ok(_) => {
+                            info!("Stored file metadata in database");
+                        }
+                        Err(e) => {
+                            error!("Failed to store file metadata: {}", e);
+                            return Json(json!({
+                                "status": "error",
+                                "error": format!("Failed to store file metadata: {}", e)
+                            }));
+                        }
+                    }
+                }
+
                 files_processed += 1;
-                info!("Successfully read field '{}': {} bytes", name, size);
+                info!("Successfully processed file: {} bytes", size);
             }
             Err(e) => {
-                error!("Failed to read field '{}': {}", name, e);
+                error!("Failed to read file field: {}", e);
                 return Json(json!({
                     "status": "error",
-                    "error": format!("Failed to read field '{}': {}", name, e)
+                    "error": format!("Failed to read file: {}", e)
                 }));
             }
         }
