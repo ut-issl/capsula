@@ -16,3 +16,17 @@ pub struct Run {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct CreateRunRequest {
+    pub id: String,
+    pub name: String,
+    pub timestamp: DateTime<Utc>,
+    pub command: String,
+    pub vault: String,
+    pub project_root: String,
+    pub exit_code: Option<i32>,
+    pub duration_ms: Option<i32>,
+    pub stdout: Option<String>,
+    pub stderr: Option<String>,
+}

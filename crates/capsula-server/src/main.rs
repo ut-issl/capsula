@@ -1,6 +1,6 @@
 use axum::{
     Router,
-    extract::State,
+    extract::{Path, State},
     response::{Html, IntoResponse, Json},
     routing::{get, post},
 };
@@ -42,6 +42,7 @@ async fn main() {
         .route("/", get(handler))
         .route("/health", get(health_check))
         .route("/api/runs", post(create_run))
+        .route("/api/runs/{id}", get(get_run))
         .with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
@@ -75,14 +76,110 @@ async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
 }
 
 async fn create_run(
-    State(_pool): State<PgPool>,
-    Json(payload): Json<serde_json::Value>,
+    State(pool): State<PgPool>,
+    Json(request): Json<models::CreateRunRequest>,
 ) -> impl IntoResponse {
-    info!("Received run data: {}", payload);
+    info!("Received run data: id={}, vault={}", request.id, request.vault);
 
-    // Echo the received payload back with additional metadata
-    Json(json!({
-        "status": "received",
-        "data": payload
-    }))
+    // Insert run into database
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO runs (
+            id, name, timestamp, command, vault, project_root,
+            exit_code, duration_ms, stdout, stderr
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id, name, timestamp, command, vault, project_root,
+                  exit_code, duration_ms, stdout, stderr,
+                  created_at, updated_at
+        "#,
+        request.id,
+        request.name,
+        request.timestamp,
+        request.command,
+        request.vault,
+        request.project_root,
+        request.exit_code,
+        request.duration_ms,
+        request.stdout,
+        request.stderr
+    )
+    .fetch_one(&pool)
+    .await;
+
+    match result {
+        Ok(row) => {
+            let run = models::Run {
+                id: row.id,
+                name: row.name,
+                timestamp: row.timestamp,
+                command: row.command,
+                vault: row.vault,
+                project_root: row.project_root,
+                exit_code: row.exit_code,
+                duration_ms: row.duration_ms,
+                stdout: row.stdout,
+                stderr: row.stderr,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+            };
+            info!("Successfully created run: {}", run.id);
+            Json(json!({
+                "status": "created",
+                "run": run
+            }))
+        }
+        Err(e) => {
+            error!("Failed to insert run: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn get_run(
+    State(pool): State<PgPool>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    info!("Retrieving run: {}", id);
+
+    let result = sqlx::query_as!(
+        models::Run,
+        r#"
+        SELECT id, name, timestamp, command, vault, project_root,
+               exit_code, duration_ms, stdout, stderr,
+               created_at, updated_at
+        FROM runs
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&pool)
+    .await;
+
+    match result {
+        Ok(Some(run)) => {
+            info!("Found run: {}", run.id);
+            Json(json!({
+                "status": "ok",
+                "run": run
+            }))
+        }
+        Ok(None) => {
+            info!("Run not found: {}", id);
+            Json(json!({
+                "status": "not_found",
+                "error": format!("Run with id {} not found", id)
+            }))
+        }
+        Err(e) => {
+            error!("Failed to retrieve run: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
 }
