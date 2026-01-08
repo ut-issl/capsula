@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Runs - Capsula Server{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Runs{% match vault %}{% when Some with (v) %} in {{ v }}{% when None %}{% endmatch %}</h2>
+    {% match vault %}
+    {% when Some with (_v) %}
+    <a href="/runs" class="button-secondary">View All Runs</a>
+    {% when None %}
+    {% endmatch %}
+</div>
+
+{% if runs.is_empty() %}
+<div class="empty-state">
+    <p>No runs found.{% match vault %}{% when Some with (_v) %} Try viewing all runs.{% when None %}{% endmatch %}</p>
+</div>
+{% else %}
+<div class="table-container">
+    <table class="runs-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Name</th>
+                <th>Command</th>
+                <th>Vault</th>
+                <th>Duration</th>
+                <th>Exit Code</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in runs %}
+            <tr>
+                <td>{{ run.timestamp.format("%Y-%m-%d %H:%M:%S") }}</td>
+                <td><a href="/runs/{{ run.id }}">{{ run.name }}</a></td>
+                <td><code>{{ run.command }}</code></td>
+                <td><a href="/runs?vault={{ run.vault }}">{{ run.vault }}</a></td>
+                <td>
+                    {% match run.duration_ms %}
+                    {% when Some with (ms) %}
+                    {{ ms }}ms
+                    {% when None %}
+                    -
+                    {% endmatch %}
+                </td>
+                <td>
+                    {% match run.exit_code %}
+                    {% when Some with (code) %}
+                    <span class="badge {% if *code == 0 %}badge-success{% else %}badge-error{% endif %}">{{ code }}</span>
+                    {% when None %}
+                    -
+                    {% endmatch %}
+                </td>
+                <td>
+                    <a href="/runs/{{ run.id }}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="/runs?page={{ page - 1 }}{% match vault %}{% when Some with (v) %}&vault={{ v }}{% when None %}{% endmatch %}" class="button-secondary">Previous</a>
+    {% endif %}
+    
+    <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+    
+    {% if page < total_pages %}
+    <a href="/runs?page={{ page + 1 }}{% match vault %}{% when Some with (v) %}&vault={{ v }}{% when None %}{% endmatch %}" class="button-secondary">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

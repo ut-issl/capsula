@@ -28,6 +28,24 @@ struct VaultsTemplate {
     vaults: Vec<models::VaultInfo>,
 }
 
+#[derive(Template, WebTemplate)]
+#[template(path = "runs.html")]
+struct RunsTemplate {
+    runs: Vec<models::Run>,
+    vault: Option<String>,
+    page: i64,
+    total_pages: i64,
+}
+
+#[derive(Template, WebTemplate)]
+#[template(path = "run_detail.html")]
+struct RunDetailTemplate {
+    run: models::Run,
+    pre_run_hooks: Vec<models::HookOutput>,
+    post_run_hooks: Vec<models::HookOutput>,
+    files: Vec<models::CapturedFile>,
+}
+
 pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
@@ -42,6 +60,8 @@ pub fn build_app(pool: PgPool) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/vaults", get(vaults_page))
+        .route("/runs", get(runs_page))
+        .route("/runs/{id}", get(run_detail_page))
         .route("/health", get(health_check))
         .route("/api/vaults", get(list_vaults))
         .route("/api/vaults/{name}", get(get_vault_info))
@@ -88,6 +108,208 @@ async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
             VaultsTemplate { vaults: Vec::new() }
         }
     }
+}
+
+async fn runs_page(
+    State(pool): State<PgPool>,
+    Query(params): Query<models::ListRunsQuery>,
+) -> impl IntoResponse {
+    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(50) + 1;
+    let limit = params.limit.unwrap_or(50);
+    let offset = (page - 1) * limit;
+
+    info!(
+        "Rendering runs page: page={}, vault={:?}",
+        page, params.vault
+    );
+
+    // Get total count for pagination
+    let total_count = if let Some(ref vault) = params.vault {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)::bigint
+            FROM runs
+            WHERE vault = $1
+            "#,
+            vault
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(Some(0))
+        .unwrap_or(0)
+    } else {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)::bigint
+            FROM runs
+            "#
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(Some(0))
+        .unwrap_or(0)
+    };
+
+    let total_pages = (total_count + limit - 1) / limit;
+
+    // Fetch runs
+    let runs_result = if let Some(ref vault) = params.vault {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            WHERE vault = $1
+            ORDER BY timestamp DESC
+            LIMIT $2 OFFSET $3
+            "#,
+            vault,
+            limit,
+            offset
+        )
+        .fetch_all(&pool)
+        .await
+    } else {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            ORDER BY timestamp DESC
+            LIMIT $1 OFFSET $2
+            "#,
+            limit,
+            offset
+        )
+        .fetch_all(&pool)
+        .await
+    };
+
+    match runs_result {
+        Ok(runs) => RunsTemplate {
+            runs,
+            vault: params.vault,
+            page,
+            total_pages,
+        },
+        Err(e) => {
+            error!("Failed to fetch runs: {}", e);
+            RunsTemplate {
+                runs: Vec::new(),
+                vault: params.vault,
+                page: 1,
+                total_pages: 1,
+            }
+        }
+    }
+}
+
+async fn run_detail_page(
+    State(pool): State<PgPool>,
+    Path(id): Path<String>,
+) -> Result<RunDetailTemplate, StatusCode> {
+    info!("Rendering run detail page for: {}", id);
+
+    // Fetch run metadata
+    let run = sqlx::query_as!(
+        models::Run,
+        r#"
+        SELECT id, name, timestamp, command, vault, project_root,
+               exit_code, duration_ms, stdout, stderr,
+               created_at, updated_at
+        FROM runs
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        error!("Database error while fetching run: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or_else(|| {
+        info!("Run not found: {}", id);
+        StatusCode::NOT_FOUND
+    })?;
+
+    // Fetch hook outputs
+    let hook_outputs_result = sqlx::query_as!(
+        models::RunOutputRow,
+        r#"
+        SELECT phase, hook_id, output, success, error
+        FROM run_outputs
+        WHERE run_id = $1
+        ORDER BY id
+        "#,
+        id
+    )
+    .fetch_all(&pool)
+    .await;
+
+    let (pre_run_hooks, post_run_hooks) = match hook_outputs_result {
+        Ok(rows) => {
+            let mut pre_hooks = Vec::new();
+            let mut post_hooks = Vec::new();
+
+            for row in rows {
+                let hook_output = models::HookOutput {
+                    meta: models::HookMeta {
+                        id: row.hook_id,
+                        config: None,
+                        success: row.success,
+                        error: row.error,
+                    },
+                    output: row.output,
+                };
+
+                if row.phase == "pre" {
+                    pre_hooks.push(hook_output);
+                } else if row.phase == "post" {
+                    post_hooks.push(hook_output);
+                }
+            }
+
+            (pre_hooks, post_hooks)
+        }
+        Err(e) => {
+            error!("Failed to fetch hook outputs: {}", e);
+            (Vec::new(), Vec::new())
+        }
+    };
+
+    // Fetch captured files
+    let files_result = sqlx::query_as!(
+        models::CapturedFile,
+        r#"
+        SELECT path, size, hash, storage_path, content_type
+        FROM captured_files
+        WHERE run_id = $1
+        ORDER BY path
+        "#,
+        id
+    )
+    .fetch_all(&pool)
+    .await;
+
+    let files = match files_result {
+        Ok(files) => files,
+        Err(e) => {
+            error!("Failed to fetch captured files: {}", e);
+            Vec::new()
+        }
+    };
+
+    Ok(RunDetailTemplate {
+        run,
+        pre_run_hooks,
+        post_run_hooks,
+        files,
+    })
 }
 
 async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {

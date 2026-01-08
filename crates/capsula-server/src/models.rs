@@ -69,3 +69,12 @@ pub struct RunOutputRow {
     pub success: bool,
     pub error: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct CapturedFile {
+    pub path: String,
+    pub size: i64,
+    pub hash: Option<String>,
+    pub storage_path: String,
+    pub content_type: Option<String>,
+}

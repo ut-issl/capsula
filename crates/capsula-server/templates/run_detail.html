@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{{ run.name }} - Capsula Server{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Run: {{ run.name }}</h2>
+    <div class="header-actions">
+        <a href="/runs?vault={{ run.vault }}" class="button-secondary">Back to {{ run.vault }}</a>
+        <a href="/runs" class="button-secondary">All Runs</a>
+    </div>
+</div>
+
+<div class="run-detail">
+    <section class="detail-section">
+        <h3>Metadata</h3>
+        <dl class="detail-list">
+            <dt>ID</dt>
+            <dd><code>{{ run.id }}</code></dd>
+            
+            <dt>Name</dt>
+            <dd>{{ run.name }}</dd>
+            
+            <dt>Timestamp</dt>
+            <dd>{{ run.timestamp.format("%Y-%m-%d %H:%M:%S") }}</dd>
+            
+            <dt>Vault</dt>
+            <dd><a href="/runs?vault={{ run.vault }}">{{ run.vault }}</a></dd>
+            
+            <dt>Project Root</dt>
+            <dd><code>{{ run.project_root }}</code></dd>
+        </dl>
+    </section>
+
+    <section class="detail-section">
+        <h3>Command Execution</h3>
+        <dl class="detail-list">
+            <dt>Command</dt>
+            <dd><code class="command-line">{{ run.command }}</code></dd>
+            
+            <dt>Exit Code</dt>
+            <dd>
+                {% match run.exit_code %}
+                {% when Some with (code) %}
+                <span class="badge {% if *code == 0 %}badge-success{% else %}badge-error{% endif %}">{{ code }}</span>
+                {% when None %}
+                <span class="badge badge-warning">N/A</span>
+                {% endmatch %}
+            </dd>
+            
+            <dt>Duration</dt>
+            <dd>
+                {% match run.duration_ms %}
+                {% when Some with (ms) %}
+                {{ ms }}ms
+                {% when None %}
+                N/A
+                {% endmatch %}
+            </dd>
+        </dl>
+        
+        {% match run.stdout %}
+        {% when Some with (out) %}
+        {% if out.len() > 0 %}
+        <div class="output-section">
+            <h4>Standard Output</h4>
+            <pre class="output-box">{{ out }}</pre>
+        </div>
+        {% endif %}
+        {% when None %}
+        {% endmatch %}
+        
+        {% match run.stderr %}
+        {% when Some with (err) %}
+        {% if err.len() > 0 %}
+        <div class="output-section">
+            <h4>Standard Error</h4>
+            <pre class="output-box error-output">{{ err }}</pre>
+        </div>
+        {% endif %}
+        {% when None %}
+        {% endmatch %}
+    </section>
+
+    {% if pre_run_hooks.len() > 0 %}
+    <section class="detail-section">
+        <h3>Pre-run Hooks ({{ pre_run_hooks.len() }})</h3>
+        <div class="hooks-list">
+            {% for hook in pre_run_hooks %}
+            <div class="hook-item">
+                <div class="hook-header">
+                    <span class="hook-id">{{ hook.meta.id }}</span>
+                    {% if hook.meta.success %}
+                    <span class="badge badge-success">Success</span>
+                    {% else %}
+                    <span class="badge badge-error">Failed</span>
+                    {% endif %}
+                </div>
+                {% match hook.meta.error %}
+                {% when Some with (error_msg) %}
+                <div class="hook-error">
+                    <strong>Error:</strong> {{ error_msg }}
+                </div>
+                {% when None %}
+                {% endmatch %}
+                <details class="hook-details">
+                    <summary>View Output</summary>
+                    <pre class="hook-output">{{ hook.output }}</pre>
+                </details>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if post_run_hooks.len() > 0 %}
+    <section class="detail-section">
+        <h3>Post-run Hooks ({{ post_run_hooks.len() }})</h3>
+        <div class="hooks-list">
+            {% for hook in post_run_hooks %}
+            <div class="hook-item">
+                <div class="hook-header">
+                    <span class="hook-id">{{ hook.meta.id }}</span>
+                    {% if hook.meta.success %}
+                    <span class="badge badge-success">Success</span>
+                    {% else %}
+                    <span class="badge badge-error">Failed</span>
+                    {% endif %}
+                </div>
+                {% match hook.meta.error %}
+                {% when Some with (error_msg) %}
+                <div class="hook-error">
+                    <strong>Error:</strong> {{ error_msg }}
+                </div>
+                {% when None %}
+                {% endmatch %}
+                <details class="hook-details">
+                    <summary>View Output</summary>
+                    <pre class="hook-output">{{ hook.output }}</pre>
+                </details>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if files.len() > 0 %}
+    <section class="detail-section">
+        <h3>Captured Files ({{ files.len() }})</h3>
+        <div class="files-list">
+            {% for file in files %}
+            <div class="file-item">
+                <div class="file-info">
+                    <span class="file-path">{{ file.path }}</span>
+                    <span class="file-size">{{ file.size }} bytes</span>
+                </div>
+                <a href="/api/runs/{{ run.id }}/files/{{ file.path }}" class="button-secondary" download>Download</a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
