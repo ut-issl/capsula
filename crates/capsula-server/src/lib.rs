@@ -1,7 +1,9 @@
 use axum::{
     Router,
+    body::Body,
     extract::{Multipart, Path, Query, State},
-    response::{Html, IntoResponse, Json},
+    http::{StatusCode, header},
+    response::{Html, IntoResponse, Json, Response},
     routing::{get, post},
 };
 use serde_json::json;
@@ -29,6 +31,7 @@ pub fn build_app(pool: PgPool) -> Router {
         .route("/api/vaults/{name}", get(get_vault_info))
         .route("/api/runs", post(create_run).get(list_runs))
         .route("/api/runs/{id}", get(get_run))
+        .route("/api/runs/{id}/files/{*path}", get(download_file))
         .route("/api/upload", post(upload_files))
         .with_state(pool)
 }
@@ -485,4 +488,75 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
         "files_processed": files_processed,
         "total_bytes": total_bytes
     }))
+}
+
+async fn download_file(
+    State(pool): State<PgPool>,
+    Path((run_id, file_path)): Path<(String, String)>,
+) -> Result<Response, StatusCode> {
+    info!("Downloading file: run_id={}, path={}", run_id, file_path);
+
+    // Query the database for file metadata
+    let file_record = sqlx::query!(
+        r#"
+        SELECT storage_path, content_type, path as file_path
+        FROM captured_files
+        WHERE run_id = $1 AND path = $2
+        "#,
+        run_id,
+        file_path
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        error!("Database error while fetching file metadata: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let Some(record) = file_record else {
+        info!("File not found: run_id={}, path={}", run_id, file_path);
+        return Err(StatusCode::NOT_FOUND);
+    };
+
+    // Read the file from storage
+    let file_data = tokio::fs::read(&record.storage_path).await.map_err(|e| {
+        error!(
+            "Failed to read file from storage {}: {}",
+            record.storage_path, e
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    info!(
+        "Successfully read file: {} bytes from {}",
+        file_data.len(),
+        record.storage_path
+    );
+
+    // Determine content type (use stored value or guess from filename)
+    let content_type = record.content_type.unwrap_or_else(|| {
+        mime_guess::from_path(&record.file_path)
+            .first_or_octet_stream()
+            .to_string()
+    });
+
+    // Extract filename from path for Content-Disposition
+    let filename = std::path::Path::new(&record.file_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("download");
+
+    // Build response with appropriate headers
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("inline; filename=\"{filename}\""),
+        )
+        .body(Body::from(file_data))
+        .map_err(|e| {
+            error!("Failed to build response: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }

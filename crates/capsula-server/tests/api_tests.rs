@@ -392,3 +392,112 @@ async fn test_multiple_file_upload_with_storage() {
         (first_content.len() + second_content.len()) as u64
     );
 }
+
+#[tokio::test]
+async fn test_file_download() {
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    // Create a run
+    let run_data = json!({
+        "id": "01FILEDOWNLOAD123456789AB",
+        "name": "test-file-download",
+        "timestamp": "2026-01-08T12:00:00Z",
+        "command": "echo download",
+        "vault": "test-vault",
+        "project_root": "/tmp/test",
+        "exit_code": 0,
+        "duration_ms": 100,
+        "stdout": null,
+        "stderr": null
+    });
+
+    let response = client
+        .post(format!("{}/api/runs", ctx.base_url()))
+        .json(&run_data)
+        .send()
+        .await
+        .expect("Failed to create run");
+    assert_eq!(response.status(), 200);
+
+    // Upload a file
+    let file_content = b"This is downloadable content\nLine 2\nLine 3";
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", "01FILEDOWNLOAD123456789AB")
+        .text("path", "output/result.txt")
+        .part(
+            "file",
+            reqwest::multipart::Part::bytes(file_content.to_vec())
+                .file_name("result.txt")
+                .mime_str("text/plain")
+                .expect("Failed to set MIME type"),
+        );
+
+    let response = client
+        .post(format!("{}/api/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("Failed to upload file");
+    assert_eq!(response.status(), 200);
+
+    // Download the file
+    let response = client
+        .get(format!(
+            "{}/api/runs/01FILEDOWNLOAD123456789AB/files/output/result.txt",
+            ctx.base_url()
+        ))
+        .send()
+        .await
+        .expect("Failed to download file");
+
+    assert_eq!(response.status(), 200);
+
+    // Check Content-Type header
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .expect("Content-Type header should be present")
+        .to_str()
+        .expect("Content-Type should be valid string");
+    assert_eq!(content_type, "text/plain");
+
+    // Check Content-Disposition header
+    let content_disposition = response
+        .headers()
+        .get("content-disposition")
+        .expect("Content-Disposition header should be present")
+        .to_str()
+        .expect("Content-Disposition should be valid string");
+    assert!(content_disposition.contains("result.txt"));
+    assert!(content_disposition.contains("inline"));
+
+    // Check file content
+    let downloaded_content = response
+        .bytes()
+        .await
+        .expect("Failed to read response body");
+    assert_eq!(downloaded_content.as_ref(), file_content);
+
+    // Test 404 for non-existent file
+    let response = client
+        .get(format!(
+            "{}/api/runs/01FILEDOWNLOAD123456789AB/files/nonexistent.txt",
+            ctx.base_url()
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+    assert_eq!(response.status(), 404);
+
+    // Test 404 for non-existent run
+    let response = client
+        .get(format!(
+            "{}/api/runs/01NONEXISTENT123456789AB/files/result.txt",
+            ctx.base_url()
+        ))
+        .send()
+        .await
+        .expect("Failed to send request");
+    assert_eq!(response.status(), 404);
+}

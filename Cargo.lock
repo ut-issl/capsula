@@ -460,6 +460,7 @@ version = "0.9.3"
 dependencies = [
  "axum",
  "chrono",
+ "mime_guess",
  "reqwest",
  "serde",
  "serde_json",
