@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, reason = "Test code")]
 use serde_json::json;
 
 const BASE_URL: &str = "http://127.0.0.1:3000";

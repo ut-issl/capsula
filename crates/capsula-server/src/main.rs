@@ -346,10 +346,8 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
     }
 }
 
-async fn upload_files(
-    State(pool): State<PgPool>,
-    mut multipart: Multipart,
-) -> impl IntoResponse {
+#[expect(clippy::too_many_lines, reason = "TODO: Refactor later")]
+async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> impl IntoResponse {
     info!("Received file upload request");
 
     // Get storage root from environment, default to ./storage
