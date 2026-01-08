@@ -27,7 +27,6 @@
                 <th>Vault</th>
                 <th>Duration</th>
                 <th>Exit Code</th>
-                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -52,9 +51,6 @@
                     {% when None %}
                     -
                     {% endmatch %}
-                </td>
-                <td>
-                    <a href="/runs/{{ run.id }}">View</a>
                 </td>
             </tr>
             {% endfor %}

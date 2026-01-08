@@ -402,6 +402,11 @@ footer {
     color: #c53030;
 }
 
+.empty-output {
+    color: #95a5a6;
+    font-style: italic;
+}
+
 .badge-warning {
     background: #fef3c7;
     color: #92400e;

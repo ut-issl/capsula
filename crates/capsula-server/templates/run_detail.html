@@ -34,12 +34,10 @@
 
     <section class="detail-section">
         <h3>Command Execution</h3>
-        <div class="command-display">
-            <h4>Command</h4>
-            <code class="command-line">{{ run.command }}</code>
-        </div>
-        
         <dl class="detail-list">
+            <dt>Command</dt>
+            <dd><code>{{ run.command }}</code></dd>
+            
             <dt>Exit Code</dt>
             <dd>
                 {% match run.exit_code %}
@@ -61,27 +59,33 @@
             </dd>
         </dl>
         
-        {% match run.stdout %}
-        {% when Some with (out) %}
-        {% if out.len() > 0 %}
         <div class="output-section">
             <h4>Standard Output</h4>
+            {% match run.stdout %}
+            {% when Some with (out) %}
+            {% if out.len() > 0 %}
             <pre class="output-box">{{ out }}</pre>
+            {% else %}
+            <pre class="output-box empty-output">(empty)</pre>
+            {% endif %}
+            {% when None %}
+            <pre class="output-box empty-output">(not captured)</pre>
+            {% endmatch %}
         </div>
-        {% endif %}
-        {% when None %}
-        {% endmatch %}
         
-        {% match run.stderr %}
-        {% when Some with (err) %}
-        {% if err.len() > 0 %}
         <div class="output-section">
             <h4>Standard Error</h4>
+            {% match run.stderr %}
+            {% when Some with (err) %}
+            {% if err.len() > 0 %}
             <pre class="output-box error-output">{{ err }}</pre>
+            {% else %}
+            <pre class="output-box empty-output">(empty)</pre>
+            {% endif %}
+            {% when None %}
+            <pre class="output-box empty-output">(not captured)</pre>
+            {% endmatch %}
         </div>
-        {% endif %}
-        {% when None %}
-        {% endmatch %}
     </section>
 
     {% if pre_run_hooks.len() > 0 %}
