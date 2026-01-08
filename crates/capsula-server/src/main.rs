@@ -1,12 +1,12 @@
 use axum::{
+    Router,
     extract::State,
     response::{Html, IntoResponse, Json},
     routing::{get, post},
-    Router,
 };
 use serde_json::json;
 use sqlx::PgPool;
-use tracing::info;
+use tracing::{error, info};
 
 mod models;
 
@@ -15,8 +15,8 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     // Get database URL from environment
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL environment variable must be set");
+    let database_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
 
     info!("Connecting to database: {}", database_url);
 
@@ -32,7 +32,7 @@ async fn main() {
             pool
         }
         Err(e) => {
-            eprintln!("Failed to connect to database: {}", e);
+            error!("Failed to connect to database: {}", e);
             std::process::exit(1);
         }
     };
@@ -61,10 +61,7 @@ async fn handler() -> Html<&'static str> {
 
 async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
     // Try to execute a simple query to check database connection
-    match sqlx::query("SELECT 1")
-        .fetch_one(&pool)
-        .await
-    {
+    match sqlx::query("SELECT 1").fetch_one(&pool).await {
         Ok(_) => Json(json!({
             "status": "ok",
             "database": "connected"
@@ -82,7 +79,7 @@ async fn create_run(
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     info!("Received run data: {}", payload);
-    
+
     // Echo the received payload back with additional metadata
     Json(json!({
         "status": "received",
