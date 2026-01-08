@@ -43,7 +43,7 @@ jobs:
       DATABASE_URL: postgresql://capsula:capsula@localhost:5432/capsula
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_USER: capsula
           POSTGRES_PASSWORD: capsula
