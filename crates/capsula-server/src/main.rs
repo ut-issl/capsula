@@ -116,10 +116,7 @@ async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
     }
 }
 
-async fn get_vault_info(
-    State(pool): State<PgPool>,
-    Path(name): Path<String>,
-) -> impl IntoResponse {
+async fn get_vault_info(State(pool): State<PgPool>, Path(name): Path<String>) -> impl IntoResponse {
     info!("Getting vault info: {}", name);
 
     let result = sqlx::query!(
@@ -173,7 +170,10 @@ async fn list_runs(
     let offset = params.offset.unwrap_or(0);
 
     if let Some(ref vault) = params.vault {
-        info!("Listing runs for vault: {} (limit={}, offset={})", vault, limit, offset);
+        info!(
+            "Listing runs for vault: {} (limit={}, offset={})",
+            vault, limit, offset
+        );
     } else {
         info!("Listing all runs (limit={}, offset={})", limit, offset);
     }
@@ -238,7 +238,10 @@ async fn create_run(
     State(pool): State<PgPool>,
     Json(request): Json<models::CreateRunRequest>,
 ) -> impl IntoResponse {
-    info!("Received run data: id={}, vault={}", request.id, request.vault);
+    info!(
+        "Received run data: id={}, vault={}",
+        request.id, request.vault
+    );
 
     // Insert run into database
     let result = sqlx::query!(
@@ -298,10 +301,7 @@ async fn create_run(
     }
 }
 
-async fn get_run(
-    State(pool): State<PgPool>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl IntoResponse {
     info!("Retrieving run: {}", id);
 
     let result = sqlx::query_as!(
