@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT phase, hook_id, config, output, success, error\n                FROM run_outputs\n                WHERE run_id = $1\n                ORDER BY id\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "phase",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "hook_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 3,
+        "name": "output",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "success",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "error",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "0f041bcff67becde780d8f50cd520ce827c65019c919c96f3bc748818b962057"
+}

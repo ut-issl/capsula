@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)\n                    VALUES ($1, 'pre', $2, $3, $4, $5, $6)\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "90a0acd144709f0232a6ad63dc85feb318e19506b7284edb3c05743c662f6152"
+}
