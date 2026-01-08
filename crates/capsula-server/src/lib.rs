@@ -1,0 +1,488 @@
+use axum::{
+    Router,
+    extract::{Multipart, Path, Query, State},
+    response::{Html, IntoResponse, Json},
+    routing::{get, post},
+};
+use serde_json::json;
+use sha2::{Digest, Sha256};
+use sqlx::PgPool;
+use std::collections::VecDeque;
+use std::path::PathBuf;
+use tracing::{error, info};
+
+mod models;
+
+pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(std::time::Duration::from_secs(3))
+        .connect(database_url)
+        .await
+}
+
+pub fn build_app(pool: PgPool) -> Router {
+    Router::new()
+        .route("/", get(handler))
+        .route("/health", get(health_check))
+        .route("/api/vaults", get(list_vaults))
+        .route("/api/vaults/{name}", get(get_vault_info))
+        .route("/api/runs", post(create_run).get(list_runs))
+        .route("/api/runs/{id}", get(get_run))
+        .route("/api/upload", post(upload_files))
+        .with_state(pool)
+}
+
+async fn handler() -> Html<&'static str> {
+    Html("<h1>Capsula Server</h1><p>Hello World!</p>")
+}
+
+async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
+    match sqlx::query("SELECT 1").fetch_one(&pool).await {
+        Ok(_) => Json(json!({
+            "status": "ok",
+            "database": "connected"
+        })),
+        Err(e) => Json(json!({
+            "status": "error",
+            "database": "disconnected",
+            "error": e.to_string()
+        })),
+    }
+}
+
+async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
+    info!("Listing all vaults");
+
+    let result = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        GROUP BY vault
+        ORDER BY vault
+        "#
+    )
+    .fetch_all(&pool)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            let vaults: Vec<models::VaultInfo> = rows
+                .into_iter()
+                .map(|row| models::VaultInfo {
+                    name: row.name,
+                    run_count: row.run_count,
+                })
+                .collect();
+            info!("Found {} vaults", vaults.len());
+            Json(json!({
+                "status": "ok",
+                "vaults": vaults
+            }))
+        }
+        Err(e) => {
+            error!("Failed to list vaults: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn get_vault_info(State(pool): State<PgPool>, Path(name): Path<String>) -> impl IntoResponse {
+    info!("Getting vault info: {}", name);
+
+    let result = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        WHERE vault = $1
+        GROUP BY vault
+        "#,
+        name
+    )
+    .fetch_optional(&pool)
+    .await;
+
+    match result {
+        Ok(Some(row)) => {
+            let vault = models::VaultInfo {
+                name: row.name,
+                run_count: row.run_count,
+            };
+            info!("Found vault: {} with {} runs", vault.name, vault.run_count);
+            Json(json!({
+                "status": "ok",
+                "exists": true,
+                "vault": vault
+            }))
+        }
+        Ok(None) => {
+            info!("Vault not found: {}", name);
+            Json(json!({
+                "status": "ok",
+                "exists": false,
+                "vault": null
+            }))
+        }
+        Err(e) => {
+            error!("Failed to get vault info: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn list_runs(
+    State(pool): State<PgPool>,
+    Query(params): Query<models::ListRunsQuery>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(100);
+    let offset = params.offset.unwrap_or(0);
+
+    if let Some(ref vault) = params.vault {
+        info!(
+            "Listing runs for vault: {} (limit={}, offset={})",
+            vault, limit, offset
+        );
+    } else {
+        info!("Listing all runs (limit={}, offset={})", limit, offset);
+    }
+
+    let result = if let Some(vault) = params.vault {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            WHERE vault = $1
+            ORDER BY timestamp DESC
+            LIMIT $2 OFFSET $3
+            "#,
+            vault,
+            limit,
+            offset
+        )
+        .fetch_all(&pool)
+        .await
+    } else {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            ORDER BY timestamp DESC
+            LIMIT $1 OFFSET $2
+            "#,
+            limit,
+            offset
+        )
+        .fetch_all(&pool)
+        .await
+    };
+
+    match result {
+        Ok(runs) => {
+            info!("Found {} runs", runs.len());
+            Json(json!({
+                "status": "ok",
+                "runs": runs,
+                "limit": limit,
+                "offset": offset
+            }))
+        }
+        Err(e) => {
+            error!("Failed to list runs: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn create_run(
+    State(pool): State<PgPool>,
+    Json(request): Json<models::CreateRunRequest>,
+) -> impl IntoResponse {
+    info!("Creating run: {}", request.id);
+
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO runs (
+            id, name, timestamp, command, vault, project_root,
+            exit_code, duration_ms, stdout, stderr
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10
+        )
+        "#,
+        request.id,
+        request.name,
+        request.timestamp,
+        request.command,
+        request.vault,
+        request.project_root,
+        request.exit_code,
+        request.duration_ms,
+        request.stdout,
+        request.stderr
+    )
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            info!("Run created successfully");
+            Json(json!({
+                "status": "created",
+                "run": request
+            }))
+        }
+        Err(e) => {
+            error!("Failed to insert run: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl IntoResponse {
+    info!("Getting run: {}", id);
+
+    let result = sqlx::query_as!(
+        models::Run,
+        r#"
+        SELECT id, name, timestamp, command, vault, project_root,
+               exit_code, duration_ms, stdout, stderr,
+               created_at, updated_at
+        FROM runs
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&pool)
+    .await;
+
+    match result {
+        Ok(Some(run)) => {
+            info!("Found run: {}", run.id);
+            Json(json!({
+                "status": "ok",
+                "run": run
+            }))
+        }
+        Ok(None) => {
+            info!("Run not found: {}", id);
+            Json(json!({
+                "status": "not_found",
+                "error": format!("Run with id {} not found", id)
+            }))
+        }
+        Err(e) => {
+            error!("Failed to retrieve run: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+#[expect(clippy::too_many_lines, reason = "TODO: Refactor later")]
+#[expect(
+    clippy::else_if_without_else,
+    reason = "There is `continue` or `return` in each branch, so `else` is redundant"
+)]
+async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> impl IntoResponse {
+    info!("Received file upload request");
+
+    let storage_root = std::env::var("STORAGE_PATH").unwrap_or_else(|_| "./storage".to_string());
+    let storage_path = PathBuf::from(&storage_root);
+
+    if let Err(e) = tokio::fs::create_dir_all(&storage_path).await {
+        error!("Failed to create storage directory: {}", e);
+        return Json(json!({
+            "status": "error",
+            "error": format!("Failed to create storage directory: {}", e)
+        }));
+    }
+
+    let mut files_processed = 0;
+    let mut total_bytes = 0u64;
+    let mut run_id: Option<String> = None;
+    let mut pending_paths: VecDeque<String> = VecDeque::new();
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let field_name = field.name().unwrap_or("unknown").to_string();
+
+        if field_name == "run_id" {
+            match field.text().await {
+                Ok(text) => {
+                    run_id = Some(text);
+                    continue;
+                }
+                Err(e) => {
+                    error!("Failed to read run_id field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read run_id: {}", e)
+                    }));
+                }
+            }
+        } else if field_name == "path" {
+            match field.text().await {
+                Ok(text) => {
+                    pending_paths.push_back(text);
+                    continue;
+                }
+                Err(e) => {
+                    error!("Failed to read path field: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read path: {}", e)
+                    }));
+                }
+            }
+        }
+
+        let file_name = field.file_name().unwrap_or("unknown").to_string();
+        let content_type = field
+            .content_type()
+            .unwrap_or("application/octet-stream")
+            .to_string();
+
+        info!(
+            "Processing file: field_name={}, file_name={}, content_type={}",
+            field_name, file_name, content_type
+        );
+
+        match field.bytes().await {
+            Ok(data) => {
+                let size = data.len();
+                total_bytes += size as u64;
+                let Ok(size_i64) = i64::try_from(size) else {
+                    error!("File too large to store size in database: {} bytes", size);
+                    return Json(json!({
+                        "status": "error",
+                        "error": "File too large to store size in database"
+                    }));
+                };
+
+                let mut hasher = Sha256::new();
+                hasher.update(&data);
+                let hash = format!("{:x}", hasher.finalize());
+
+                info!("File hash: {}, size: {} bytes", hash, size);
+
+                let hash_dir = &hash[0..2];
+                let file_storage_dir = storage_path.join(hash_dir);
+                if let Err(e) = tokio::fs::create_dir_all(&file_storage_dir).await {
+                    error!("Failed to create hash directory: {}", e);
+                    return Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to create storage directory: {}", e)
+                    }));
+                }
+
+                let file_storage_path = file_storage_dir.join(&hash);
+                let storage_path_str = file_storage_path.to_string_lossy().to_string();
+
+                if file_storage_path.exists() {
+                    info!("File already exists (deduplicated): {}", storage_path_str);
+                } else {
+                    if let Err(e) = tokio::fs::write(&file_storage_path, &data).await {
+                        error!("Failed to write file: {}", e);
+                        return Json(json!({
+                            "status": "error",
+                            "error": format!("Failed to write file: {}", e)
+                        }));
+                    }
+                    info!("Saved new file: {}", storage_path_str);
+                }
+
+                if let Some(ref rid) = run_id {
+                    let relative_path = pending_paths
+                        .pop_front()
+                        .or_else(|| {
+                            if file_name == "unknown" {
+                                None
+                            } else {
+                                Some(file_name.clone())
+                            }
+                        })
+                        .unwrap_or_else(|| {
+                            if field_name != "unknown" && field_name != "file" {
+                                field_name.clone()
+                            } else {
+                                format!("file-{}", files_processed + 1)
+                            }
+                        });
+
+                    let result = sqlx::query!(
+                        r#"
+                        INSERT INTO captured_files (run_id, path, size, hash, storage_path, content_type)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (run_id, path) DO UPDATE
+                        SET size = EXCLUDED.size,
+                            hash = EXCLUDED.hash,
+                            storage_path = EXCLUDED.storage_path,
+                            content_type = EXCLUDED.content_type
+                        "#,
+                        rid,
+                        relative_path,
+                        size_i64,
+                        hash,
+                        storage_path_str,
+                        content_type
+                    )
+                    .execute(&pool)
+                    .await;
+
+                    match result {
+                        Ok(_) => {
+                            info!("Stored file metadata in database");
+                        }
+                        Err(e) => {
+                            error!("Failed to store file metadata: {}", e);
+                            return Json(json!({
+                                "status": "error",
+                                "error": format!("Failed to store file metadata: {}", e)
+                            }));
+                        }
+                    }
+                }
+
+                files_processed += 1;
+                info!("Successfully processed file: {} bytes", size);
+            }
+            Err(e) => {
+                error!("Failed to read file field: {}", e);
+                return Json(json!({
+                    "status": "error",
+                    "error": format!("Failed to read file: {}", e)
+                }));
+            }
+        }
+    }
+
+    info!(
+        "Upload complete: {} files, {} bytes total",
+        files_processed, total_bytes
+    );
+
+    Json(json!({
+        "status": "ok",
+        "files_processed": files_processed,
+        "total_bytes": total_bytes
+    }))
+}

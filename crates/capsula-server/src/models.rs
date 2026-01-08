@@ -17,7 +17,7 @@ pub struct Run {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CreateRunRequest {
     pub id: String,
     pub name: String,
