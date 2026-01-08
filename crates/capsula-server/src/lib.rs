@@ -271,6 +271,8 @@ async fn run_detail_page(
                     pre_hooks.push(hook_output);
                 } else if row.phase == "post" {
                     post_hooks.push(hook_output);
+                } else {
+                    warn!("Unknown hook phase: {}", row.phase);
                 }
             }
 
