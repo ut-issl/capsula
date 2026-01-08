@@ -279,9 +279,62 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
     match result {
         Ok(Some(run)) => {
             info!("Found run: {}", run.id);
+
+            // Fetch hook outputs
+            let hook_outputs_result = sqlx::query_as!(
+                models::RunOutputRow,
+                r#"
+                SELECT phase, hook_id, output, success, error
+                FROM run_outputs
+                WHERE run_id = $1
+                ORDER BY id
+                "#,
+                id
+            )
+            .fetch_all(&pool)
+            .await;
+
+            let (pre_run_hooks, post_run_hooks) = match hook_outputs_result {
+                Ok(rows) => {
+                    let mut pre_hooks = Vec::new();
+                    let mut post_hooks = Vec::new();
+
+                    for row in rows {
+                        let hook_output = models::HookOutput {
+                            meta: models::HookMeta {
+                                id: row.hook_id,
+                                config: None, // Config not stored in database currently
+                                success: row.success,
+                                error: row.error,
+                            },
+                            output: row.output,
+                        };
+
+                        if row.phase == "pre" {
+                            pre_hooks.push(hook_output);
+                        } else if row.phase == "post" {
+                            post_hooks.push(hook_output);
+                        }
+                    }
+
+                    info!(
+                        "Found {} pre-run hooks and {} post-run hooks",
+                        pre_hooks.len(),
+                        post_hooks.len()
+                    );
+                    (pre_hooks, post_hooks)
+                }
+                Err(e) => {
+                    error!("Failed to fetch hook outputs: {}", e);
+                    (Vec::new(), Vec::new())
+                }
+            };
+
             Json(json!({
                 "status": "ok",
-                "run": run
+                "run": run,
+                "pre_run_hooks": pre_run_hooks,
+                "post_run_hooks": post_run_hooks
             }))
         }
         Ok(None) => {

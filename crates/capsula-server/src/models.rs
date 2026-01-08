@@ -60,3 +60,12 @@ pub struct HookMeta {
     pub success: bool,
     pub error: Option<String>,
 }
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct RunOutputRow {
+    pub phase: String,
+    pub hook_id: String,
+    pub output: JsonValue,
+    pub success: bool,
+    pub error: Option<String>,
+}

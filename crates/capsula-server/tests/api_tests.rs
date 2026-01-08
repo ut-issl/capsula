@@ -584,4 +584,34 @@ async fn test_hook_outputs_storage() {
     assert_eq!(body["status"], "ok");
     assert_eq!(body["pre_run_hooks"], 2);
     assert_eq!(body["post_run_hooks"], 1);
+
+    // Verify we can retrieve the hooks via GET /api/runs/:id
+    let response = client
+        .get(format!(
+            "{}/api/runs/01HOOKTEST123456789ABCDE",
+            ctx.base_url()
+        ))
+        .send()
+        .await
+        .expect("Failed to get run");
+
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["status"], "ok");
+    
+    // Check pre-run hooks
+    let pre_hooks = body["pre_run_hooks"].as_array().expect("pre_run_hooks should be array");
+    assert_eq!(pre_hooks.len(), 2);
+    assert_eq!(pre_hooks[0]["__meta"]["id"], "git");
+    assert_eq!(pre_hooks[0]["__meta"]["success"], true);
+    assert_eq!(pre_hooks[0]["commit"], "abc123");
+    assert_eq!(pre_hooks[0]["branch"], "main");
+    assert_eq!(pre_hooks[1]["__meta"]["id"], "env");
+    assert_eq!(pre_hooks[1]["__meta"]["success"], true);
+    
+    // Check post-run hooks
+    let post_hooks = body["post_run_hooks"].as_array().expect("post_run_hooks should be array");
+    assert_eq!(post_hooks.len(), 1);
+    assert_eq!(post_hooks[0]["__meta"]["id"], "file");
+    assert_eq!(post_hooks[0]["__meta"]["success"], true);
 }
