@@ -13,6 +13,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 anyhow = "1"
+axum = "0.8"
 capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.9.3" }
 capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.9.3" }
 capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.9.3" }
@@ -37,6 +38,7 @@ sha2 = "0.10"
 shlex = "1"
 sysinfo = "0.37"
 thiserror = "2"
+tokio = { version = "1", features = ["full"] }
 toml = "0.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
