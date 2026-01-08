@@ -47,7 +47,10 @@ fn test_capsula_run_creates_run_directory() {
         .filter(|e| e.path().is_dir())
         .collect();
 
-    assert!(!date_dirs.is_empty(), "Should have at least one date directory");
+    assert!(
+        !date_dirs.is_empty(),
+        "Should have at least one date directory"
+    );
 
     // Find a run directory
     for date_dir in date_dirs {

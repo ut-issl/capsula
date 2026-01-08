@@ -2,31 +2,29 @@ use askama::Template;
 use askama_web::WebTemplate;
 
 mod filters {
+    #[allow(clippy::unnecessary_wraps)]
     pub fn format_command(s: &str, _: &dyn askama::Values) -> ::askama::Result<String> {
         // Try to parse as JSON array
-        if let Ok(cmd_array) = serde_json::from_str::<Vec<String>>(s) {
-            // Use shlex to join with proper quoting
-            let result = shlex::try_join(cmd_array.iter().map(String::as_str))
-                .unwrap_or_else(|_| cmd_array.join(" "));
-            Ok(result)
-        } else {
-            // If not a JSON array, return as-is
-            Ok(s.to_string())
-        }
+        Ok(serde_json::from_str::<Vec<String>>(s).map_or_else(
+            |_| s.to_string(),
+            |cmd_array| {
+                shlex::try_join(cmd_array.iter().map(String::as_str))
+                    .unwrap_or_else(|_| cmd_array.join(" "))
+            },
+        ))
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     pub fn pretty_json<T: std::fmt::Display>(
         s: T,
         _: &dyn askama::Values,
     ) -> ::askama::Result<String> {
         let s_str = s.to_string();
         // Try to parse as JSON and pretty-print with 2-space indentation
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&s_str) {
-            Ok(serde_json::to_string_pretty(&value).unwrap_or(s_str))
-        } else {
-            // If not valid JSON, return as-is
-            Ok(s_str)
-        }
+        Ok(serde_json::from_str::<serde_json::Value>(&s_str)
+            .ok()
+            .and_then(|value| serde_json::to_string_pretty(&value).ok())
+            .unwrap_or(s_str))
     }
 }
 

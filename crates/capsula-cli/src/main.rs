@@ -54,7 +54,7 @@ enum Commands {
         #[arg(long, conflicts_with = "run_id")]
         all: bool,
 
-        /// Server URL (e.g., http://localhost:3000)
+        /// Server URL (e.g., <http://localhost:3000>)
         #[arg(long, env = "CAPSULA_SERVER_URL")]
         server: Option<String>,
     },
@@ -67,7 +67,7 @@ enum Commands {
 #[derive(Subcommand, Debug)]
 enum VaultsCommands {
     List {
-        /// Server URL (e.g., http://localhost:3000)
+        /// Server URL (e.g., <http://localhost:3000>)
         #[arg(long, env = "CAPSULA_SERVER_URL")]
         server: Option<String>,
     },
@@ -301,14 +301,14 @@ fn push_single_run(
     });
 
     // Post the run metadata
-    let url = format!("{}/api/v1/runs", server_url);
+    let url = format!("{server_url}/api/v1/runs");
     let http_client = reqwest::blocking::Client::new();
     let response = http_client.post(&url).json(&create_run_payload).send()?;
 
     if !response.status().is_success() {
         if response.status().as_u16() == 409 {
             // Return a special error that caller can detect
-            anyhow::bail!("Run already exists: {}", run_name);
+            anyhow::bail!("Run already exists: {run_name}");
         }
         anyhow::bail!("Failed to create run on server: {}", response.status());
     }
@@ -631,7 +631,11 @@ path = \".\"
                     )
                 })?;
         }
-        Commands::Push { run_id, all, server } => {
+        Commands::Push {
+            run_id,
+            all,
+            server,
+        } => {
             if !all && run_id.is_none() {
                 anyhow::bail!("Either provide a run ID/name or use --all flag");
             }
@@ -667,8 +671,11 @@ path = \".\"
 
             if all {
                 // Push all runs in the vault
-                info!("Pushing all runs from vault '{}' to server {}", vault_name, server_url);
-                
+                info!(
+                    "Pushing all runs from vault '{}' to server {}",
+                    vault_name, server_url
+                );
+
                 let mut success_count = 0;
                 let mut skip_count = 0;
                 let mut error_count = 0;
@@ -691,7 +698,7 @@ path = \".\"
 
                     let run_dir = entry.path();
                     let capsula_dir = run_dir.join("_capsula");
-                    
+
                     if !capsula_dir.exists() {
                         continue;
                     }
@@ -709,20 +716,24 @@ path = \".\"
                     }
                 }
 
-                info!("Push all completed: {} succeeded, {} skipped (already exist), {} failed", 
-                      success_count, skip_count, error_count);
-                
+                info!(
+                    "Push all completed: {} succeeded, {} skipped (already exist), {} failed",
+                    success_count, skip_count, error_count
+                );
+
                 if error_count > 0 {
-                    anyhow::bail!("{} runs failed to push", error_count);
+                    anyhow::bail!("{error_count} runs failed to push");
                 }
             } else {
                 // Push single run
-                let run_id = run_id.as_ref().unwrap();
+                let run_id = run_id
+                    .as_ref()
+                    .expect("run_id must be Some when all is false");
                 info!("Pushing run {} to server {}", run_id, server_url);
 
                 let run_dir = find_run_dir(&vault_dir, run_id)?;
                 push_single_run(&run_dir, vault_name, &server_url, &client)?;
-                
+
                 info!("Push completed successfully");
             }
         }
