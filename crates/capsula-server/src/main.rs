@@ -1,6 +1,6 @@
 use axum::{
     Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::{Html, IntoResponse, Json},
     routing::{get, post},
 };
@@ -41,7 +41,9 @@ async fn main() {
     let app = Router::new()
         .route("/", get(handler))
         .route("/health", get(health_check))
-        .route("/api/runs", post(create_run))
+        .route("/api/vaults", get(list_vaults))
+        .route("/api/vaults/{name}", get(get_vault_info))
+        .route("/api/runs", post(create_run).get(list_runs))
         .route("/api/runs/{id}", get(get_run))
         .with_state(pool);
 
@@ -72,6 +74,152 @@ async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
             "database": "disconnected",
             "error": e.to_string()
         })),
+    }
+}
+
+async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
+    info!("Listing all vaults");
+
+    let result = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        GROUP BY vault
+        ORDER BY vault
+        "#
+    )
+    .fetch_all(&pool)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            let vaults: Vec<models::VaultInfo> = rows
+                .into_iter()
+                .map(|row| models::VaultInfo {
+                    name: row.name,
+                    run_count: row.run_count,
+                })
+                .collect();
+            info!("Found {} vaults", vaults.len());
+            Json(json!({
+                "status": "ok",
+                "vaults": vaults
+            }))
+        }
+        Err(e) => {
+            error!("Failed to list vaults: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn get_vault_info(
+    State(pool): State<PgPool>,
+    Path(name): Path<String>,
+) -> impl IntoResponse {
+    info!("Getting vault info: {}", name);
+
+    let result = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        WHERE vault = $1
+        GROUP BY vault
+        "#,
+        name
+    )
+    .fetch_optional(&pool)
+    .await;
+
+    match result {
+        Ok(Some(row)) => {
+            let vault = models::VaultInfo {
+                name: row.name,
+                run_count: row.run_count,
+            };
+            info!("Found vault: {} with {} runs", vault.name, vault.run_count);
+            Json(json!({
+                "status": "ok",
+                "exists": true,
+                "vault": vault
+            }))
+        }
+        Ok(None) => {
+            info!("Vault not found: {}", name);
+            Json(json!({
+                "status": "ok",
+                "exists": false,
+                "vault": null
+            }))
+        }
+        Err(e) => {
+            error!("Failed to get vault info: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+async fn list_runs(
+    State(pool): State<PgPool>,
+    Query(params): Query<models::ListRunsQuery>,
+) -> impl IntoResponse {
+    if let Some(ref vault) = params.vault {
+        info!("Listing runs for vault: {}", vault);
+    } else {
+        info!("Listing all runs");
+    }
+
+    let result = if let Some(vault) = params.vault {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            WHERE vault = $1
+            ORDER BY timestamp DESC
+            "#,
+            vault
+        )
+        .fetch_all(&pool)
+        .await
+    } else {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            ORDER BY timestamp DESC
+            "#
+        )
+        .fetch_all(&pool)
+        .await
+    };
+
+    match result {
+        Ok(runs) => {
+            info!("Found {} runs", runs.len());
+            Json(json!({
+                "status": "ok",
+                "runs": runs
+            }))
+        }
+        Err(e) => {
+            error!("Failed to list runs: {}", e);
+            Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }))
+        }
     }
 }
 
