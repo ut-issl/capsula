@@ -538,17 +538,28 @@ async fn create_run(
     match result {
         Ok(_) => {
             info!("Run created successfully");
-            Json(json!({
-                "status": "created",
-                "run": request
-            }))
+            (
+                StatusCode::CREATED,
+                Json(json!({
+                    "status": "created",
+                    "run": request
+                })),
+            )
         }
         Err(e) => {
             error!("Failed to insert run: {}", e);
-            Json(json!({
-                "status": "error",
-                "error": e.to_string()
-            }))
+            let status = if e.to_string().contains("duplicate key") {
+                StatusCode::CONFLICT
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            (
+                status,
+                Json(json!({
+                    "status": "error",
+                    "error": e.to_string()
+                })),
+            )
         }
     }
 }

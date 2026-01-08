@@ -234,10 +234,11 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
 }
 
 fn find_run_dir(vault_dir: &std::path::Path, run_id: &str) -> Result<PathBuf> {
-    // Search for the run directory by ID
+    // Search for the run directory by ID or name
+    // Structure: vault_dir/{YYYY-MM-DD}/{HHMMSS-name}/
     for entry in walkdir::WalkDir::new(vault_dir)
-        .min_depth(3)
-        .max_depth(3)
+        .min_depth(2)
+        .max_depth(2)
         .into_iter()
         .filter_entry(|e| e.file_type().is_dir())
     {
@@ -572,11 +573,8 @@ path = \".\"
             // Create client and check if vault exists
             let client = capsula_client::CapsulaClient::new(&server_url);
 
-            // Get vault name from metadata
-            let vault_name = metadata
-                .get("vault")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow::anyhow!("Vault name not found in metadata"))?;
+            // Get vault name from config
+            let vault_name = &config.vault.name;
 
             // Check if vault exists on server
             match client.vault_exists(vault_name) {
@@ -594,15 +592,22 @@ path = \".\"
                 }
             }
 
+            // Convert duration object to milliseconds
+            let duration_ms = command_output.get("duration").and_then(|d| {
+                let secs = d.get("secs")?.as_u64()?;
+                let nanos = d.get("nanos")?.as_u64()?;
+                Some((secs * 1000) + (nanos / 1_000_000))
+            });
+
             let create_run_payload = serde_json::json!({
-                "id": run_id,
+                "id": metadata["id"],
                 "name": metadata["name"],
                 "timestamp": metadata["timestamp"],
                 "command": serde_json::to_string(&metadata["command"])?,
-                "vault": metadata["vault"],
+                "vault": vault_name,
                 "project_root": metadata["project_root"],
                 "exit_code": command_output.get("exit_code"),
-                "duration_ms": command_output.get("duration_ms"),
+                "duration_ms": duration_ms,
                 "stdout": command_output.get("stdout"),
                 "stderr": command_output.get("stderr"),
             });
@@ -638,7 +643,11 @@ path = \".\"
             // Upload files and hooks
             if !files.is_empty() || pre_run_hooks.is_some() || post_run_hooks.is_some() {
                 info!("Uploading {} files and hook outputs", files.len());
-                let response = client.upload_run(&run_id, &files, pre_run_hooks, post_run_hooks)?;
+                let actual_run_id = metadata["id"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("Run ID not found in metadata"))?;
+                let response =
+                    client.upload_run(actual_run_id, &files, pre_run_hooks, post_run_hooks)?;
                 info!(
                     "Upload complete: {} files, {} bytes",
                     response.files_processed, response.total_bytes

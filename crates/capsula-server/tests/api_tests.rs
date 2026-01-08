@@ -100,7 +100,7 @@ async fn test_create_and_get_run() {
         .await
         .expect("Failed to create run");
 
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), 201);
     let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
     assert_eq!(body["status"], "created");
     assert_eq!(body["run"]["id"], "01TEST123456789ABCDEFGHIJ");
@@ -161,7 +161,7 @@ async fn test_get_vault_info() {
         .send()
         .await
         .expect("Failed to create run");
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), 201);
 
     let response = client
         .get(format!("{}/api/v1/vaults/default", ctx.base_url()))
@@ -301,7 +301,7 @@ async fn test_single_file_upload_with_storage() {
         .send()
         .await
         .expect("Failed to create run");
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), 201);
 
     let file_content = b"This is test file content for upload";
     let form = reqwest::multipart::Form::new()
@@ -353,7 +353,7 @@ async fn test_multiple_file_upload_with_storage() {
         .send()
         .await
         .expect("Failed to create run");
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), 201);
 
     let first_content = b"First file content";
     let second_content = b"Second file content";
@@ -418,7 +418,7 @@ async fn test_file_download() {
         .send()
         .await
         .expect("Failed to create run");
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), 201);
 
     // Upload a file
     let file_content = b"This is downloadable content\nLine 2\nLine 3";
@@ -527,7 +527,7 @@ async fn test_hook_outputs_storage() {
         .send()
         .await
         .expect("Failed to create run");
-    assert_eq!(response.status(), 200);
+    assert_eq!(response.status(), 201);
 
     // Create hook outputs JSON
     let pre_run_hooks = json!([
