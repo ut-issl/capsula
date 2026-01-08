@@ -117,3 +117,75 @@ footer {
     justify-content: center;
     margin-top: 1.5rem;
 }
+
+/* Vault grid */
+.vault-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.vault-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: box-shadow 0.2s;
+}
+
+.vault-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.vault-card h3 {
+    margin: 0 0 1rem 0;
+    color: #2c3e50;
+}
+
+.vault-card h3 a {
+    color: #2c3e50;
+    text-decoration: none;
+}
+
+.vault-card h3 a:hover {
+    color: #3498db;
+}
+
+.vault-stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #7f8c8d;
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+/* Empty state */
+.empty-state {
+    background: white;
+    padding: 3rem 2rem;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-top: 2rem;
+}
+
+.empty-state p {
+    color: #7f8c8d;
+    font-size: 1.125rem;
+}

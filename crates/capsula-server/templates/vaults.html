@@ -1,0 +1,25 @@
+{% extends "base.html" %} {% block title %}Vaults - Capsula Server{% endblock %}
+{% block content %}
+<h2>Vaults</h2>
+<p>Browse runs by vault</p>
+
+{% if vaults.is_empty() %}
+<div class="empty-state">
+    <p>No vaults found. Push some runs to get started!</p>
+</div>
+{% else %}
+<div class="vault-grid">
+    {% for vault in vaults %}
+    <div class="vault-card">
+        <h3><a href="/runs?vault={{ vault.name }}">{{ vault.name }}</a></h3>
+        <div class="vault-stats">
+            <div class="stat">
+                <span class="stat-label">Runs</span>
+                <span class="stat-value">{{ vault.run_count }}</span>
+            </div>
+        </div>
+        <a href="/runs?vault={{ vault.name }}" class="button">View Runs</a>
+    </div>
+    {% endfor %}
+</div>
+{% endif %} {% endblock %}

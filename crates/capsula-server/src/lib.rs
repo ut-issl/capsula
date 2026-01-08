@@ -14,13 +14,19 @@ use sqlx::PgPool;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use tower_http::services::ServeDir;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 mod models;
 
 #[derive(Template, WebTemplate)]
 #[template(path = "index.html")]
 struct IndexTemplate;
+
+#[derive(Template, WebTemplate)]
+#[template(path = "vaults.html")]
+struct VaultsTemplate {
+    vaults: Vec<models::VaultInfo>,
+}
 
 pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     sqlx::postgres::PgPoolOptions::new()
@@ -32,9 +38,10 @@ pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
 
 pub fn build_app(pool: PgPool) -> Router {
     let static_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
-    
+
     Router::new()
         .route("/", get(index))
+        .route("/vaults", get(vaults_page))
         .route("/health", get(health_check))
         .route("/api/vaults", get(list_vaults))
         .route("/api/vaults/{name}", get(get_vault_info))
@@ -48,6 +55,39 @@ pub fn build_app(pool: PgPool) -> Router {
 
 async fn index() -> impl IntoResponse {
     IndexTemplate
+}
+
+async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
+    info!("Rendering vaults page");
+
+    let result = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        GROUP BY vault
+        ORDER BY vault
+        "#
+    )
+    .fetch_all(&pool)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            let vaults: Vec<models::VaultInfo> = rows
+                .into_iter()
+                .map(|row| models::VaultInfo {
+                    name: row.name,
+                    run_count: row.run_count,
+                })
+                .collect();
+            VaultsTemplate { vaults }
+        }
+        Err(e) => {
+            error!("Failed to fetch vaults: {}", e);
+            // Return empty vaults on error
+            VaultsTemplate { vaults: Vec::new() }
+        }
+    }
 }
 
 async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
@@ -324,6 +364,8 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
                             pre_hooks.push(hook_output);
                         } else if row.phase == "post" {
                             post_hooks.push(hook_output);
+                        } else {
+                            warn!("Unknown hook phase: {}", row.phase);
                         }
                     }
 
