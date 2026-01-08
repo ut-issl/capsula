@@ -347,6 +347,10 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
 }
 
 #[expect(clippy::too_many_lines, reason = "TODO: Refactor later")]
+#[expect(
+    clippy::else_if_without_else,
+    reason = "There is `continue` or `return` in each branch, so `else` is redundant"
+)]
 async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> impl IntoResponse {
     info!("Received file upload request");
 
@@ -416,7 +420,7 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
 
         match field.bytes().await {
             Ok(data) => {
-                let size = data.len() as i64;
+                let size = data.len();
                 total_bytes += size as u64;
 
                 // Calculate SHA-256 hash
@@ -441,7 +445,9 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
                 let storage_path_str = file_storage_path.to_string_lossy().to_string();
 
                 // Save file only if it doesn't exist (deduplication)
-                if !file_storage_path.exists() {
+                if file_storage_path.exists() {
+                    info!("File already exists (deduplicated): {}", storage_path_str);
+                } else {
                     if let Err(e) = tokio::fs::write(&file_storage_path, &data).await {
                         error!("Failed to write file: {}", e);
                         return Json(json!({
@@ -450,8 +456,6 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
                         }));
                     }
                     info!("Saved new file: {}", storage_path_str);
-                } else {
-                    info!("File already exists (deduplicated): {}", storage_path_str);
                 }
 
                 // Store metadata in database if we have run_id
@@ -470,7 +474,7 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
                         "#,
                         rid,
                         relative_path,
-                        size,
+                        i64::try_from(usize::MAX).unwrap_or(-1),
                         hash,
                         storage_path_str,
                         content_type
