@@ -49,7 +49,7 @@ enum Commands {
     Push {
         /// Run ID to push (from a previous run)
         run_id: String,
-        
+
         /// Server URL (e.g., http://localhost:3000)
         #[arg(long, env = "CAPSULA_SERVER_URL")]
         server: Option<String>,
@@ -220,6 +220,42 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     Ok(runs)
 }
 
+fn find_run_dir(vault_dir: &std::path::Path, run_id: &str) -> Result<PathBuf> {
+    // Search for the run directory by ID
+    for entry in walkdir::WalkDir::new(vault_dir)
+        .min_depth(3)
+        .max_depth(3)
+        .into_iter()
+        .filter_entry(|e| e.file_type().is_dir())
+    {
+        let entry = entry?;
+        let capsula_dir = entry.path().join("_capsula");
+        if !capsula_dir.exists() {
+            continue;
+        }
+
+        let metadata_path = capsula_dir.join("metadata.json");
+        if !metadata_path.exists() {
+            continue;
+        }
+
+        let metadata_content = std::fs::read_to_string(&metadata_path)?;
+        let metadata: serde_json::Value = serde_json::from_str(&metadata_content)?;
+
+        if let Some(id) = metadata.get("id").and_then(|v| v.as_str()) {
+            if id == run_id {
+                return Ok(entry.path().to_path_buf());
+            }
+        }
+    }
+
+    anyhow::bail!(
+        "Run with ID {} not found in vault {}",
+        run_id,
+        vault_dir.display()
+    )
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "TODO: Refactor into smaller functions"
@@ -228,7 +264,7 @@ fn list_runs(vault_dir: &std::path::Path) -> Result<Vec<RunMetadata>> {
     clippy::cognitive_complexity,
     reason = "TODO: Refactor into smaller functions"
 )]
-async fn run() -> Result<()> {
+fn run() -> Result<()> {
     // Create the registry with all available hook types
     debug!("Creating hook registries");
     let pre_run_hook_registry = create_pre_run_hook_registry();
@@ -511,7 +547,7 @@ path = \".\"
 
             // Create run on server
             let client = capsula_client::CapsulaClient::new(&server_url);
-            
+
             let create_run_payload = serde_json::json!({
                 "id": run_id,
                 "name": metadata["name"],
@@ -527,12 +563,8 @@ path = \".\"
 
             // Post the run metadata
             let url = format!("{}/api/v1/runs", server_url);
-            let http_client = reqwest::Client::new();
-            let response = http_client
-                .post(&url)
-                .json(&create_run_payload)
-                .send()
-                .await?;
+            let http_client = reqwest::blocking::Client::new();
+            let response = http_client.post(&url).json(&create_run_payload).send()?;
 
             if !response.status().is_success() {
                 anyhow::bail!("Failed to create run on server: {}", response.status());
@@ -560,9 +592,7 @@ path = \".\"
             // Upload files and hooks
             if !files.is_empty() || pre_run_hooks.is_some() || post_run_hooks.is_some() {
                 info!("Uploading {} files and hook outputs", files.len());
-                let response = client
-                    .upload_run(&run_id, &files, pre_run_hooks, post_run_hooks)
-                    .await?;
+                let response = client.upload_run(&run_id, &files, pre_run_hooks, post_run_hooks)?;
                 info!(
                     "Upload complete: {} files, {} bytes",
                     response.files_processed, response.total_bytes
@@ -575,8 +605,7 @@ path = \".\"
     Ok(())
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     fmt()
         // Formatting
         .with_target(false)
@@ -589,7 +618,7 @@ async fn main() {
         )
         .init();
 
-    if let Err(err) = run().await {
+    if let Err(err) = run() {
         // Check for verbose mode via environment variable
         let verbose =
             std::env::var("RUST_BACKTRACE").is_ok() || std::env::var("CAPSULA_VERBOSE").is_ok();
