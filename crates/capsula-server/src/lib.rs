@@ -14,6 +14,17 @@ mod filters {
             Ok(s.to_string())
         }
     }
+
+    pub fn pretty_json<T: std::fmt::Display>(s: T, _: &dyn askama::Values) -> ::askama::Result<String> {
+        let s_str = s.to_string();
+        // Try to parse as JSON and pretty-print with 2-space indentation
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&s_str) {
+            Ok(serde_json::to_string_pretty(&value).unwrap_or(s_str))
+        } else {
+            // If not valid JSON, return as-is
+            Ok(s_str)
+        }
+    }
 }
 
 use axum::{

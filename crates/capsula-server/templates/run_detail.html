@@ -111,7 +111,7 @@
                 {% endmatch %}
                 <details class="hook-details">
                     <summary>View Output</summary>
-                    <pre class="hook-output">{{ hook.output }}</pre>
+                    <pre class="hook-output">{{ hook.output|pretty_json }}</pre>
                 </details>
             </div>
             {% endfor %}
@@ -142,7 +142,7 @@
                 {% endmatch %}
                 <details class="hook-details">
                     <summary>View Output</summary>
-                    <pre class="hook-output">{{ hook.output }}</pre>
+                    <pre class="hook-output">{{ hook.output|pretty_json }}</pre>
                 </details>
             </div>
             {% endfor %}
