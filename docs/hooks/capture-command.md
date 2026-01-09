@@ -1,38 +1,40 @@
 # capture-command
 
-Executes a command and captures its output and exit status.
+Runs a shell command and captures its output, exit code, and execution time.
+
+## Use Cases
+
+- **Capture tool versions** - Record Python, Node.js, or other tool versions
+- **Run diagnostic commands** - Capture system state with commands like `nvidia-smi` or `df`
+- **Execute analysis scripts** - Run quick analysis and save results
+- **Validate preconditions** - Check system state before running main command
 
 ## Configuration
 
+### Required Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `command` | array | Command and arguments as an array (e.g., `["python", "--version"]`) |
+
+### Optional Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `abort_on_failure` | boolean | `false` | If `true`, Capsula aborts the run if this command exits with a non-zero code |
+
+### Example
+
 ```toml
-# Simple command
-[[post-run.hooks]]
-id = "capture-command"
-command = ["python", "--version"]
-
-# Command with arguments
-[[post-run.hooks]]
-id = "capture-command"
-command = ["ls", "-la", "results/"]
-
-# Abort on failure
 [[pre-run.hooks]]
 id = "capture-command"
-command = ["git", "diff", "--quiet"]
-abort_on_failure = true
+command = ["python", "--version"]
+abort_on_failure = false
 ```
 
-## Parameters
+## Output Example
 
-- `command` (required): Array of command and arguments (e.g., `["python", "--version"]`)
-- `abort_on_failure` (optional, default: `false`): If `true`, aborts the run if command exits with non-zero status
-
-## Phases
-
-- ✅ Pre-run
-- ✅ Post-run
-
-## Output
+### Successful Command
 
 ```json
 {
@@ -44,41 +46,84 @@ abort_on_failure = true
     },
     "success": true
   },
+  "status": 0,
   "stdout": "Python 3.11.5\n",
   "stderr": "",
-  "status": 0
+  "abort_requested": false
 }
 ```
 
-### Fields
+### Failed Command
 
-- `stdout` (string): Standard output from the command
-- `stderr` (string): Standard error from the command
-- `status` (number): Process exit status code (0 = success)
+```json
+{
+  "__meta": {
+    "id": "capture-command",
+    "config": {
+      "command": ["nonexistent-command"],
+      "abort_on_failure": false
+    },
+    "success": true
+  },
+  "status": 127,
+  "stdout": "",
+  "stderr": "command not found: nonexistent-command\n",
+  "abort_requested": false
+}
+```
 
-## Use Cases
+### Failed Command with Abort
+
+```json
+{
+  "__meta": {
+    "id": "capture-command",
+    "config": {
+      "command": ["test", "-f", "required-file.txt"],
+      "abort_on_failure": true
+    },
+    "success": true
+  },
+  "status": 1,
+  "stdout": "",
+  "stderr": "",
+  "abort_requested": true
+}
+```
+
+When `abort_requested` is `true`, Capsula stops before running your main command.
+
+### Output Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | number | Exit code (0 = success, non-zero = failure) |
+| `stdout` | string | Standard output from the command |
+| `stderr` | string | Standard error from the command |
+| `abort_requested` | boolean | Whether Capsula should abort (only `true` when `abort_on_failure = true` and command failed) |
+
+## Complete Examples
 
 ### Capture Tool Versions
 
-Document versions of tools used:
+```toml title="capsula.toml"
+[vault]
+name = "experiments"
 
-```toml
 [[pre-run.hooks]]
 id = "capture-command"
 command = ["python", "--version"]
 
 [[pre-run.hooks]]
 id = "capture-command"
-command = ["pip", "show", "torch"]
+command = ["pip", "list"]
 
 [[pre-run.hooks]]
 id = "capture-command"
 command = ["git", "--version"]
 ```
 
-### Run Diagnostic Commands
-
-Check system configuration:
+### Capture GPU Information
 
 ```toml
 [[pre-run.hooks]]
@@ -87,260 +132,276 @@ command = ["nvidia-smi"]
 
 [[pre-run.hooks]]
 id = "capture-command"
+command = ["nvidia-smi", "--query-gpu=name,memory.total,memory.free", "--format=csv"]
+```
+
+### Validate Preconditions
+
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["test", "-f", "required-config.json"]
+abort_on_failure = true
+```
+
+If `required-config.json` doesn't exist, Capsula aborts before running your command.
+
+### Capture System State
+
+```toml
+# Disk space
+[[pre-run.hooks]]
+id = "capture-command"
 command = ["df", "-h"]
 
+# Memory usage
 [[pre-run.hooks]]
 id = "capture-command"
 command = ["free", "-h"]
-```
 
-### Generate Summary Reports
-
-Create summaries after execution:
-
-```toml
-[[post-run.hooks]]
-id = "capture-command"
-command = ["ls", "-lh", "results/"]
-
-[[post-run.hooks]]
-id = "capture-command"
-command = ["cat", "results/summary.txt"]
-
-[[post-run.hooks]]
-id = "capture-command"
-command = ["wc", "-l", "results/output.csv"]
-```
-
-### Validate Environment
-
-Abort if prerequisites aren't met:
-
-```toml
+# CPU info
 [[pre-run.hooks]]
 id = "capture-command"
-command = ["which", "python3"]
-abort_on_failure = true
+command = ["lscpu"]
+```
 
+## Command Format
+
+Commands are specified as arrays:
+
+```toml
+# Correct
+command = ["python", "--version"]
+command = ["ls", "-la", "/path/to/dir"]
+command = ["bash", "-c", "echo hello"]
+
+# Incorrect (strings don't work)
+# command = "python --version"  # ❌ Not supported
+```
+
+### Running Shell Commands
+
+For shell features (pipes, redirects, etc.), use `bash -c`:
+
+```toml
+# With pipes
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["bash", "-c", "ps aux | grep python"]
+
+# With redirects
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["bash", "-c", "cat file.txt 2>&1"]
+
+# With variables
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["bash", "-c", "echo $USER"]
+```
+
+## Using Abort on Failure
+
+### Validate File Exists
+
+```toml
 [[pre-run.hooks]]
 id = "capture-command"
 command = ["test", "-f", "config.yaml"]
 abort_on_failure = true
 ```
 
-## Examples
-
-### Python Environment Info
+### Validate Python Version
 
 ```toml
-[vault]
-name = "python-experiments"
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["python", "-c", "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)"]
+abort_on_failure = true
+```
 
+### Check Disk Space
+
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["bash", "-c", "df -h / | awk 'NR==2 {exit ($5 >= 90)}'"]  # Fail if > 90% full
+abort_on_failure = true
+```
+
+## Common Patterns
+
+### Pattern: Capture Environment
+
+```toml
 [[pre-run.hooks]]
 id = "capture-command"
 command = ["python", "--version"]
 
 [[pre-run.hooks]]
 id = "capture-command"
-command = ["python", "-c", "import sys; print(sys.executable)"]
-
-[[pre-run.hooks]]
-id = "capture-command"
 command = ["pip", "list"]
-```
 
-Output:
-
-```json
-[
-  {
-    "__meta": {
-      "id": "capture-command",
-      "config": {
-        "command": ["python", "--version"],
-        "abort_on_failure": false
-      },
-      "success": true
-    },
-    "stdout": "Python 3.11.5\n",
-    "stderr": "",
-    "status": 0
-  },
-  {
-    "__meta": {
-      "id": "capture-command",
-      "config": {
-        "command": ["python", "-c", "import sys; print(sys.executable)"],
-        "abort_on_failure": false
-      },
-      "success": true
-    },
-    "stdout": "/usr/local/bin/python3.11\n",
-    "stderr": "",
-    "status": 0
-  }
-]
-```
-
-### GPU Information
-
-```toml
 [[pre-run.hooks]]
 id = "capture-command"
-command = ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv"]
+command = ["conda", "env", "export"]
 ```
 
-Output:
-
-```json
-{
-  "__meta": {
-    "id": "capture-command",
-    "config": {
-      "command": ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv"],
-      "abort_on_failure": false
-    },
-    "success": true
-  },
-  "stdout": "name, memory.total [MiB], driver_version\nNVIDIA A100-SXM4-40GB, 40960 MiB, 535.129.03\n",
-  "stderr": "",
-  "status": 0
-}
-```
-
-## Running Shell Scripts
-
-If you need to run shell scripts with pipes, redirections, or other shell features, invoke the shell explicitly:
+### Pattern: Validate Preconditions
 
 ```toml
-[[post-run.hooks]]
-id = "capture-command"
-command = ["sh", "-c", "echo 'Files:' && ls -1 results/"]
-
-[[post-run.hooks]]
-id = "capture-command"
-command = ["bash", "-c", "grep -r 'ERROR' logs/ | wc -l"]
-```
-
-## Command Exit Codes
-
-### Successful Command
-
-```json
-{
-  "stdout": "Success output",
-  "stderr": "",
-  "status": 0
-}
-```
-
-### Failed Command
-
-Non-zero exit codes are captured but don't stop execution (unless `abort_on_failure = true`):
-
-```json
-{
-  "__meta": {
-    "id": "capture-command",
-    "config": {
-      "command": ["grep", "NOTFOUND", "file.txt"],
-      "abort_on_failure": false
-    },
-    "success": true
-  },
-  "stdout": "",
-  "stderr": "grep: file.txt: No such file or directory\n",
-  "status": 1
-}
-```
-
-Note: `success: true` in `__meta` indicates the hook executed successfully (captured the command output), not that the command succeeded. The command's exit status is in the `status` field.
-
-## Error Handling
-
-### Command Execution Failure
-
-If the command cannot be executed at all:
-
-```json
-{
-  "__meta": {
-    "id": "capture-command",
-    "success": false,
-    "error": "Failed to execute command: No such file or directory"
-  }
-}
-```
-
-### Abort on Failure
-
-If `abort_on_failure = true` and the command fails, the run will be aborted after hooks complete:
-
-```toml
+# Check required files
 [[pre-run.hooks]]
 id = "capture-command"
-command = ["test", "-f", "required-file.txt"]
+command = ["test", "-f", "data.csv"]
+abort_on_failure = true
+
+# Check required directories
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["test", "-d", "outputs"]
+abort_on_failure = true
+
+# Check internet connectivity
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["ping", "-c", "1", "8.8.8.8"]
 abort_on_failure = true
 ```
 
-If `required-file.txt` doesn't exist, the command exits with status 1, and Capsula will abort before running the main command.
+### Pattern: Capture GPU Info
 
-### Non-Fatal Behavior
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["nvidia-smi", "-L"]  # List GPUs
 
-By default (`abort_on_failure = false`), command failures are non-fatal:
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["nvidia-smi", "--query-gpu=gpu_name,memory.total,memory.free,utilization.gpu", "--format=csv"]
+```
 
-1. Exit code and error output are captured
-2. Hook succeeds (marked as `success: true`)
-3. Execution continues with remaining hooks
+### Pattern: Analyze Results
 
-## Performance Considerations
+```toml
+# Count output lines
+[[post-run.hooks]]
+id = "capture-command"
+command = ["wc", "-l", "output.txt"]
+
+# Compute statistics
+[[post-run.hooks]]
+id = "capture-command"
+command = ["python", "analyze.py", "results.csv"]
+```
+
+## Tips
+
+### Use Pre-Run for Validation
+
+Put validation commands in pre-run phase:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["test", "-f", "config.yaml"]
+abort_on_failure = true
+```
+
+### Use Post-Run for Analysis
+
+Put analysis commands in post-run phase:
+
+```toml
+[[post-run.hooks]]
+id = "capture-command"
+command = ["python", "summarize.py"]
+```
+
+### Capture Both stdout and stderr
+
+Both are captured automatically. Some tools write to stderr:
+
+```toml
+# Python --version writes to stderr on some versions
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["python", "--version"]
+```
 
 ### Long-Running Commands
 
-Commands run synchronously and block execution:
+This hook waits for the command to complete. Avoid long-running commands in hooks - run them as your main command instead:
 
-```toml
-[[post-run.hooks]]
-id = "capture-command"
-command = ["sleep", "60"]  # Blocks for 60 seconds
+```bash
+# Don't do this in a hook
+capsula run my-quick-task  # Main task is quick
+
+# Do this instead
+capsula run my-long-task  # Long task is the main command
 ```
 
-Avoid long-running commands in hooks. Instead:
+## Common Questions
 
-1. Run quick diagnostic commands
-2. For analysis, run them separately after `capsula run` completes
+**Q: Can I capture output from my main command?**
 
-### Command Timeouts
+Yes! Your main command's output is automatically captured in `command.json`. This hook is for **additional** commands you want to run.
 
-Currently, there is no timeout mechanism. Commands run until completion.
+**Q: What if the command doesn't exist?**
 
-## Security Considerations
+The command will fail (non-zero exit code) and stderr will contain an error message. The hook itself still succeeds (the error is recorded).
 
-Commands are executed directly (not via shell unless you explicitly invoke a shell). This provides some protection against command injection, but you should still be careful:
+**Q: Can I run multiple commands in sequence?**
 
-- Avoid constructing commands from untrusted user input
-- Be cautious when using environment variables in commands
-- When invoking a shell with `-c`, be extra careful about quoting
-
-Safe:
+Use `bash -c` with `&&`:
 
 ```toml
-[[post-run.hooks]]
+[[pre-run.hooks]]
 id = "capture-command"
-command = ["echo", "Static text"]  # Safe - no shell interpolation
+command = ["bash", "-c", "cd /tmp && ls -la && pwd"]
 ```
 
-Potentially unsafe:
+**Q: Can I use environment variables in commands?**
+
+Yes, with `bash -c`:
 
 ```toml
-[[post-run.hooks]]
+[[pre-run.hooks]]
 id = "capture-command"
-# If USER_INPUT contains shell metacharacters, this could be dangerous
-command = ["sh", "-c", "echo $USER_INPUT"]
+command = ["bash", "-c", "echo $PATH"]
 ```
 
-## See Also
+**Q: What's the difference between this and my main command?**
 
-- [capture_file](capture-file.md) - Capture file contents
-- [capture_env](capture-env.md) - Capture environment variables
-- [capture_machine](capture-machine.md) - Capture system information
+- **Hook commands**: Run before or after your main command to capture environment/results
+- **Main command**: The primary task you're running (specified in `capsula run <command>`)
+
+**Q: Can I access Capsula environment variables?**
+
+Hook commands run in a different context and don't have access to Capsula environment variables (those are only set for your main command).
+
+**Q: What happens if abort_on_failure is true but the hook itself fails?**
+
+If the command exits with a non-zero code and `abort_on_failure = true`, Capsula aborts the run. The hook output shows `abort_requested: true`.
+
+**Q: Are there security concerns?**
+
+Yes - be careful with command injection if constructing commands from user input. Use static commands in your config file.
+
+**Q: Can I pass arguments from Capsula to the command?**
+
+Not directly in hook commands. If you need dynamic behavior, put logic in a script and call it:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["./scripts/check-environment.sh"]
+```
+
+## Related Hooks
+
+- [capture-env](capture-env.md) - Capture environment variables
+- [capture-machine](capture-machine.md) - Capture system information
+- [capture-git-repo](capture-git-repo.md) - Capture git state (with optional abort)
+
+[:octicons-arrow-left-24: Back to Hooks](../hooks.md)

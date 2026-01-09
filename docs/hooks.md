@@ -1,166 +1,585 @@
-# Hooks Overview
+# Hooks
 
-Hooks are the core mechanism for capturing context in Capsula. They execute before (pre-run) or after (post-run) your command.
+Hooks are the core feature of Capsula - they tell Capsula what information to capture and when. This page explains how hooks work and provides an overview of all available hooks.
 
-## What are Hooks?
+## What Are Hooks?
 
-Hooks are small, composable units that:
+A hook is a small unit of functionality that captures a specific piece of information. For example:
 
-- Capture specific pieces of information about your environment
-- Execute at defined points in the command lifecycle
-- Produce structured JSON output
-- Can optionally abort execution based on conditions
+- The `capture-cwd` hook captures your current working directory
+- The `capture-git-repo` hook captures git repository state
+- The `capture-file` hook captures files
+
+Hooks are defined in your `capsula.toml` configuration file.
 
 ## Hook Phases
 
-### Pre-Run Hooks
+Hooks run in two phases:
 
-Execute **before** your command runs. Use them to:
+### Pre-Run Phase
 
-- Capture initial state
-- Validate conditions (e.g., clean git repository)
-- Document input configuration
+Runs **before** your command executes. Use pre-run hooks to:
 
-### Post-Run Hooks
+- Capture the initial environment state
+- Validate preconditions (like clean git state)
+- Record input configurations
+- Capture system information
 
-Execute **after** your command completes. Use them to:
+Example:
 
-- Capture results and outputs
-- Archive generated files
-- Send notifications
+```toml
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
+
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
+```
+
+### Post-Run Phase
+
+Runs **after** your command completes. Use post-run hooks to:
+
+- Capture output files and results
 - Run analysis commands
+- Send notifications
+- Archive generated artifacts
+
+Example:
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*.png"
+mode = "copy"
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#results"
+```
 
 ## Available Hooks
 
 ### Capture Hooks
 
-- **[capture_cwd](hooks/capture-cwd.md)** - Current working directory
-- **[capture_env](hooks/capture-env.md)** - Environment variables
-- **[capture_git_repo](hooks/capture-git-repo.md)** - Git repository state
-- **[capture_file](hooks/capture-file.md)** - File content and hashes
-- **[capture_machine](hooks/capture-machine.md)** - System information
-- **[capture_command](hooks/capture-command.md)** - Shell command output
+These hooks capture information about your environment and files.
 
-### Notification Hooks
+#### [capture-cwd](hooks/capture-cwd.md)
 
-- **[notify_slack](hooks/notify-slack.md)** - Slack notifications
-
-## Hook Configuration
-
-Hooks are configured in `capsula.toml`:
+Captures the current working directory.
 
 ```toml
-[vault]
-name = "my-vault"
+[[pre-run.hooks]]
+id = "capture-cwd"
+```
 
+**Use when:** You want to know where the command was run from.
+
+---
+
+#### [capture-env](hooks/capture-env.md)
+
+Captures environment variables.
+
+```toml
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
+```
+
+**Use when:** Your command depends on specific environment variables.
+
+---
+
+#### [capture-git-repo](hooks/capture-git-repo.md)
+
+Captures git repository state including commit hash and dirty status.
+
+```toml
 [[pre-run.hooks]]
 id = "capture-git-repo"
-name = "my-repo"
 path = "."
 allow_dirty = false
+```
 
+**Use when:** You want to ensure reproducibility by recording the exact code version.
+
+---
+
+#### [capture-file](hooks/capture-file.md)
+
+Captures files by copying, moving, or computing their hash.
+
+```toml
 [[post-run.hooks]]
 id = "capture-file"
 glob = "output.txt"
 mode = "copy"
+hash = "sha256"
 ```
 
-## Hook Execution
+**Use when:** You want to preserve input configurations or output results.
 
-### Execution Order
+---
 
-Hooks execute sequentially in the order they appear in the configuration:
+#### [capture-machine](hooks/capture-machine.md)
+
+Captures system information like CPU, memory, and OS details.
 
 ```toml
 [[pre-run.hooks]]
-id = "capture-git-repo"  # 1st
-name = "my-repo"
-path = "."
+id = "capture-machine"
+```
 
+**Use when:** Results might depend on hardware specifications.
+
+---
+
+#### [capture-command](hooks/capture-command.md)
+
+Runs a command and captures its output.
+
+```toml
 [[pre-run.hooks]]
-id = "capture-env"       # 2nd
+id = "capture-command"
+command = ["python", "--version"]
+```
+
+**Use when:** You want to record tool versions or run diagnostic commands.
+
+---
+
+### Notification Hooks
+
+These hooks send notifications about your runs.
+
+#### [notify-slack](hooks/notify-slack.md)
+
+Sends notifications to Slack with optional file attachments.
+
+```toml
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+attachment_globs = ["results/*.png"]
+```
+
+**Use when:** You want to be notified when long-running commands complete.
+
+---
+
+## Hook Configuration Basics
+
+### Basic Structure
+
+Each hook is configured as a TOML table with an `id` field:
+
+```toml
+[[pre-run.hooks]]
+id = "hook-type"
+option1 = "value"
+option2 = 123
+```
+
+### Multiple Hooks
+
+You can use the same hook type multiple times:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-env"
 name = "PATH"
 
 [[pre-run.hooks]]
-id = "capture-file"      # 3rd
-glob = "config.yaml"
+id = "capture-env"
+name = "HOME"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "USER"
 ```
 
-### Error Handling
+### Execution Order
 
-**Non-Fatal Errors**: Most hook errors are logged but don't stop execution:
+Hooks execute in the order they appear in your configuration file:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-cwd"     # Runs 1st
+
+[[pre-run.hooks]]
+id = "capture-git-repo"  # Runs 2nd
+path = "."
+
+[[pre-run.hooks]]
+id = "capture-machine"  # Runs 3rd
+```
+
+## Hook Output Format
+
+All hooks produce JSON output with a standard format.
+
+### Successful Hook Output
 
 ```json
 {
   "__meta": {
-    "id": "capture_file",
+    "id": "capture-cwd",
+    "config": {},
+    "success": true
+  },
+  "cwd": "/path/to/directory"
+}
+```
+
+The `__meta` field contains:
+
+- `id` - Hook ID from configuration
+- `config` - Configuration used for this hook
+- `success` - Whether the hook succeeded
+
+### Failed Hook Output
+
+When a hook fails, the error is recorded:
+
+```json
+{
+  "__meta": {
+    "id": "capture-file",
+    "config": {"glob": "missing.txt"},
     "success": false,
     "error": "File not found: missing.txt"
   }
 }
 ```
 
-**Fatal Errors**: Some hooks can abort the run:
+!!! info "Non-Fatal Errors"
+    Most hook errors are non-fatal - Capsula logs the error and continues with remaining hooks. This ensures partial success is always recorded.
 
-- `capture_git_repo` with `allow_dirty = false` when repository is dirty
+## Error Handling
 
-### Hook Output Format
+### Non-Fatal Errors
 
-All hooks produce JSON output with a `__meta` field:
+By default, hook failures don't stop execution:
 
-```json
-{
-  "__meta": {
-    "id": "capture_git_repo",
-    "config": { "allow_dirty": true },
-    "success": true
-  },
-  "commit": "a1b2c3d4...",
-  "branch": "main",
-  "dirty": false
-}
-```
+- Error is logged as a warning
+- Error is recorded in the hook's JSON output
+- Remaining hooks continue to execute
 
-## Quick Start Example
+This is useful for debugging - you can see what succeeded and what failed.
+
+### Fatal Errors (Aborting)
+
+Some hooks can request to abort the run:
+
+**Example:** Git hook with dirty repository
 
 ```toml
-[vault]
-name = "experiments"
-
-# Pre-run: Capture initial state
 [[pre-run.hooks]]
 id = "capture-git-repo"
-name = "experiment-repo"
 path = "."
+allow_dirty = false  # Abort if repo has uncommitted changes
+```
+
+If the repository is dirty, Capsula will:
+
+1. Save the hook output (showing the dirty state)
+2. Stop before running your command
+3. Exit with an error
+
+This prevents running experiments with uncommitted code changes.
+
+## Hook Selection Guide
+
+### For Reproducibility
+
+Essential hooks for reproducible research:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
+allow_dirty = false
 
 [[pre-run.hooks]]
-id = "capture-env"
-name = "PATH"
-
-[[pre-run.hooks]]
-id = "capture-env"
-name = "PYTHONPATH"
+id = "capture-machine"
 
 [[pre-run.hooks]]
 id = "capture-file"
 glob = "config.yaml"
 mode = "copy"
 
-# Post-run: Capture results
 [[post-run.hooks]]
 id = "capture-file"
-glob = "results/output.json"
+glob = "results/*"
+mode = "copy"
+```
+
+### For Debugging
+
+Useful hooks for troubleshooting:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-cwd"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "PATH"
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["python", "--version"]
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["pip", "list"]
+```
+
+### For Notifications
+
+Hooks for staying informed:
+
+```toml
+[[pre-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+attachment_globs = ["results/*.png"]
+```
+
+### For Auditing
+
+Hooks for compliance and auditing:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
+
+[[pre-run.hooks]]
+id = "capture-machine"
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "USER"
+
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "inputs/**/*"
 mode = "copy"
 hash = "sha256"
 
 [[post-run.hooks]]
-id = "notify-slack"
-channel = "C1234567890"
-attachment_globs = ["results/*.png"]
+id = "capture-file"
+glob = "outputs/**/*"
+mode = "copy"
+hash = "sha256"
 ```
 
-## Next Steps
+## Common Patterns
 
-- Browse individual hook documentation in the menu
-- [Configuration Guide](configuration.md) - Complete configuration reference
-- [Development](development.md) - Create custom hooks
+### Pattern: Capture Input Config
+
+Save the configuration before running:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.json"
+mode = "copy"
+```
+
+### Pattern: Capture and Verify Git State
+
+Ensure clean git state:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
+allow_dirty = false
+```
+
+### Pattern: Archive Results
+
+Save all output files:
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/**/*"
+mode = "move"
+```
+
+### Pattern: Record Tool Versions
+
+Capture versions of tools used:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["python", "--version"]
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["pip", "list"]
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["git", "--version"]
+```
+
+### Pattern: Notify on Completion
+
+Send Slack notification when done:
+
+```toml
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+attachment_globs = ["summary.txt", "plots/*.png"]
+```
+
+### Pattern: Hash Without Copying
+
+Verify file integrity without copying:
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "large-model.bin"
+mode = "none"
+hash = "sha256"
+```
+
+## Best Practices
+
+### 1. Order Hooks Carefully
+
+Put validation hooks first:
+
+```toml
+# Check git state first
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
+allow_dirty = false
+
+# Then capture other info
+[[pre-run.hooks]]
+id = "capture-machine"
+```
+
+### 2. Capture Inputs in Pre-Run
+
+```toml
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
+```
+
+### 3. Capture Outputs in Post-Run
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*"
+mode = "copy"
+```
+
+### 4. Use `mode = "copy"` for Shared Files
+
+If multiple hooks need the same file, use `copy` not `move`:
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "report.pdf"
+mode = "copy"  # File stays available
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#reports"
+attachment_globs = ["report.pdf"]  # Can still access it
+```
+
+### 5. Use Glob Patterns Effectively
+
+```toml
+glob = "*.txt"              # All .txt in current dir
+glob = "results/**/*.csv"   # All .csv in results/ tree
+glob = "data_?.json"        # data_1.json, data_2.json, etc.
+```
+
+## Exploring Hooks
+
+Click on any hook below to see detailed documentation:
+
+<div class="grid cards" markdown>
+
+-   **[capture-cwd](hooks/capture-cwd.md)**
+
+    Capture current working directory
+
+-   **[capture-env](hooks/capture-env.md)**
+
+    Capture environment variables
+
+-   **[capture-git-repo](hooks/capture-git-repo.md)**
+
+    Capture git repository state
+
+-   **[capture-file](hooks/capture-file.md)**
+
+    Capture files with copy/move/hash
+
+-   **[capture-machine](hooks/capture-machine.md)**
+
+    Capture system information
+
+-   **[capture-command](hooks/capture-command.md)**
+
+    Run commands and capture output
+
+-   **[notify-slack](hooks/notify-slack.md)**
+
+    Send Slack notifications
+
+</div>
+
+## What's Next?
+
+<div class="grid cards" markdown>
+
+-   :material-book-open-variant:{ .lg .middle } **Examples**
+
+    ---
+
+    See complete examples for different use cases.
+
+    [:octicons-arrow-right-24: View examples](examples.md)
+
+-   :material-cog:{ .lg .middle } **Configuration**
+
+    ---
+
+    Learn about all configuration options.
+
+    [:octicons-arrow-right-24: Configuration guide](configuration.md)
+
+-   :material-help-circle:{ .lg .middle } **Troubleshooting**
+
+    ---
+
+    Having hook issues? Check the troubleshooting guide.
+
+    [:octicons-arrow-right-24: Troubleshooting](troubleshooting.md)
+
+</div>

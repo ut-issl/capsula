@@ -1,194 +1,380 @@
 # Getting Started
 
-This guide will help you install Capsula and run your first command.
+This guide will walk you through using Capsula for the first time. By the end, you'll have run your first command with Capsula and understand how to view the captured data.
 
-## Prerequisites
+!!! info "Before you begin"
+    Make sure you have [installed Capsula](installation.md) and can run `capsula --version`.
 
-- Rust toolchain (1.70 or later)
-- Git (for repository state capture)
+## Your First Capsula Run
 
-## Installation
+Let's start with a simple example that captures your current directory and runs a basic command.
 
-### From Source
+### Step 1: Create a Configuration File
 
-Clone the repository and install:
+In any directory, create a file named `capsula.toml`:
 
-```bash
-git clone https://github.com/ut-issl/capsula.git
-cd capsula
-cargo install --path crates/capsula-cli --locked
-```
-
-### Verify Installation
-
-Check that Capsula is installed:
-
-```bash
-capsula --version
-```
-
-## Your First Run
-
-### 1. Create a Configuration File
-
-Create a `capsula.toml` file in your project directory:
-
-```toml
+```toml title="capsula.toml"
 [vault]
-name = "my-project"
+name = "my-first-vault"
 
 [[pre-run.hooks]]
 id = "capture-cwd"
-
-[[pre-run.hooks]]
-id = "capture-git-repo"
-name = "my-repo"
-path = "."
-
-[[post-run.hooks]]
-id = "capture-command"
-command = ["echo", "Post-run complete"]
 ```
 
-### 2. Run a Command
+This configuration tells Capsula to:
 
-Execute a command with Capsula:
+- Store captured data in a vault named "my-first-vault"
+- Before running the command, capture the current working directory
+
+### Step 2: Run a Command
+
+Now run a simple command with Capsula:
 
 ```bash
 capsula run echo "Hello, Capsula!"
 ```
 
-This will:
+You should see output like:
 
-1. Create a run directory in `.capsula/my-project/{date}/{time-name}/`
-2. Execute pre-run hooks (capture working directory and git state)
-3. Run your command
-4. Execute post-run hooks
-5. Save all captured data
+```
+Hello, Capsula!
+```
 
-### 3. View the Output
+The command runs normally, but Capsula has captured information in the background!
 
-Check the captured data:
+### Step 3: View the Captured Data
+
+List all captured runs:
 
 ```bash
-# List all runs
 capsula list
-
-# View the latest run directory
-ls -la .capsula/my-project/$(date +%Y-%m-%d)/
 ```
 
-The run directory contains:
+You'll see output like:
 
 ```
-.capsula/my-project/2025-12-30/143022-chubby-back/
-├── _capsula/
-│   ├── metadata.json      # Run metadata (ID, command, timestamp)
-│   ├── pre-run.json       # Pre-run hook outputs
-│   ├── command.json       # Command execution results
-│   └── post-run.json      # Post-run hook outputs
+TIMESTAMP (UTC)      NAME                  COMMAND
+---------------------------------------------------------------------------------------------
+2025-01-09 14:30:22  happy-river           echo "Hello, Capsula!"
 ```
 
-### 4. Inspect the JSON Files
+Each run gets a timestamp and a randomly generated name (like "happy-river") for easy identification.
 
-View the metadata:
+### Step 4: Explore the Vault
+
+Let's look at what Capsula captured. The vault is stored in `.capsula/`:
 
 ```bash
-cat .capsula/my-project/*/latest/_capsula/metadata.json
+ls .capsula/my-first-vault/
 ```
 
-View pre-run hook results:
+You'll see a directory structure like:
+
+```
+.capsula/my-first-vault/
+└── 2025-01-09/              # Today's date
+    └── 143022-happy-river/  # Time and run name
+        └── _capsula/        # Capsula metadata
+            ├── metadata.json
+            ├── pre-run.json
+            ├── command.json
+            └── post-run.json
+```
+
+### Step 5: Inspect the JSON Files
+
+View the run metadata:
 
 ```bash
-cat .capsula/my-project/*/latest/_capsula/pre-run.json
+cat .capsula/my-first-vault/2025-01-09/143022-happy-river/_capsula/metadata.json
 ```
 
-## Common Use Cases
+This shows information about the run:
 
-### Capture Python Script Execution
+```json
+{
+  "id": "01K8WSYC91YAE21R7CWHQ4KYN2",
+  "name": "happy-river",
+  "command": ["echo", "Hello, Capsula!"],
+  "timestamp": "2025-01-09T14:30:22.473+00:00"
+}
+```
 
-```toml
+View the pre-run hook output:
+
+```bash
+cat .capsula/my-first-vault/2025-01-09/143022-happy-river/_capsula/pre-run.json
+```
+
+This shows the captured current directory:
+
+```json
+[
+  {
+    "__meta": {
+      "id": "capture-cwd",
+      "config": {},
+      "success": true
+    },
+    "cwd": "/Users/yourname/projects/my-project"
+  }
+]
+```
+
+View the command execution result:
+
+```bash
+cat .capsula/my-first-vault/2025-01-09/143022-happy-river/_capsula/command.json
+```
+
+This shows the command's output and exit code:
+
+```json
+{
+  "exit_code": 0,
+  "stdout": "Hello, Capsula!\n",
+  "stderr": "",
+  "duration": {"secs": 0, "nanos": 1986042}
+}
+```
+
+## A More Practical Example
+
+Now let's try something more useful - capturing git state and a configuration file.
+
+### Step 1: Update Your Configuration
+
+Update your `capsula.toml`:
+
+```toml title="capsula.toml"
 [vault]
-name = "ml-experiments"
+name = "my-experiments"
 
+# Capture git state before running
 [[pre-run.hooks]]
 id = "capture-git-repo"
-name = "ml-project"
 path = "."
-allow_dirty = false  # Fail if repo is dirty
+allow_dirty = true
 
+# Capture working directory
+[[pre-run.hooks]]
+id = "capture-cwd"
+
+# Capture an environment variable
 [[pre-run.hooks]]
 id = "capture-env"
-name = "PYTHONPATH"
-
-[[pre-run.hooks]]
-id = "capture-env"
-name = "CUDA_VISIBLE_DEVICES"
-
-[[pre-run.hooks]]
-id = "capture-file"
-glob = "config.yaml"
-mode = "copy"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/metrics.json"
-mode = "copy"
+name = "USER"
 ```
 
-Run your script:
+### Step 2: Create a Test File
+
+Create a simple test file:
 
 ```bash
-capsula run python train.py --config config.yaml
+echo "test data" > test.txt
 ```
 
-### Capture Build Execution
+### Step 3: Run a Command
 
-```toml
+Run a command that uses this file:
+
+```bash
+capsula run cat test.txt
+```
+
+### Step 4: Review What Was Captured
+
+Check the new run:
+
+```bash
+capsula list
+```
+
+Look at the pre-run data:
+
+```bash
+# Replace with your actual run directory
+cat .capsula/my-experiments/2025-01-09/*/_ capsula/pre-run.json
+```
+
+You'll see captured data for:
+
+- Git repository state (commit hash, branch, whether it's dirty)
+- Current working directory
+- The USER environment variable
+
+## Using Post-Run Hooks
+
+Post-run hooks capture data after your command finishes. This is useful for capturing output files.
+
+Update your `capsula.toml`:
+
+```toml title="capsula.toml"
 [vault]
-name = "builds"
+name = "my-experiments"
 
 [[pre-run.hooks]]
-id = "capture-git-repo"
-name = "build-project"
-path = "."
+id = "capture-cwd"
 
-[[pre-run.hooks]]
-id = "capture-command"
-command = ["rustc", "--version"]
-
+# Capture output file after running
 [[post-run.hooks]]
-id = "capture-command"
-command = ["ls", "-lh", "target/release/"]
+id = "capture-file"
+glob = "output.txt"
+mode = "copy"
 ```
 
-Run your build:
+Run a command that creates a file:
 
 ```bash
-capsula run cargo build --release
+capsula run bash -c 'echo "results" > output.txt'
 ```
 
-## Environment Variables
-
-Your command has access to special environment variables:
+Now check the vault - you'll see `output.txt` was copied to the run directory:
 
 ```bash
-capsula run bash -c 'echo "Run ID: $CAPSULA_RUN_ID"'
+ls .capsula/my-experiments/2025-01-09/*/
+```
+
+Output:
+
+```
+_capsula/    output.txt
+```
+
+## Understanding Hooks
+
+Hooks are the building blocks of Capsula. They tell Capsula what to capture and when.
+
+### Pre-Run Hooks
+
+Run **before** your command and capture:
+
+- Initial state
+- Input configurations
+- Environment conditions
+
+Common pre-run hooks:
+
+- `capture-git-repo` - Git repository state
+- `capture-cwd` - Current directory
+- `capture-env` - Environment variables
+- `capture-file` - Input configuration files
+
+### Post-Run Hooks
+
+Run **after** your command and capture:
+
+- Results and outputs
+- Generated files
+- Final state
+
+Common post-run hooks:
+
+- `capture-file` - Output files and results
+- `capture-command` - Run analysis commands
+- `notify-slack` - Send notifications
+
+## Working with Environment Variables
+
+When Capsula runs your command, it sets special environment variables you can use:
+
+```bash
+capsula run bash -c 'echo "Run ID: $CAPSULA_RUN_ID"; echo "Run name: $CAPSULA_RUN_NAME"'
+```
+
+Output:
+
+```
+Run ID: 01K8WSYC91YAE21R7CWHQ4KYN2
+Run name: happy-river
 ```
 
 Available variables:
 
-- `CAPSULA_RUN_ID`: Unique ULID for this run
-- `CAPSULA_RUN_NAME`: Human-readable name (e.g., "chubby-back")
-- `CAPSULA_RUN_DIRECTORY`: Absolute path to the run directory
-- `CAPSULA_RUN_TIMESTAMP`: ISO 8601 timestamp
-- `CAPSULA_RUN_COMMAND`: The command being executed
-- `CAPSULA_PRE_RUN_OUTPUT_PATH`: Path to pre-run.json
-- `CAPSULA_PROJECT_ROOT`: Project root directory
+- `CAPSULA_RUN_ID` - Unique identifier for this run
+- `CAPSULA_RUN_NAME` - Human-readable name
+- `CAPSULA_RUN_DIRECTORY` - Path to the run directory
+- `CAPSULA_RUN_TIMESTAMP` - ISO 8601 timestamp
+- `CAPSULA_RUN_COMMAND` - The command being executed
 
 ## Next Steps
 
-- [Configuration](configuration.md) - Learn about all configuration options
-- [Hooks](hooks.md) - Explore available hook types
-- [Architecture](architecture.md) - Understand how Capsula works
-- [Development](development.md) - Contribute to Capsula
+Now that you understand the basics, explore more features:
+
+<div class="grid cards" markdown>
+
+-   :material-cog:{ .lg .middle } **Configuration**
+
+    ---
+
+    Learn about all configuration options and hook types.
+
+    [:octicons-arrow-right-24: Configuration guide](configuration.md)
+
+-   :material-hook:{ .lg .middle } **Hooks**
+
+    ---
+
+    Explore all available hooks and their options.
+
+    [:octicons-arrow-right-24: Hook reference](hooks.md)
+
+-   :material-book-open-variant:{ .lg .middle } **Examples**
+
+    ---
+
+    See real-world examples for different use cases.
+
+    [:octicons-arrow-right-24: View examples](examples.md)
+
+-   :material-console:{ .lg .middle } **CLI Reference**
+
+    ---
+
+    Complete reference for all Capsula commands.
+
+    [:octicons-arrow-right-24: CLI reference](cli-reference.md)
+
+</div>
+
+## Quick Reference
+
+### Essential Commands
+
+```bash
+# Run a command with Capsula
+capsula run <your-command>
+
+# Run with a custom config file
+capsula --config path/to/config.toml run <your-command>
+
+# List all runs
+capsula list
+
+# Check Capsula version
+capsula --version
+
+# Get help
+capsula --help
+```
+
+### Basic Configuration Template
+
+```toml title="capsula.toml"
+[vault]
+name = "my-vault"
+
+# Pre-run: capture initial state
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
+
+[[pre-run.hooks]]
+id = "capture-cwd"
+
+# Post-run: capture results
+[[post-run.hooks]]
+id = "capture-file"
+glob = "output.txt"
+mode = "copy"
+```

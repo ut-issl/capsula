@@ -1,61 +1,156 @@
 # capture-file
 
-Captures files matching glob patterns, computes hashes, and copies/moves files to the run directory.
+Captures files by copying them, moving them, or computing their hash.
+
+## Use Cases
+
+- **Preserve input configurations** - Save config files used for experiments
+- **Archive output results** - Save generated data, models, and plots
+- **Verify file integrity** - Compute hashes without copying large files
+- **Organize experiment artifacts** - Automatically collect outputs in one place
 
 ## Configuration
 
+### Required Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `glob` | string | File pattern to match (e.g., `"*.txt"`, `"results/**/*.png"`) |
+
+### Optional Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `mode` | string | `"copy"` | How to handle files: `"copy"`, `"move"`, or `"none"` |
+| `hash` | string | `"sha256"` | Hash algorithm: `"sha256"` or `"none"` |
+
+### Example
+
 ```toml
-# Copy file to run directory
 [[post-run.hooks]]
 id = "capture-file"
-glob = "output.txt"
-mode = "copy"
-
-# Compute file hash only
-[[pre-run.hooks]]
-id = "capture-file"
-glob = "config.yaml"
-mode = "none"
-hash = "sha256"
-
-# Both copy and hash
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/*.pkl"
+glob = "results/*.csv"
 mode = "copy"
 hash = "sha256"
 ```
 
-## Parameters
+## File Modes
 
-- `glob` (required): Glob pattern to match files (e.g., "*.txt", "results/**/*.pkl")
-- `mode` (optional, default: `"copy"`): File handling mode
-- `hash` (optional, default: `"sha256"`): Hash algorithm to use
+### `mode = "copy"` (default)
 
-### File Modes
+Copies files to the run directory, leaving originals in place.
 
-- `"copy"` - Copy files to run directory (default)
-- `"move"` - Move files to run directory
-- `"none"` - Don't copy or move, only record metadata
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
+```
 
-### Hash Algorithms
+**Use when:** You want to preserve files while keeping them in their original location.
 
-- `"sha256"` - SHA-256 (default)
-- `"none"` - Don't compute hash
+### `mode = "move"`
 
-## Phases
+Moves files to the run directory, removing them from their original location.
 
-- ✅ Pre-run
-- ✅ Post-run
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "output.txt"
+mode = "move"
+```
 
-## Output
+**Use when:** You want to archive outputs and don't need them in the original location.
+
+!!! warning "Files are removed"
+    When using `mode = "move"`, files are deleted from their original location. Make sure you won't need them there!
+
+### `mode = "none"`
+
+Doesn't copy or move files, only computes their hash (if `hash` is enabled).
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "large-model.bin"
+mode = "none"
+hash = "sha256"
+```
+
+**Use when:** You want to verify file integrity without duplicating large files.
+
+## Hash Options
+
+### `hash = "sha256"` (default)
+
+Computes SHA-256 hash of each file.
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "data.csv"
+hash = "sha256"
+```
+
+**Use when:** You want to verify file integrity or detect changes.
+
+### `hash = "none"`
+
+Skips hash computation.
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "*.txt"
+mode = "copy"
+hash = "none"
+```
+
+**Use when:** You don't need hash verification (slightly faster).
+
+## Glob Patterns
+
+Glob patterns follow standard glob syntax:
+
+| Pattern | Matches |
+|---------|---------|
+| `*` | Any filename (not crossing directories) |
+| `**` | Any path including subdirectories |
+| `?` | Single character |
+| `[abc]` | Any character in set |
+
+### Examples
+
+```toml
+# All .txt files in current directory
+glob = "*.txt"
+
+# All .csv files in results/ and subdirectories
+glob = "results/**/*.csv"
+
+# Specific numbered files
+glob = "data_?.json"  # data_1.json, data_2.json, etc.
+
+# Multiple extensions
+glob = "output.{txt,log,csv}"
+
+# All files in a directory
+glob = "outputs/*"
+
+# All files recursively
+glob = "outputs/**/*"
+```
+
+## Output Example
+
+### With Copy Mode
 
 ```json
 {
   "__meta": {
     "id": "capture-file",
     "config": {
-      "glob": "results/model.pkl",
+      "glob": "*.txt",
       "mode": "copy",
       "hash": "sha256"
     },
@@ -63,158 +158,27 @@ hash = "sha256"
   },
   "files": [
     {
-      "path": "results/model.pkl",
-      "copied_path": ".capsula/experiments/2025-12-30/143022-chubby-back/model.pkl",
+      "path": "/path/to/project/output.txt",
+      "copied_path": "/path/to/.capsula/vault/2025-01-09/143022-happy-river/output.txt",
       "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/path/to/project/results.txt",
+      "copied_path": "/path/to/.capsula/vault/2025-01-09/143022-happy-river/results.txt",
+      "hash": "sha256:d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
     }
   ]
 }
 ```
 
-### Fields
-
-- `files` (array): Array of captured file objects
-  - `path` (string): Original file path
-  - `copied_path` (string, optional): Destination path (if mode is `"copy"` or `"move"`)
-  - `hash` (string, optional): Cryptographic hash prefixed with algorithm (e.g., `"sha256:..."`) (if hash is `"sha256"`)
-
-## Use Cases
-
-### Archive Input Configuration
-
-Preserve configuration files used for experiments:
-
-```toml
-[[pre-run.hooks]]
-id = "capture-file"
-glob = "config.yaml"
-mode = "copy"
-```
-
-### Archive Output Files
-
-Save experiment results:
-
-```toml
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/metrics.json"
-mode = "copy"
-```
-
-### Verify File Integrity
-
-Compute hashes to verify files haven't changed:
-
-```toml
-[[pre-run.hooks]]
-id = "capture-file"
-glob = "data/train.csv"
-mode = "none"
-hash = "sha256"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "data/train.csv"
-mode = "none"
-hash = "sha256"
-```
-
-### Track Large Files Without Copying
-
-For large model files, compute hash instead of copying:
-
-```toml
-[[post-run.hooks]]
-id = "capture-file"
-glob = "models/large_model.bin"
-mode = "none"
-hash = "sha256"
-```
-
-### Capture Multiple Files with Glob Patterns
-
-Use glob patterns to capture multiple files:
-
-```toml
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/*.json"
-mode = "copy"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "outputs/**/*.png"
-mode = "copy"
-```
-
-## Examples
-
-### Preserve Input and Output
-
-```toml
-[vault]
-name = "training-runs"
-
-# Capture input configuration
-[[pre-run.hooks]]
-id = "capture-file"
-glob = "config.yaml"
-mode = "copy"
-hash = "sha256"
-
-# Capture trained model
-[[post-run.hooks]]
-id = "capture-file"
-glob = "model.pkl"
-mode = "copy"
-hash = "sha256"
-```
-
-### Multiple Output Files
-
-```toml
-[vault]
-name = "analysis"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/*.txt"
-mode = "copy"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/*.png"
-mode = "copy"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/*.csv"
-mode = "copy"
-```
-
-### Hash-Only for Large Files
-
-```toml
-[vault]
-name = "big-data-processing"
-
-# Don't copy large files, just record their hashes
-[[post-run.hooks]]
-id = "capture-file"
-glob = "output/processed_data.parquet"
-mode = "none"
-hash = "sha256"
-```
-
-Output:
+### With None Mode
 
 ```json
 {
   "__meta": {
     "id": "capture-file",
     "config": {
-      "glob": "output/processed_data.parquet",
+      "glob": "model.bin",
       "mode": "none",
       "hash": "sha256"
     },
@@ -222,156 +186,309 @@ Output:
   },
   "files": [
     {
-      "path": "output/processed_data.parquet",
-      "hash": "sha256:a1b2c3d4e5f6..."
+      "path": "/path/to/project/model.bin",
+      "hash": "sha256:a3c7b9..."
     }
   ]
 }
 ```
 
-### Verify Data Integrity
+### Output Fields
 
-Check that input data wasn't modified during execution:
+| Field | Type | Description |
+|-------|------|-------------|
+| `files` | array | List of matched files |
+| `files[].path` | string | Original absolute path to the file |
+| `files[].copied_path` | string | Path where file was copied/moved (only for `copy` or `move` mode) |
+| `files[].hash` | string | SHA-256 hash of the file (only if `hash = "sha256"`) |
+
+## Complete Examples
+
+### Capture Input Configuration
+
+```toml title="capsula.toml"
+[vault]
+name = "experiments"
+
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
+hash = "sha256"
+```
+
+Result:
+
+```
+.capsula/experiments/2025-01-09/143022-happy-river/
+├── _capsula/
+│   └── pre-run.json
+└── config.yaml  # Copied from project root
+```
+
+### Archive All Results
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/**/*"
+mode = "move"
+```
+
+Result: All files from `results/` are moved to the run directory.
+
+### Verify Large File Integrity
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "model.bin"
+mode = "none"
+hash = "sha256"
+```
+
+Result: Hash is computed and saved, but file stays in place.
+
+### Multiple File Patterns
+
+```toml
+# Capture CSVs
+[[post-run.hooks]]
+id = "capture-file"
+glob = "*.csv"
+mode = "copy"
+
+# Capture PNGs
+[[post-run.hooks]]
+id = "capture-file"
+glob = "plots/*.png"
+mode = "copy"
+
+# Capture model (hash only)
+[[post-run.hooks]]
+id = "capture-file"
+glob = "model.pkl"
+mode = "none"
+hash = "sha256"
+```
+
+## Tips
+
+### Capture Inputs in Pre-Run
 
 ```toml
 [[pre-run.hooks]]
 id = "capture-file"
-glob = "data/input.csv"
-mode = "none"
-hash = "sha256"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "data/input.csv"
-mode = "none"
-hash = "sha256"
-```
-
-Compare the hashes in `pre-run.json` and `post-run.json` to verify integrity.
-
-## Glob Patterns
-
-### Basic Patterns
-
-Glob patterns are relative to the project root (where `capsula.toml` is located):
-
-```toml
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/output.txt"  # Single file
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "*.log"  # All .log files in project root
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/*.json"  # All .json files in results/
-```
-
-### Recursive Patterns
-
-Use `**` for recursive matching:
-
-```toml
-[[post-run.hooks]]
-id = "capture-file"
-glob = "**/*.py"  # All .py files recursively
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "outputs/**/data.csv"  # All data.csv files under outputs/
-```
-
-### File Names in Output
-
-When files are copied, only the filename is preserved (not the directory structure):
-
-```toml
-[[post-run.hooks]]
-id = "capture-file"
-glob = "deep/nested/path/file.txt"
+glob = "config.json"
 mode = "copy"
 ```
 
-Copied to: `.capsula/vault/date/time-name/file.txt` (not `deep/nested/path/file.txt`)
+### Capture Outputs in Post-Run
 
-## Performance Considerations
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*"
+mode = "copy"
+```
 
-### Hash Computation
+### Use Copy for Shared Files
 
-Computing hashes reads the entire file:
+If multiple hooks need the same file, use `copy` not `move`:
 
-- **Small files (< 10 MB)**: Negligible overhead
-- **Large files (> 1 GB)**: Can take several seconds
+```toml
+# File can be used by Slack hook
+[[post-run.hooks]]
+id = "capture-file"
+glob = "report.pdf"
+mode = "copy"
 
-For large files, consider computing hashes only when necessary.
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#reports"
+attachment_globs = ["report.pdf"]
+```
 
-### File Copying
+### Hash Large Files Without Copying
 
-Copying files:
+For very large files, compute hash without copying:
 
-- Creates a duplicate of the file
-- Uses disk space in the `.capsula/` directory
-- Fast for small files, slower for large files
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "dataset.tar.gz"
+mode = "none"
+hash = "sha256"
+```
 
-For very large output files, consider:
+### Organize by File Type
 
-1. Computing hash only (`mode = "none", hash = "sha256"`)
-2. Storing files elsewhere and recording their path
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "*.log"
+mode = "move"
 
-## Error Handling
+[[post-run.hooks]]
+id = "capture-file"
+glob = "*.csv"
+mode = "move"
 
-### Common Errors
+[[post-run.hooks]]
+id = "capture-file"
+glob = "*.png"
+mode = "move"
+```
 
-**File not found**:
+## Common Patterns
+
+### Pattern: Save Configuration
+
+```toml
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "*.{yaml,yml,json,toml}"
+mode = "copy"
+```
+
+### Pattern: Archive Experiment Results
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/**/*"
+mode = "move"
+```
+
+### Pattern: Save Plots
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "**/*.{png,jpg,pdf,svg}"
+mode = "copy"
+```
+
+### Pattern: Verify Checksums
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "data/*.dat"
+mode = "none"
+hash = "sha256"
+```
+
+## Common Questions
+
+**Q: What if no files match the glob pattern?**
+
+The hook succeeds with an empty files array:
 
 ```json
 {
   "__meta": {
-    "id": "capture_file",
-    "config": {
-      "path": "missing.txt"
-    },
-    "success": false,
-    "error": "File not found: missing.txt"
-  }
+    "id": "capture-file",
+    "success": true
+  },
+  "files": []
 }
 ```
 
-**Permission denied**:
+**Q: What if a file is too large?**
 
-```json
-{
-  "__meta": {
-    "id": "capture_file",
-    "success": false,
-    "error": "Permission denied: protected_file.txt"
-  }
-}
+There's no size limit, but copying very large files may take time. For files larger than a few GB, consider using `mode = "none"` with `hash = "sha256"` to just verify integrity.
+
+**Q: Can I exclude files?**
+
+Not directly, but you can use more specific glob patterns:
+
+```toml
+# Exclude backup files
+glob = "results/[!~]*.csv"  # Doesn't match files starting with ~
 ```
 
-**Copy destination error**:
+Or use multiple hooks with specific patterns.
 
-```json
-{
-  "__meta": {
-    "id": "capture_file",
-    "success": false,
-    "error": "Failed to copy file: disk full"
-  }
-}
+**Q: What if a file disappears between matching and copying?**
+
+The hook will fail for that file and log an error, but continue with remaining files.
+
+**Q: Does `move` work across filesystems?**
+
+Yes, Capsula handles cross-filesystem moves by copying and then deleting.
+
+**Q: Can I capture files from outside the project directory?**
+
+Glob patterns are resolved relative to the project root (where `capsula.toml` is). You can use `../` to go up:
+
+```toml
+glob = "../shared-data/*.csv"
 ```
 
-### Non-Fatal Behavior
+However, be careful with absolute paths - globs should be relative paths.
 
-File capture errors are non-fatal. If a file cannot be captured:
+**Q: What about symbolic links?**
 
-1. Error is logged
-2. Error recorded in JSON output
-3. Execution continues with remaining hooks
+Symbolic links are followed and the actual files are copied/hashed.
 
-## See Also
+**Q: Will hidden files be matched?**
 
-- [capture_command](capture-command.md) - Execute commands and capture output
-- [capture_git_repo](capture-git-repo.md) - Capture repository state
+Yes, glob patterns match hidden files (starting with `.`):
+
+```toml
+glob = ".*"  # Matches .env, .gitignore, etc.
+```
+
+## Hook Order Considerations
+
+### ⚠️ Move Before Attach
+
+If using Slack attachments, `capture-file` with `mode = "move"` must come **after** the Slack hook:
+
+```toml
+# BAD: File is moved before Slack can attach it
+[[post-run.hooks]]
+id = "capture-file"
+glob = "report.pdf"
+mode = "move"
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#reports"
+attachment_globs = ["report.pdf"]  # File already moved!
+```
+
+```toml
+# GOOD: Slack attaches file, then it's moved
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#reports"
+attachment_globs = ["report.pdf"]
+
+[[post-run.hooks]]
+id = "capture-file"
+glob = "report.pdf"
+mode = "move"
+```
+
+Or use `mode = "copy"`:
+
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "report.pdf"
+mode = "copy"  # File stays available
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#reports"
+attachment_globs = ["report.pdf"]
+```
+
+## Related Hooks
+
+- [capture-git-repo](capture-git-repo.md) - Capture source code version
+- [notify-slack](notify-slack.md) - Send files to Slack
+
+[:octicons-arrow-left-24: Back to Hooks](../hooks.md)

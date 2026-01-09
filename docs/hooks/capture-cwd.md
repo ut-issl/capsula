@@ -1,24 +1,25 @@
 # capture-cwd
 
-Captures the current working directory.
+Captures the current working directory where Capsula is running.
+
+## Use Cases
+
+- **Record execution location** - Know where commands were run from
+- **Debugging path issues** - Understand relative path contexts
+- **Audit compliance** - Track where processes execute
 
 ## Configuration
+
+This hook requires no configuration options.
 
 ```toml
 [[pre-run.hooks]]
 id = "capture-cwd"
 ```
 
-## Parameters
+That's it - no additional options needed!
 
-This hook has no configuration parameters.
-
-## Phases
-
-- ✅ Pre-run
-- ✅ Post-run
-
-## Output
+## Output Example
 
 ```json
 {
@@ -27,50 +28,30 @@ This hook has no configuration parameters.
     "config": {},
     "success": true
   },
-  "cwd": "/Users/alice/projects/my-project"
+  "cwd": "/Users/username/projects/my-experiment"
 }
 ```
 
-### Fields
+### Output Fields
 
-- `cwd` (string): Absolute path to the current working directory
+| Field | Type | Description |
+|-------|------|-------------|
+| `cwd` | string | Absolute path to the current working directory |
 
-## Use Cases
+## Complete Example
 
-### Document Execution Location
-
-Capture where your command was executed:
-
-```toml
-[[pre-run.hooks]]
-id = "capture-cwd"
-```
-
-### Track Directory Changes
-
-Compare working directory before and after execution:
-
-```toml
-[[pre-run.hooks]]
-id = "capture-cwd"
-
-[[post-run.hooks]]
-id = "capture-cwd"
-```
-
-## Examples
-
-### Basic Usage
-
-```toml
+```toml title="capsula.toml"
 [vault]
-name = "my-experiments"
+name = "my-project"
 
 [[pre-run.hooks]]
 id = "capture-cwd"
 ```
+
+Run:
 
 ```bash
+cd /path/to/project
 capsula run python script.py
 ```
 
@@ -80,35 +61,74 @@ Output in `pre-run.json`:
 [
   {
     "__meta": {
-      "id": "capture_cwd",
+      "id": "capture-cwd",
       "config": {},
       "success": true
     },
-    "cwd": "/Users/alice/projects/ml-project"
+    "cwd": "/path/to/project"
   }
 ]
 ```
 
-## Error Handling
+## Tips
 
-This hook rarely fails. Possible error:
+### Use with Relative Paths
 
-- Unable to determine current directory (e.g., directory was deleted)
+When your command uses relative file paths, capturing the working directory helps understand those paths later:
 
-Error output:
+```toml
+[[pre-run.hooks]]
+id = "capture-cwd"
 
-```json
-{
-  "__meta": {
-    "id": "capture_cwd",
-    "config": {},
-    "success": false,
-    "error": "Failed to get current directory: No such file or directory"
-  }
-}
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"  # Relative to cwd
+mode = "copy"
 ```
 
-## See Also
+### Combine with Git Hook
 
-- [capture_env](capture-env.md) - Capture environment variables
-- [capture_machine](capture-machine.md) - Capture system information
+Together, `capture-cwd` and `capture-git-repo` give complete location context:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-cwd"
+
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
+```
+
+This records both:
+
+- Where you ran the command (cwd)
+- Which repository you're in (git)
+
+## Common Questions
+
+**Q: Can I change the captured directory?**
+
+No, this hook always captures the actual current working directory. If you want to run commands from a specific directory, use `cd` first:
+
+```bash
+cd /path/to/dir && capsula run python script.py
+```
+
+**Q: What if my working directory is not a git repository?**
+
+That's fine! `capture-cwd` works anywhere. It just captures the directory path, regardless of whether it's in a git repository or not.
+
+**Q: Is this different from `CAPSULA_PROJECT_ROOT`?**
+
+Yes:
+- `capture-cwd` captures the **current** working directory when Capsula runs
+- `CAPSULA_PROJECT_ROOT` is the directory containing `capsula.toml`
+
+They may be different if you run Capsula from a subdirectory.
+
+## Related Hooks
+
+- [capture-git-repo](capture-git-repo.md) - Capture repository information
+- [capture-env](capture-env.md) - Capture the `PWD` environment variable
+
+[:octicons-arrow-left-24: Back to Hooks](../hooks.md)

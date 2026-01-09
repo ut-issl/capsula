@@ -1,103 +1,183 @@
-# Capsula
+# Welcome to Capsula
 
-**A powerful CLI tool for capturing and preserving the context of command executions**
+Capsula is a command-line tool that automatically captures and saves information about your command executions. Think of it as a "time capsule" for your work - it records what happened, when it happened, and the environment in which it happened.
 
-Capsula is a Rust-based tool that records the state of your project environment before and after running commands. It's perfect for reproducibility, auditing, and understanding exactly what happened during a command execution.
+## What Does Capsula Do?
 
-## Why Capsula?
+When you run a command with Capsula, it:
 
-- **Reproducibility**: Capture the complete context of your experiments and builds
-- **Auditing**: Track what changed when you ran specific commands
-- **Debugging**: Understand the environment state when issues occur
-- **Collaboration**: Share complete execution context with teammates
+1. **Records the environment** - Captures git state, environment variables, file contents, and system information
+2. **Runs your command** - Executes your command normally, capturing its output
+3. **Saves everything** - Stores all captured data in an organized directory structure
 
-## Key Features
+This makes your work **reproducible** and **auditable** - you can always go back and see exactly what happened during any command execution.
 
-### Pre and Post-Run Hooks
+## Why Use Capsula?
 
-Execute hooks before and after your commands to capture:
+### For Researchers and Scientists
 
-- Git repository state (commit hash, dirty status)
-- Environment variables
-- File contents and hashes
-- System information (CPU, memory, OS)
-- Custom command outputs
+- **Reproducibility**: Capture the exact environment and inputs for every experiment
+- **Traceability**: Know which code version produced which results
+- **Collaboration**: Share complete execution context with colleagues
 
-### Organized Output
+### For Data Scientists and ML Engineers
 
-All captured data is stored in a structured directory:
+- **Experiment tracking**: Automatically record model training parameters and results
+- **Debugging**: Understand what went wrong by reviewing the complete execution context
+- **Documentation**: Generate audit trails for compliance requirements
 
-```
-.capsula/{vault-name}/{YYYY-MM-DD}/{HHMMSS-name}/
-├── _capsula/
-│   ├── metadata.json
-│   ├── pre-run.json
-│   ├── command.json
-│   └── post-run.json
-└── [captured files]
-```
+### For Software Developers
 
-### Flexible Configuration
+- **Build auditing**: Track what produced each build artifact
+- **Debugging**: Capture system state when issues occur
+- **CI/CD integration**: Record deployment contexts
 
-Configure hooks using a simple TOML file:
+## How It Works
+
+### 1. Create a Configuration File
+
+Create a simple `capsula.toml` file that tells Capsula what to capture:
 
 ```toml
 [vault]
-name = "my-experiments"
+name = "my-project"
 
 [[pre-run.hooks]]
 id = "capture-git-repo"
-name = "my-repo"
 path = "."
-allow_dirty = true
-
-[[pre-run.hooks]]
-id = "capture-env"
-name = "PATH"
 
 [[post-run.hooks]]
 id = "capture-file"
 glob = "output.txt"
 mode = "copy"
-hash = "sha256"
 ```
 
-### Environment Variables
+### 2. Run Your Command
 
-Commands executed with Capsula have access to special environment variables:
-
-- `CAPSULA_RUN_ID`: Unique identifier for the run
-- `CAPSULA_RUN_DIRECTORY`: Path to the run directory
-- `CAPSULA_RUN_TIMESTAMP`: ISO 8601 timestamp
-- And more...
-
-## Quick Start
-
-Install Capsula:
+Instead of running:
 
 ```bash
-cargo install --path crates/capsula-cli --locked
+python train_model.py
 ```
 
-Run a command with Capsula:
+Run:
 
 ```bash
 capsula run python train_model.py
 ```
 
-List previous runs:
+### 3. Review the Captured Data
+
+Capsula creates an organized directory with all captured information:
+
+```
+.capsula/my-project/2025-01-09/
+└── 143022-happy-river/
+    ├── _capsula/
+    │   ├── metadata.json      # What command ran, when, and where
+    │   ├── pre-run.json       # Environment before the command
+    │   ├── command.json       # Command output and exit code
+    │   └── post-run.json      # Results after the command
+    └── output.txt             # Your output file (copied)
+```
+
+## Key Features
+
+!!! tip "Easy to Use"
+    Simple configuration with plain text TOML files. No programming required.
+
+!!! tip "Non-Invasive"
+    Your commands run normally - Capsula just observes and records.
+
+!!! tip "Organized Output"
+    Everything saved in a clear directory structure with timestamps.
+
+!!! tip "Flexible"
+    Choose what to capture with pre-run and post-run hooks.
+
+!!! tip "Safe"
+    Can enforce safety checks (like ensuring clean git state) before running commands.
+
+## Quick Example
+
+Here's a complete example for tracking a Python script:
+
+```toml title="capsula.toml"
+[vault]
+name = "ml-experiments"
+
+# Before running: check git state and capture config
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
+allow_dirty = false  # Don't run if there are uncommitted changes
+
+[[pre-run.hooks]]
+id = "capture-file"
+glob = "config.yaml"
+mode = "copy"
+
+# After running: save results
+[[post-run.hooks]]
+id = "capture-file"
+glob = "results/*.png"
+mode = "copy"
+```
+
+Run your experiment:
 
 ```bash
-capsula list
+capsula run python train.py --config config.yaml
 ```
+
+Capsula will:
+
+- Check that your git repository is clean (abort if not)
+- Save a copy of `config.yaml`
+- Run your Python script
+- Copy all PNG files from `results/` to the vault
+- Save command output and execution time
 
 ## What's Next?
 
-- [Getting Started](getting-started.md) - Installation and first steps
-- [Configuration](configuration.md) - Learn how to configure Capsula
-- [Architecture](architecture.md) - Understand how Capsula works
-- [Development](development.md) - Contribute to Capsula
+<div class="grid cards" markdown>
 
-## Project Status
+-   :material-rocket-launch:{ .lg .middle } **Getting Started**
 
-Capsula is written in Rust and actively developed. The Python version found on the main branch is deprecated.
+    ---
+
+    Install Capsula and run your first command in 5 minutes.
+
+    [:octicons-arrow-right-24: Get started](getting-started.md)
+
+-   :material-cog:{ .lg .middle } **Configuration**
+
+    ---
+
+    Learn how to configure Capsula for your needs.
+
+    [:octicons-arrow-right-24: Configuration guide](configuration.md)
+
+-   :material-hook:{ .lg .middle } **Hooks**
+
+    ---
+
+    Explore what Capsula can capture with different hooks.
+
+    [:octicons-arrow-right-24: Hook reference](hooks.md)
+
+-   :material-book-open-variant:{ .lg .middle } **Examples**
+
+    ---
+
+    See real-world examples for different use cases.
+
+    [:octicons-arrow-right-24: View examples](examples.md)
+
+</div>
+
+## Need Help?
+
+- Check the [Troubleshooting guide](troubleshooting.md)
+- Read the [FAQ](faq.md)
+- Report issues on [GitHub](https://github.com/ut-issl/capsula/issues)

@@ -1,119 +1,86 @@
-# capture_machine
+# capture-machine
 
-Captures system information including hostname, OS, CPU, and memory.
+Captures system information including CPU, memory, OS, and hostname.
+
+## Use Cases
+
+- **Track hardware specifications** - Know what machine ran your experiment
+- **Debug platform-specific issues** - Understand differences between environments
+- **Performance analysis** - Correlate results with system capabilities
+- **Resource planning** - Document what resources experiments require
 
 ## Configuration
+
+This hook requires no configuration options.
 
 ```toml
 [[pre-run.hooks]]
 id = "capture-machine"
 ```
 
-## Parameters
-
-This hook has no configuration parameters.
-
-## Phases
-
-- ✅ Pre-run
-- ✅ Post-run
-
-## Output
+## Output Example
 
 ```json
 {
   "__meta": {
-    "id": "capture_machine",
+    "id": "capture-machine",
     "config": {},
     "success": true
   },
-  "hostname": "alice-macbook",
-  "os": {
-    "name": "Darwin",
-    "version": "25.2.0",
-    "distribution": "macOS"
-  },
-  "cpu": {
-    "model": "Apple M1",
-    "cores": 8,
-    "physical_cores": 8
-  },
-  "memory": {
-    "total_bytes": 17179869184,
-    "total_gb": 16.0
-  }
+  "hostname": "macbook-pro.local",
+  "os": "Darwin",
+  "os_version": "25.2.0",
+  "kernel_version": "25.0.0",
+  "architecture": "aarch64",
+  "total_memory": 68719476736,
+  "cpus": [
+    {
+      "name": "1",
+      "brand": "Apple M3 Max",
+      "vendor_id": "Apple",
+      "frequency_mhz": 4056
+    },
+    {
+      "name": "2",
+      "brand": "Apple M3 Max",
+      "vendor_id": "Apple",
+      "frequency_mhz": 4056
+    }
+  ]
 }
 ```
 
-### Fields
+### Output Fields
 
-- `hostname` (string): Machine hostname
-- `os` (object): Operating system information
-  - `name` (string): OS kernel name (e.g., "Linux", "Darwin", "Windows")
-  - `version` (string): OS version
-  - `distribution` (string, optional): Distribution name (e.g., "Ubuntu", "macOS")
-- `cpu` (object): CPU information
-  - `model` (string): CPU model name
-  - `cores` (number): Total CPU cores (including hyper-threading)
-  - `physical_cores` (number): Physical CPU cores
-- `memory` (object): Memory information
-  - `total_bytes` (number): Total RAM in bytes
-  - `total_gb` (number): Total RAM in gigabytes
+| Field | Type | Description |
+|-------|------|-------------|
+| `hostname` | string | System hostname |
+| `os` | string | Operating system name (e.g., "Linux", "Darwin", "Windows") |
+| `os_version` | string | OS version string |
+| `kernel_version` | string | Kernel version |
+| `architecture` | string | CPU architecture (e.g., "x86_64", "aarch64") |
+| `total_memory` | number | Total RAM in bytes |
+| `cpus` | array | List of CPU cores |
+| `cpus[].name` | string | Core identifier |
+| `cpus[].brand` | string | CPU brand/model name |
+| `cpus[].vendor_id` | string | CPU vendor (e.g., "Intel", "AMD", "Apple") |
+| `cpus[].frequency_mhz` | number | CPU frequency in MHz |
 
-## Use Cases
+## Complete Example
 
-### Document Hardware for Experiments
-
-Record hardware specifications for reproducibility:
-
-```toml
-[[pre-run.hooks]]
-id = "capture-machine"
-```
-
-### Debug Hardware-Specific Issues
-
-Capture system info when investigating platform-specific bugs:
-
-```toml
-[vault]
-name = "bug-reports"
-
-[[pre-run.hooks]]
-id = "capture-machine"
-
-[[pre-run.hooks]]
-id = "capture-env"
-include = ["PATH", "SHELL"]
-```
-
-### Track Resource Availability
-
-Document available resources for resource-intensive tasks:
-
-```toml
-[vault]
-name = "training-runs"
-
-[[pre-run.hooks]]
-id = "capture-machine"
-
-[[pre-run.hooks]]
-id = "capture-env"
-include = ["CUDA_VISIBLE_DEVICES"]
-```
-
-## Examples
-
-### Basic Usage
-
-```toml
+```toml title="capsula.toml"
 [vault]
 name = "experiments"
 
 [[pre-run.hooks]]
 id = "capture-machine"
+
+[[pre-run.hooks]]
+id = "capture-git-repo"
+path = "."
 ```
+
+Run:
 
 ```bash
 capsula run python train.py
@@ -125,214 +92,266 @@ Output in `pre-run.json`:
 [
   {
     "__meta": {
-      "id": "capture_machine",
+      "id": "capture-machine",
       "config": {},
       "success": true
     },
-    "hostname": "compute-node-01",
-    "os": {
-      "name": "Linux",
-      "version": "5.15.0-91-generic",
-      "distribution": "Ubuntu 22.04"
-    },
-    "cpu": {
-      "model": "Intel Xeon E5-2680 v4",
-      "cores": 56,
-      "physical_cores": 28
-    },
-    "memory": {
-      "total_bytes": 137438953472,
-      "total_gb": 128.0
-    }
+    "hostname": "research-server-01",
+    "os": "Linux",
+    "os_version": "5.15.0-78-generic",
+    "kernel_version": "5.15.0",
+    "architecture": "x86_64",
+    "total_memory": 137438953472,
+    "cpus": [
+      {
+        "name": "1",
+        "brand": "Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz",
+        "vendor_id": "GenuineIntel",
+        "frequency_mhz": 2400
+      },
+      // ... more CPUs
+    ]
   }
 ]
 ```
 
-### Combined with Environment Capture
-
-```toml
-[vault]
-name = "ml-experiments"
-
-[[pre-run.hooks]]
-id = "capture-machine"
-
-[[pre-run.hooks]]
-id = "capture-env"
-include = [
-    "CUDA_VISIBLE_DEVICES",
-    "OMP_NUM_THREADS",
-    "MKL_NUM_THREADS"
-]
-
-[[pre-run.hooks]]
-id = "capture-command"
-command = "nvidia-smi --query-gpu=name,memory.total --format=csv"
-```
-
-### Platform-Specific Debugging
-
-```toml
-[vault]
-name = "platform-tests"
-
-[[pre-run.hooks]]
-id = "capture-machine"
-
-[[pre-run.hooks]]
-id = "capture-env"
-include = ["ARCH", "PLATFORM"]
-
-[[post-run.hooks]]
-id = "capture-command"
-command = "uname -a"
-```
-
-## Output Examples by Platform
-
-### macOS
-
-```json
-{
-  "hostname": "macbook-pro",
-  "os": {
-    "name": "Darwin",
-    "version": "25.2.0",
-    "distribution": "macOS"
-  },
-  "cpu": {
-    "model": "Apple M2 Pro",
-    "cores": 12,
-    "physical_cores": 12
-  },
-  "memory": {
-    "total_bytes": 34359738368,
-    "total_gb": 32.0
-  }
-}
-```
+## Platform-Specific Information
 
 ### Linux
 
-```json
-{
-  "hostname": "gpu-server",
-  "os": {
-    "name": "Linux",
-    "version": "6.5.0-14-generic",
-    "distribution": "Ubuntu 24.04"
-  },
-  "cpu": {
-    "model": "AMD EPYC 7763",
-    "cores": 128,
-    "physical_cores": 64
-  },
-  "memory": {
-    "total_bytes": 549755813888,
-    "total_gb": 512.0
-  }
-}
-```
+- `os`: `"Linux"`
+- `os_version`: Kernel version (e.g., `"5.15.0-78-generic"`)
+- Complete CPU information from `/proc/cpuinfo`
+
+### macOS
+
+- `os`: `"Darwin"`
+- `os_version`: Darwin version (e.g., `"25.2.0"`)
+- CPU information from system profiler
 
 ### Windows
 
-```json
-{
-  "hostname": "DESKTOP-ABC123",
-  "os": {
-    "name": "Windows",
-    "version": "10.0.22631",
-    "distribution": "Windows 11"
-  },
-  "cpu": {
-    "model": "Intel Core i7-13700K",
-    "cores": 24,
-    "physical_cores": 16
-  },
-  "memory": {
-    "total_bytes": 68719476736,
-    "total_gb": 64.0
-  }
-}
-```
+- `os`: `"Windows"`
+- `os_version`: Windows version
+- CPU information from WMI/registry
 
-## Use in Multi-Machine Environments
+## Understanding the Output
 
-### Cluster Computing
+### Memory (RAM)
 
-When running experiments across multiple machines:
+`total_memory` is in bytes. To convert:
+
+- **GB**: `total_memory / (1024 ** 3)`
+- **Example**: `137438953472` bytes = `128` GB
+
+### CPU Frequency
+
+`frequency_mhz` is the base frequency, not boost frequency.
+
+### CPU Count
+
+The `cpus` array contains one entry per logical core (including hyperthreading/SMT cores).
+
+- **Physical cores**: Number of actual CPU cores
+- **Logical cores**: Length of `cpus` array (may include hyperthreading)
+
+## Tips
+
+### Use in Pre-Run Phase
+
+Capture machine info in pre-run since it doesn't change:
 
 ```toml
-[vault]
-name = "distributed-training"
+[[pre-run.hooks]]
+id = "capture-machine"
+```
 
+### Combine with Environment Capture
+
+For complete context:
+
+```toml
 [[pre-run.hooks]]
 id = "capture-machine"
 
 [[pre-run.hooks]]
 id = "capture-env"
-include = [
-    "SLURM_JOB_ID",
-    "SLURM_NODELIST",
-    "HOSTNAME"
-]
+name = "CUDA_VISIBLE_DEVICES"
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["nvidia-smi"]
 ```
 
-### Cloud Instances
+### Compare Across Machines
 
-Track which cloud instance type was used:
+When running on multiple machines, machine info helps identify which machine produced which results:
+
+```bash
+# On server 1
+capsula run python experiment.py
+
+# On server 2
+capsula run python experiment.py
+
+# Later, compare results by checking machine info in pre-run.json
+```
+
+## Common Patterns
+
+### Pattern: ML/AI Experiments
 
 ```toml
-[vault]
-name = "cloud-experiments"
+[[pre-run.hooks]]
+id = "capture-machine"
 
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv"]
+
+[[pre-run.hooks]]
+id = "capture-env"
+name = "CUDA_VISIBLE_DEVICES"
+```
+
+### Pattern: Performance Testing
+
+```toml
 [[pre-run.hooks]]
 id = "capture-machine"
 
 [[pre-run.hooks]]
 id = "capture-env"
-include = [
-    "AWS_INSTANCE_TYPE",
-    "GCP_MACHINE_TYPE",
-    "AZURE_VM_SIZE"
-]
+name = "OMP_NUM_THREADS"
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["lscpu"]  # Linux only
 ```
 
-## Error Handling
+### Pattern: Cross-Platform Testing
 
-This hook rarely fails. Possible errors:
+```toml
+[[pre-run.hooks]]
+id = "capture-machine"
 
-- Unable to determine hostname
-- Cannot read CPU information
-- Cannot read memory information
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["uname", "-a"]
+```
 
-Partial information is captured even if some fields cannot be determined:
+## Common Questions
+
+**Q: Why doesn't this capture GPU information?**
+
+GPU information is not included because it's platform-specific and requires different tools on different systems. To capture GPU info, use the `capture-command` hook:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["nvidia-smi"]  # NVIDIA GPUs
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["rocm-smi"]  # AMD GPUs
+```
+
+**Q: Can I get more detailed CPU information?**
+
+For more details, use platform-specific commands:
+
+```toml
+# Linux
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["lscpu"]
+
+# macOS
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["sysctl", "-a"]
+
+# Windows
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["wmic", "cpu", "get"]
+```
+
+**Q: Why are there so many CPU entries?**
+
+Modern CPUs have multiple cores, and many support hyperthreading/SMT (e.g., a 4-core CPU shows as 8 logical cores).
+
+**Q: Is memory usage captured?**
+
+No, only total memory is captured. To capture current memory usage:
+
+```toml
+# Linux/macOS
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["free", "-h"]  # Linux
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["vm_stat"]  # macOS
+```
+
+**Q: Is disk space captured?**
+
+No, but you can capture it with:
+
+```toml
+# Linux/macOS
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["df", "-h"]
+
+# Windows
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["wmic", "logicaldisk", "get", "size,freespace"]
+```
+
+**Q: Does this slow down execution?**
+
+The hook is very fast (typically < 10ms). System information is read from OS APIs, not computed.
+
+## Interpreting Results
+
+### Example Analysis
+
+Given this output:
 
 ```json
 {
-  "__meta": {
-    "id": "capture_machine",
-    "config": {},
-    "success": true
-  },
-  "hostname": "unknown",
-  "os": {
-    "name": "Linux",
-    "version": "unknown"
-  },
-  "cpu": {
-    "model": "unknown",
-    "cores": null
-  },
-  "memory": {
-    "total_bytes": 0,
-    "total_gb": 0.0
-  }
+  "hostname": "gpu-server-03",
+  "os": "Linux",
+  "architecture": "x86_64",
+  "total_memory": 137438953472,
+  "cpus": [...  # 32 entries
+  ]
 }
 ```
 
-## See Also
+You can determine:
 
-- [capture_env](capture-env.md) - Capture environment variables
-- [capture_command](capture-command.md) - Run diagnostic commands
-- [capture_cwd](capture-cwd.md) - Capture working directory
+- **Server**: `gpu-server-03`
+- **OS**: Linux
+- **RAM**: `137438953472 / (1024**3)` = 128 GB
+- **CPUs**: 32 logical cores
+
+### Comparing Runs
+
+To find all runs on a specific machine:
+
+```bash
+# Search for runs on a specific hostname
+grep -r '"hostname": "gpu-server-03"' .capsula/*/*/*/_ capsula/pre-run.json
+```
+
+## Related Hooks
+
+- [capture-command](capture-command.md) - Capture detailed system commands
+- [capture-env](capture-env.md) - Capture environment variables affecting performance
+
+[:octicons-arrow-left-24: Back to Hooks](../hooks.md)

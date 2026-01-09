@@ -1,393 +1,512 @@
 # notify-slack
 
-Sends notifications to Slack channels using Block Kit with optional file attachments.
+Sends notifications to Slack when runs start (pre-run) or complete (post-run), with optional file attachments.
+
+## Use Cases
+
+- **Long-running experiments** - Get notified when training completes
+- **Team collaboration** - Share results automatically with team channels
+- **Monitoring** - Track experiment progress across machines
+- **Result sharing** - Attach plots and results to notifications
 
 ## Configuration
 
+### Required Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `channel` | string | Slack channel name (e.g., `"#general"`) or channel ID (e.g., `"C01234567"`) |
+
+### Optional Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `token` | string | `SLACK_BOT_TOKEN` env var | Slack bot token (starts with `xoxb-`) |
+| `attachment_globs` | array of strings | `[]` | File patterns to attach (up to 10 files) |
+
+### Example
+
 ```toml
-# Simple notification
 [[post-run.hooks]]
 id = "notify-slack"
-channel = "C1234567890"
-
-# With file attachments
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C1234567890"
-attachment_globs = ["*.png", "results/*.jpg"]
-
-# With custom token
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C1234567890"
-token = "xoxb-your-bot-token"
-attachment_globs = ["outputs/**/*.pdf"]
+channel = "#experiments"
+attachment_globs = ["results/*.png"]
 ```
 
-## Parameters
+## Setup Requirements
 
-- `channel` (required): Slack channel ID (e.g., "C1234567890")
-- `token` (optional): Slack bot token (defaults to `SLACK_BOT_TOKEN` environment variable)
-- `attachment_globs` (optional): Array of glob patterns for files to attach (up to 10 files)
+Before using this hook, you need to set up a Slack app:
 
-## Phases
+### 1. Create a Slack App
 
-- ❌ Pre-run (not recommended)
-- ✅ Post-run (typical usage)
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. Click "Create New App"
+3. Choose "From scratch"
+4. Give it a name (e.g., "Capsula Bot")
+5. Select your workspace
 
-## Output
+### 2. Add Permissions
+
+1. Go to "OAuth & Permissions"
+2. Under "Scopes" → "Bot Token Scopes", add:
+   - `chat:write` - Post messages
+   - `files:write` - Upload files (if using attachments)
+3. Click "Install to Workspace"
+4. Copy the "Bot User OAuth Token" (starts with `xoxb-`)
+
+### 3. Invite Bot to Channel
+
+For channel notifications:
+
+1. Go to the Slack channel
+2. Type `/invite @YourBotName`
+
+For DM notifications:
+
+1. Open a DM with the bot
+2. Click the bot's name to see the channel ID (e.g., `D01234ABCD`)
+
+### 4. Set Environment Variable
+
+Store the token securely:
+
+```bash
+export SLACK_BOT_TOKEN="xoxb-your-token-here"
+```
+
+Or use a `.env` file:
+
+```bash title=".env"
+SLACK_BOT_TOKEN=xoxb-your-token-here
+```
+
+```toml title="capsula.toml"
+dotenv = ".env"
+
+[vault]
+name = "experiments"
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+```
+
+!!! warning "Security"
+    Never commit your Slack token to version control! Add `.env` to `.gitignore`.
+
+## Output Example
+
+### Successful Notification
 
 ```json
 {
   "__meta": {
     "id": "notify-slack",
     "config": {
-      "channel": "C1234567890",
-      "token": "xoxb-***",
-      "attachment_globs": ["*.png"]
+      "channel": "C01234567",
+      "attachment_globs": ["results/*.png"]
     },
     "success": true
   },
   "message": "Slack notification sent successfully",
-  "response": "{\"ok\":true,\"channel\":\"C1234567890\",\"ts\":\"1234567890.123456\"}",
-  "attached_files": ["plot.png", "results.png"]
+  "response": "{\"ok\":true,\"channel\":\"C01234567\",\"ts\":\"1234567890.123456\",\"files\":[...]}",
+  "attachments": [
+    "/path/to/results/plot1.png",
+    "/path/to/results/plot2.png"
+  ]
 }
 ```
 
-### Fields
+### Failed Notification
 
-- `message` (string): Status message
-- `response` (string, optional): Slack API response JSON
-- `attached_files` (array, optional): List of files that were attached
-
-## Setup
-
-### 1. Create Slack App
-
-1. Go to <https://api.slack.com/apps>
-2. Click "Create New App"
-3. Choose "From scratch"
-4. Name your app (e.g., "Capsula Bot")
-5. Select your workspace
-
-### 2. Add Bot Token Scopes
-
-1. Navigate to "OAuth & Permissions"
-2. Under "Scopes" → "Bot Token Scopes", add:
-   - `chat:write` - Required for sending messages
-   - `files:write` - Required for uploading files (if using attachments)
-3. Click "Install to Workspace"
-4. Copy the "Bot User OAuth Token" (starts with `xoxb-`)
-
-### 3. Get Channel ID
-
-To find your channel ID:
-
-1. Open Slack in a web browser
-2. Navigate to the channel
-3. Copy the ID from the URL: `https://app.slack.com/client/T.../C1234567890`
-   - The part after the last slash is your channel ID (e.g., `C1234567890`)
-
-Alternatively, right-click the channel → "View channel details" → at the bottom you'll see the channel ID.
-
-### 4. Store Bot Token
-
-Store the bot token in an environment variable:
-
-```bash
-export SLACK_BOT_TOKEN="xoxb-your-bot-token-here"
-```
-
-For persistent storage, add to your shell profile:
-
-```bash
-# ~/.bashrc or ~/.zshrc
-export SLACK_BOT_TOKEN="xoxb-..."
-```
-
-### 5. Invite Bot to Channel
-
-In the Slack channel, type:
-
-```
-/invite @Capsula Bot
-```
-
-Replace "Capsula Bot" with your bot's name.
-
-### 6. Configure Capsula
-
-```toml
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C1234567890"  # Your channel ID
+```json
+{
+  "__meta": {
+    "id": "notify-slack",
+    "success": false,
+    "error": "Slack API error: channel_not_found"
+  }
+}
 ```
 
 ## Message Format
 
-The hook automatically creates a rich Slack message using Block Kit with the following information:
+Notifications use Slack's Block Kit for rich formatting:
 
-**Pre-run phase:**
+### Pre-Run Message
 
-- 🚀 Header: "Capsula Run Starting"
-- Run name, ID, timestamp, and command
+```
+🚀 Capsula Run Starting
 
-**Post-run phase:**
-
-- ✅ Header: "Capsula Run Completed"
-- Run name, ID, timestamp, and command
-
-You don't need to configure the message content - it's automatically generated from the run metadata.
-
-## Use Cases
-
-### Long-Running Experiments
-
-Get notified when experiments complete:
-
-```toml
-[vault]
-name = "training-runs"
-
-[[pre-run.hooks]]
-id = "capture-git-repo"
-name = "training-repo"
-path = "."
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/metrics.json"
-mode = "copy"
-
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C1234567890"
+Run Name: happy-river
+Run ID: 01K8WSYC91YAE21R7CWHQ4KYN2
+Timestamp: Jan 9, 2025 at 2:30 PM
+Command: python train.py --epochs 100
 ```
 
-### Share Results with Attachments
+### Post-Run Message
 
-Automatically share plots and results:
+```
+✅ Capsula Run Completed
 
-```toml
-[[post-run.hooks]]
-id = "capture-file"
-glob = "plots/*.png"
-mode = "copy"
-
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C1234567890"
-attachment_globs = ["plots/*.png", "results/summary.txt"]
+Run Name: happy-river
+Run ID: 01K8WSYC91YAE21R7CWHQ4KYN2
+Timestamp: Jan 9, 2025 at 2:30 PM
+Command: python train.py --epochs 100
 ```
 
-### Multiple Channel Notifications
+Messages appear similar to GitHub's Slack notifications for better readability.
 
-Notify different channels for different purposes:
+## File Attachments
+
+### Basic Attachment
 
 ```toml
-# Notify team channel
 [[post-run.hooks]]
 id = "notify-slack"
-channel = "C1111111111"  # #team-experiments
-
-# Notify personal channel with attachments
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C2222222222"  # #my-experiments
-attachment_globs = ["*.png"]
+channel = "#results"
+attachment_globs = ["output.txt"]
 ```
 
-## Examples
-
-### Basic Notification
+### Multiple Patterns
 
 ```toml
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+attachment_globs = ["results/*.png", "plots/*.pdf", "summary.txt"]
+```
+
+### Attachment Limits
+
+- **Maximum 10 files** per message (Slack API limit)
+- If more than 10 files match, only the first 10 are attached
+- Files are uploaded and shared to the channel
+
+### Glob Patterns
+
+Same as [capture-file](capture-file.md) glob patterns:
+
+```toml
+attachment_globs = [
+  "*.png",              # All PNGs in current dir
+  "results/**/*.csv",   # All CSVs in results/ tree
+  "plot_?.pdf"          # plot_1.pdf, plot_2.pdf, etc.
+]
+```
+
+## Complete Examples
+
+### Notify on Completion
+
+```toml title="capsula.toml"
 [vault]
 name = "experiments"
 
 [[post-run.hooks]]
 id = "notify-slack"
-channel = "C1234567890"
+channel = "#experiments"
 ```
 
-```bash
-capsula run python experiment.py
-```
-
-### Notification with Attachments
-
-```toml
-[vault]
-name = "ml-experiments"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "plots/*.png"
-mode = "copy"
-
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C1234567890"
-attachment_globs = ["plots/*.png", "results/*.csv"]
-```
-
-### Development vs Production Channels
-
-Use different channels for different environments:
-
-```toml
-# Development experiments - personal channel
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C1111111111"  # Your personal channel
-
-# Production runs - team channel with attachments
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "C2222222222"  # Team channel
-attachment_globs = ["metrics.json", "model_summary.txt"]
-```
-
-## File Attachments
-
-### Glob Patterns
-
-The `attachment_globs` parameter accepts glob patterns:
+### Notify with Attachments
 
 ```toml
 [[post-run.hooks]]
 id = "notify-slack"
-channel = "C1234567890"
+channel = "#results"
 attachment_globs = [
-    "*.png",              # All PNG files in project root
-    "results/*.json",     # All JSON files in results/
-    "outputs/**/*.pdf",   # All PDF files under outputs/ recursively
+  "results/*.png",
+  "summary.txt",
+  "metrics.json"
 ]
 ```
 
-### File Limit
+### Notify Start and End
 
-- Maximum of 10 files per notification (Slack API limit)
-- If more than 10 files match, only the first 10 are attached
-- Files are resolved relative to the project root
+```toml
+# Notify when starting
+[[pre-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
 
-### Attachment Behavior
-
-When attachments are specified:
-
-1. Files matching the glob patterns are uploaded to Slack
-2. A main message is posted with run details
-3. File links are posted as a threaded reply
-4. The thread reply is broadcast to the channel so all members can see it
-
-## Error Handling
-
-### Bot Token Not Found
-
-```json
-{
-  "__meta": {
-    "id": "notify-slack",
-    "success": false,
-    "error": "Missing Slack bot token: SLACK_BOT_TOKEN environment variable not set"
-  }
-}
+# Notify when done (with results)
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+attachment_globs = ["results/*.png"]
 ```
 
-### Network Failure
+### Direct Message (DM)
 
-```json
-{
-  "__meta": {
-    "id": "notify-slack",
-    "success": false,
-    "error": "Failed to send notification: Connection refused"
-  }
-}
+```toml
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "D01234ABCD"  # DM channel ID
 ```
 
-### Invalid Token or Missing Scopes
+To find your DM channel ID:
 
-```json
-{
-  "__meta": {
-    "id": "notify-slack",
-    "success": false,
-    "error": "Failed to upload file: missing_scope. The Slack bot needs the 'files:write' OAuth scope."
-  }
-}
+1. Open a DM with the bot
+2. Click the bot's name
+3. Look for "Channel ID" in the details
+
+## Hook Order with Attachments
+
+!!! warning "Important: Hook Order Matters"
+    If using `capture-file` with `mode = "move"`, the Slack hook must come **before** the file hook.
+
+### ❌ Wrong Order
+
+```toml
+# File is moved before Slack can attach it
+[[post-run.hooks]]
+id = "capture-file"
+glob = "report.pdf"
+mode = "move"
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#reports"
+attachment_globs = ["report.pdf"]  # File already moved!
 ```
 
-If you see a `missing_scope` error, go to your Slack app settings → OAuth & Permissions → Bot Token Scopes and add the required scope (`chat:write` or `files:write`), then reinstall the app to the workspace.
+### ✅ Correct Order
 
-### Bot Not in Channel
+```toml
+# Slack attaches file first
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#reports"
+attachment_globs = ["report.pdf"]
 
-If the bot hasn't been invited to the channel, you'll see an error. Make sure to invite the bot:
-
-```
-/invite @Capsula Bot
-```
-
-### Non-Fatal Behavior
-
-Notification failures are non-fatal:
-
-1. Error is logged
-2. Error recorded in JSON output
-3. Execution continues
-
-Your command results are still captured even if notifications fail.
-
-## Security Considerations
-
-!!! warning "Bot Token Security"
-    Bot tokens are sensitive credentials. Anyone with a bot token can act as your bot.
-
-Best practices:
-
-1. **Never commit bot tokens to version control**
-2. **Use environment variables** (not hardcoded values in config)
-3. **Use workspace-specific tokens** - don't share tokens across workspaces
-4. **Rotate tokens** if compromised
-5. **Use separate bots** for dev/prod environments
-6. **Limit bot permissions** - only add the scopes you need
-
-### Example .gitignore
-
-```
-# .gitignore
-.env
-capsula.local.toml
-**/SLACK_BOT_TOKEN
+# Then file is moved
+[[post-run.hooks]]
+id = "capture-file"
+glob = "report.pdf"
+mode = "move"
 ```
 
-### Token Storage
+### ✅ Alternative: Use Copy
 
-```bash
-# Good - environment variable
-export SLACK_BOT_TOKEN="xoxb-..."
+```toml
+[[post-run.hooks]]
+id = "capture-file"
+glob = "report.pdf"
+mode = "copy"  # File stays available
 
-# Bad - in config file (committed to git)
-token = "xoxb-..."  # DON'T DO THIS
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#reports"
+attachment_globs = ["report.pdf"]
 ```
 
-## Rate Limiting
+## Common Patterns
 
-Slack imposes rate limits on API calls:
+### Pattern: ML Training Notification
 
-- **Tier 1 methods**: 1+ requests per minute
-- **File uploads**: Can be slower for large files
+```toml
+dotenv = ".env"
 
-If you're running many experiments rapidly, consider:
+[vault]
+name = "ml-experiments"
 
-1. Only notifying important runs
-2. Using separate channels for high-frequency notifications
-3. Implementing delay between experiments
+[[pre-run.hooks]]
+id = "notify-slack"
+channel = "#ml-training"
 
-## See Also
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#ml-training"
+attachment_globs = [
+  "training_curves.png",
+  "metrics.json",
+  "model_summary.txt"
+]
+```
 
-- [Slack API Documentation](https://api.slack.com/)
-- [Slack Block Kit](https://api.slack.com/block-kit)
-- [Slack File Uploads](https://api.slack.com/methods/files.upload)
-- [capture-file](capture-file.md) - Capture files for attachments
-- [capture-command](capture-command.md) - Run commands before notifications
+### Pattern: Daily Build Notification
+
+```toml
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#builds"
+attachment_globs = ["build_log.txt"]
+```
+
+### Pattern: Error Reports
+
+```toml
+# Only send if there are errors
+[[post-run.hooks]]
+id = "capture-command"
+command = ["test", "-f", "error.log"]
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#errors"
+attachment_globs = ["error.log"]
+```
+
+### Pattern: Multiple Channels
+
+```toml
+# Notify team channel
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#team-experiments"
+
+# Also notify yourself
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "D01234ABCD"  # Your DM
+attachment_globs = ["results/*.png"]
+```
+
+## Tips
+
+### Use Environment Variables
+
+Store tokens in environment variables, not in config:
+
+```toml
+# Good: token from environment
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+
+# Bad: token in config
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+token = "xoxb-..."  # Don't do this!
+```
+
+### Test in DMs First
+
+Test notifications in a DM before sending to team channels:
+
+```toml
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "D01234ABCD"  # Your DM
+```
+
+### Include Useful Attachments
+
+Attach summaries and visualizations, not raw data:
+
+```toml
+attachment_globs = [
+  "summary.txt",      # ✅ Good
+  "plots/*.png",      # ✅ Good
+  "data.csv"          # ⚠️ Maybe too large
+]
+```
+
+### Limit File Size
+
+Slack has file size limits (~1GB per file, but smaller is better):
+
+- Attach summaries, not full datasets
+- Use compressed formats (PNG not BMP)
+- Consider attaching links instead of large files
+
+## Troubleshooting
+
+### "channel_not_found"
+
+**Problem:** Bot can't access the channel.
+
+**Solution:**
+
+- Invite the bot to the channel: `/invite @YourBotName`
+- Check channel name spelling
+- Use channel ID instead of name
+
+### "invalid_auth" or "not_authed"
+
+**Problem:** Token is invalid or missing.
+
+**Solution:**
+
+- Check `SLACK_BOT_TOKEN` environment variable
+- Verify token starts with `xoxb-`
+- Regenerate token if needed
+
+### "missing_scope"
+
+**Problem:** Bot doesn't have required permissions.
+
+**Solution:**
+
+- Add `chat:write` scope
+- Add `files:write` scope (for attachments)
+- Reinstall app to workspace
+
+### Files Not Attaching
+
+**Problem:** Files specified in `attachment_globs` aren't attached.
+
+**Solution:**
+
+- Check file paths are relative to project root
+- Verify files exist when hook runs
+- Check hook order (files might have been moved)
+- Look at `attachments` field in hook output to see what was found
+
+### Messages Not Formatted
+
+**Problem:** Messages appear as plain text.
+
+**Solution:** This is normal - Capsula uses Block Kit which Slack renders automatically. The formatting appears in Slack, not in the raw JSON.
+
+## Common Questions
+
+**Q: Can I customize the message text?**
+
+Not currently. The message format is fixed to ensure consistency. However, the message includes run name, ID, timestamp, and command.
+
+**Q: Can I send to multiple channels?**
+
+Yes, use multiple hooks:
+
+```toml
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#experiments"
+
+[[post-run.hooks]]
+id = "notify-slack"
+channel = "#team"
+```
+
+**Q: What if my bot token expires?**
+
+Bot tokens from Slack apps don't expire unless you explicitly revoke them. If revoked, regenerate the token and update your environment variable.
+
+**Q: Can I @mention people in notifications?**
+
+Not currently. The message format is fixed and doesn't support mentions.
+
+**Q: Does this work with Slack Enterprise Grid?**
+
+Yes, as long as your bot has the required permissions.
+
+**Q: What if files are too large?**
+
+Slack's file size limit is around 1GB per file, but uploading very large files will slow down your run. Consider:
+
+- Compressing files before uploading
+- Uploading summaries instead of full data
+- Using separate file upload services for large files
+
+**Q: Can I use webhooks instead of a bot token?**
+
+Not currently. This hook uses the Slack Web API which requires a bot token.
+
+## Related Hooks
+
+- [capture-file](capture-file.md) - Capture files before attaching
+- [capture-command](capture-command.md) - Generate summaries to attach
+
+[:octicons-arrow-left-24: Back to Hooks](../hooks.md)
