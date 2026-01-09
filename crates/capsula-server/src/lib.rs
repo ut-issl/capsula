@@ -42,6 +42,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
     routing::{get, post},
 };
+use capsula_api_types::VaultInfo;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
@@ -59,7 +60,7 @@ struct IndexTemplate;
 #[derive(Template, WebTemplate)]
 #[template(path = "vaults.html")]
 struct VaultsTemplate {
-    vaults: Vec<models::VaultInfo>,
+    vaults: Vec<VaultInfo>,
 }
 
 #[derive(Template, WebTemplate)]
@@ -147,9 +148,9 @@ async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
 
     match result {
         Ok(rows) => {
-            let vaults: Vec<models::VaultInfo> = rows
+            let vaults: Vec<VaultInfo> = rows
                 .into_iter()
-                .map(|row| models::VaultInfo {
+                .map(|row| VaultInfo {
                     name: row.name,
                     run_count: row.run_count,
                 })
@@ -398,9 +399,9 @@ async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
 
     match result {
         Ok(rows) => {
-            let vaults: Vec<models::VaultInfo> = rows
+            let vaults: Vec<VaultInfo> = rows
                 .into_iter()
-                .map(|row| models::VaultInfo {
+                .map(|row| VaultInfo {
                     name: row.name,
                     run_count: row.run_count,
                 })
@@ -440,7 +441,7 @@ async fn get_vault_info(State(pool): State<PgPool>, Path(name): Path<String>) ->
 
     match result {
         Ok(Some(row)) => {
-            let vault = models::VaultInfo {
+            let vault = VaultInfo {
                 name: row.name,
                 run_count: row.run_count,
             };

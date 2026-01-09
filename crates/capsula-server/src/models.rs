@@ -2,9 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-// Re-export shared API types
-pub use capsula_api_types::VaultInfo;
-
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Run {
     pub id: String,

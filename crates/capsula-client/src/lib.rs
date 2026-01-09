@@ -1,10 +1,8 @@
+use capsula_api_types::{UploadResponse, VaultExistsResponse, VaultInfo, VaultsResponse};
 use reqwest::blocking::multipart;
 use serde_json::Value as JsonValue;
 use std::path::Path;
 use thiserror::Error;
-
-// Re-export shared API types
-pub use capsula_api_types::{UploadResponse, VaultExistsResponse, VaultInfo, VaultsResponse};
 
 #[derive(Debug, Error)]
 pub enum ClientError {
