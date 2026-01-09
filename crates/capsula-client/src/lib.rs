@@ -1,5 +1,5 @@
+use capsula_api_types::{UploadResponse, VaultExistsResponse, VaultInfo, VaultsResponse};
 use reqwest::blocking::multipart;
-use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::path::Path;
 use thiserror::Error;
@@ -25,34 +25,6 @@ pub type Result<T> = std::result::Result<T, ClientError>;
 pub struct CapsulaClient {
     base_url: String,
     client: reqwest::blocking::Client,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VaultInfo {
-    pub name: String,
-    pub run_count: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VaultsResponse {
-    pub status: String,
-    pub vaults: Vec<VaultInfo>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VaultExistsResponse {
-    pub status: String,
-    pub exists: bool,
-    pub vault: Option<VaultInfo>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UploadResponse {
-    pub status: String,
-    pub files_processed: u64,
-    pub total_bytes: u64,
-    pub pre_run_hooks: u64,
-    pub post_run_hooks: u64,
 }
 
 impl CapsulaClient {

@@ -22,6 +22,7 @@ capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.10.0-a
 capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.10.0-alpha.1" }
 capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.10.0-alpha.1" }
 capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.10.0-alpha.1" }
+capsula-api-types = { path = "crates/capsula-api-types", version = "0.10.0-alpha.1" }
 capsula-cli = { path = "crates/capsula-cli", version = "0.10.0-alpha.1" }
 capsula-client = { path = "crates/capsula-client", version = "0.10.0-alpha.1" }
 capsula-config = { path = "crates/capsula-config", version = "0.10.0-alpha.1" }
@@ -56,6 +57,7 @@ tower-http = { version = "0.6", features = ["fs", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = { version = "1", features = ["serde"] }
+wiremock = "0.6"
 
 [workspace.lints.clippy]
 all = "warn"

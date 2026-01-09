@@ -32,12 +32,6 @@ pub struct CreateRunRequest {
     pub stderr: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct VaultInfo {
-    pub name: String,
-    pub run_count: i64,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct ListRunsQuery {
     pub vault: Option<String>,

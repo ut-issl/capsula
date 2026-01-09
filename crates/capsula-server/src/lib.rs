@@ -42,6 +42,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
     routing::{get, post},
 };
+use capsula_api_types::VaultInfo;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
@@ -59,7 +60,7 @@ struct IndexTemplate;
 #[derive(Template, WebTemplate)]
 #[template(path = "vaults.html")]
 struct VaultsTemplate {
-    vaults: Vec<models::VaultInfo>,
+    vaults: Vec<VaultInfo>,
 }
 
 #[derive(Template, WebTemplate)]
@@ -147,9 +148,9 @@ async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
 
     match result {
         Ok(rows) => {
-            let vaults: Vec<models::VaultInfo> = rows
+            let vaults: Vec<VaultInfo> = rows
                 .into_iter()
-                .map(|row| models::VaultInfo {
+                .map(|row| VaultInfo {
                     name: row.name,
                     run_count: row.run_count,
                 })
@@ -398,25 +399,27 @@ async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
 
     match result {
         Ok(rows) => {
-            let vaults: Vec<models::VaultInfo> = rows
+            let vaults: Vec<VaultInfo> = rows
                 .into_iter()
-                .map(|row| models::VaultInfo {
+                .map(|row| VaultInfo {
                     name: row.name,
                     run_count: row.run_count,
                 })
                 .collect();
             info!("Found {} vaults", vaults.len());
-            Json(json!({
-                "status": "ok",
-                "vaults": vaults
-            }))
+            let response = capsula_api_types::VaultsResponse {
+                status: "ok".to_string(),
+                vaults,
+            };
+            Json(serde_json::to_value(response).expect("Failed to serialize VaultsResponse"))
         }
         Err(e) => {
             error!("Failed to list vaults: {}", e);
-            Json(json!({
-                "status": "error",
-                "error": e.to_string()
-            }))
+            let response = capsula_api_types::ErrorResponse {
+                status: "error".to_string(),
+                error: e.to_string(),
+            };
+            Json(serde_json::to_value(response).expect("Failed to serialize ErrorResponse"))
         }
     }
 }
@@ -438,31 +441,34 @@ async fn get_vault_info(State(pool): State<PgPool>, Path(name): Path<String>) ->
 
     match result {
         Ok(Some(row)) => {
-            let vault = models::VaultInfo {
+            let vault = VaultInfo {
                 name: row.name,
                 run_count: row.run_count,
             };
             info!("Found vault: {} with {} runs", vault.name, vault.run_count);
-            Json(json!({
-                "status": "ok",
-                "exists": true,
-                "vault": vault
-            }))
+            let response = capsula_api_types::VaultExistsResponse {
+                status: "ok".to_string(),
+                exists: true,
+                vault: Some(vault),
+            };
+            Json(serde_json::to_value(response).expect("Failed to serialize VaultExistsResponse"))
         }
         Ok(None) => {
             info!("Vault not found: {}", name);
-            Json(json!({
-                "status": "ok",
-                "exists": false,
-                "vault": null
-            }))
+            let response = capsula_api_types::VaultExistsResponse {
+                status: "ok".to_string(),
+                exists: false,
+                vault: None,
+            };
+            Json(serde_json::to_value(response).expect("Failed to serialize VaultExistsResponse"))
         }
         Err(e) => {
             error!("Failed to get vault info: {}", e);
-            Json(json!({
-                "status": "error",
-                "error": e.to_string()
-            }))
+            let response = capsula_api_types::ErrorResponse {
+                status: "error".to_string(),
+                error: e.to_string(),
+            };
+            Json(serde_json::to_value(response).expect("Failed to serialize ErrorResponse"))
         }
     }
 }
@@ -1004,13 +1010,14 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
         pre_run_count, post_run_count
     );
 
-    Json(json!({
-        "status": "ok",
-        "files_processed": files_processed,
-        "total_bytes": total_bytes,
-        "pre_run_hooks": pre_run_count,
-        "post_run_hooks": post_run_count
-    }))
+    let response = capsula_api_types::UploadResponse {
+        status: "ok".to_string(),
+        files_processed,
+        total_bytes,
+        pre_run_hooks: pre_run_count,
+        post_run_hooks: post_run_count,
+    };
+    Json(serde_json::to_value(response).expect("Failed to serialize UploadResponse"))
 }
 
 async fn download_file(

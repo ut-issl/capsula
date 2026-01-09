@@ -9,6 +9,9 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 
+/// Maximum number of files that can be attached to a Slack message (API limit)
+const MAX_SLACK_ATTACHMENTS: usize = 10;
+
 /// Configuration for the Slack notification hook
 ///
 /// # Fields
@@ -36,9 +39,70 @@ fn token_from_env() -> String {
     std::env::var("SLACK_BOT_TOKEN").unwrap_or_default()
 }
 
+/// Build Slack Block Kit blocks for a run notification
+///
+/// This is a pure function that constructs the rich-formatted Slack message blocks.
+/// It creates a structured message with header, divider, and run details section.
+///
+/// # Arguments
+/// * `header_text` - The header text to display (e.g., "🚀 Capsula Run Starting")
+/// * `run_name` - The name of the run
+/// * `run_id` - The unique ID of the run
+/// * `timestamp_unix` - Unix timestamp for Slack's date formatting
+/// * `timestamp_rfc3339` - RFC3339 formatted timestamp as fallback
+/// * `command_display` - The formatted command string to display
+fn build_slack_blocks(
+    header_text: &str,
+    run_name: &str,
+    run_id: impl std::fmt::Display,
+    timestamp_unix: i64,
+    timestamp_rfc3339: &str,
+    command_display: &str,
+) -> Vec<serde_json::Value> {
+    vec![
+        // Header
+        json!({
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": header_text,
+                "emoji": true
+            }
+        }),
+        // Divider
+        json!({
+            "type": "divider"
+        }),
+        // Run details
+        json!({
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": format!("*Run Name:*\n{}", run_name)
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": format!("*Run ID:*\n`{}`", run_id)
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": format!("*Timestamp:*\n<!date^{}^{{date_num}} {{time_secs}}|{}>",
+                        timestamp_unix, timestamp_rfc3339)
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": format!("*Command:*\n```{}```", command_display)
+                }
+            ]
+        }),
+    ]
+}
+
 /// Resolve glob patterns and collect matching file paths
 /// Globs are resolved relative to the provided base directory
-fn resolve_attachment_globs(
+#[doc(hidden)]
+pub fn resolve_attachment_globs(
     globs: &[String],
     base_dir: &Path,
 ) -> Result<Vec<PathBuf>, SlackNotifyError> {
@@ -84,14 +148,14 @@ fn resolve_attachment_globs(
         debug!("Pattern '{}' matched {} files", pattern, pattern_matches);
     }
 
-    // Limit to 10 files (Slack API limit)
+    // Limit to MAX_SLACK_ATTACHMENTS files (Slack API limit)
     let original_count = files.len();
-    files.truncate(10);
+    files.truncate(MAX_SLACK_ATTACHMENTS);
 
-    if original_count > 10 {
+    if original_count > MAX_SLACK_ATTACHMENTS {
         debug!(
-            "Truncated attachment list from {} to 10 files (Slack API limit)",
-            original_count
+            "Truncated attachment list from {} to {} files (Slack API limit)",
+            original_count, MAX_SLACK_ATTACHMENTS
         );
     }
 
@@ -467,45 +531,14 @@ impl Hook<PreRun> for SlackNotifyHook {
             .unwrap_or_else(|_| metadata.command.join(" "));
 
         // Build Block Kit message
-        let blocks = vec![
-            // Header
-            json!({
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": "🚀 Capsula Run Starting",
-                    "emoji": true
-                }
-            }),
-            // Divider
-            json!({
-                "type": "divider"
-            }),
-            // Run details
-            json!({
-                "type": "section",
-                "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": format!("*Run Name:*\n{}", metadata.name)
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": format!("*Run ID:*\n`{}`", metadata.id)
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": format!("*Timestamp:*\n<!date^{}^{{date_num}} {{time_secs}}|{}>",
-                            metadata.timestamp().timestamp(),
-                            metadata.timestamp().to_rfc3339())
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": format!("*Command:*\n```{}```", command_display)
-                    }
-                ]
-            }),
-        ];
+        let blocks = build_slack_blocks(
+            "🚀 Capsula Run Starting",
+            &metadata.name,
+            metadata.id,
+            metadata.timestamp().timestamp(),
+            &metadata.timestamp().to_rfc3339(),
+            &command_display,
+        );
 
         // Resolve attachment globs relative to project root
         let attachment_paths =
@@ -579,45 +612,14 @@ impl Hook<PostRun> for SlackNotifyHook {
             .unwrap_or_else(|_| metadata.command.join(" "));
 
         // Build Block Kit message
-        let blocks = vec![
-            // Header
-            json!({
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": "✅ Capsula Run Completed",
-                    "emoji": true
-                }
-            }),
-            // Divider
-            json!({
-                "type": "divider"
-            }),
-            // Run details
-            json!({
-                "type": "section",
-                "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": format!("*Run Name:*\n{}", metadata.name)
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": format!("*Run ID:*\n`{}`", metadata.id)
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": format!("*Timestamp:*\n<!date^{}^{{date_num}} {{time_secs}}|{}>",
-                            metadata.timestamp().timestamp(),
-                            metadata.timestamp().to_rfc3339())
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": format!("*Command:*\n```{}```", command_display)
-                    }
-                ]
-            }),
-        ];
+        let blocks = build_slack_blocks(
+            "✅ Capsula Run Completed",
+            &metadata.name,
+            metadata.id,
+            metadata.timestamp().timestamp(),
+            &metadata.timestamp().to_rfc3339(),
+            &command_display,
+        );
 
         // Resolve attachment globs relative to project root
         let attachment_paths =
