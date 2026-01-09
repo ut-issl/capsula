@@ -9,6 +9,9 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 
+/// Maximum number of files that can be attached to a Slack message (API limit)
+const MAX_SLACK_ATTACHMENTS: usize = 10;
+
 /// Configuration for the Slack notification hook
 ///
 /// # Fields
@@ -145,14 +148,14 @@ pub fn resolve_attachment_globs(
         debug!("Pattern '{}' matched {} files", pattern, pattern_matches);
     }
 
-    // Limit to 10 files (Slack API limit)
+    // Limit to MAX_SLACK_ATTACHMENTS files (Slack API limit)
     let original_count = files.len();
-    files.truncate(10);
+    files.truncate(MAX_SLACK_ATTACHMENTS);
 
-    if original_count > 10 {
+    if original_count > MAX_SLACK_ATTACHMENTS {
         debug!(
-            "Truncated attachment list from {} to 10 files (Slack API limit)",
-            original_count
+            "Truncated attachment list from {} to {} files (Slack API limit)",
+            original_count, MAX_SLACK_ATTACHMENTS
         );
     }
 
@@ -531,7 +534,7 @@ impl Hook<PreRun> for SlackNotifyHook {
         let blocks = build_slack_blocks(
             "🚀 Capsula Run Starting",
             &metadata.name,
-            &metadata.id,
+            metadata.id,
             metadata.timestamp().timestamp(),
             &metadata.timestamp().to_rfc3339(),
             &command_display,
@@ -612,7 +615,7 @@ impl Hook<PostRun> for SlackNotifyHook {
         let blocks = build_slack_blocks(
             "✅ Capsula Run Completed",
             &metadata.name,
-            &metadata.id,
+            metadata.id,
             metadata.timestamp().timestamp(),
             &metadata.timestamp().to_rfc3339(),
             &command_display,

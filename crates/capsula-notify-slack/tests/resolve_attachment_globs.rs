@@ -131,7 +131,7 @@ fn test_resolve_truncates_to_10_files() {
     // Arrange - create 15 files
     let temp_dir = TempDir::new().unwrap();
     for i in 0..15 {
-        fs::write(temp_dir.path().join(format!("file{}.txt", i)), "content").unwrap();
+        fs::write(temp_dir.path().join(format!("file{i}.txt")), "content").unwrap();
     }
     let globs = vec!["*.txt".to_string()];
 
