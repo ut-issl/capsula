@@ -56,6 +56,7 @@ tower-http = { version = "0.6", features = ["fs", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = { version = "1", features = ["serde"] }
+wiremock = "0.6"
 
 [workspace.lints.clippy]
 all = "warn"
