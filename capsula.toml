@@ -59,3 +59,9 @@ channel = "D0A61JQ7DFY"  # Channel ID of DM with Capsula Bot
 # Optional: attach files matching glob patterns (up to 10 files)
 # attachment_globs = ["*.png", "outputs/*.jpg"]
 attachment_globs = [".local/*.png"]
+
+[[post-run.hooks]]
+id = "capture-file"
+glob = ".local/*.png"
+mode = "copy"
+hash = "sha256"
