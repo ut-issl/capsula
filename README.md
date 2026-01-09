@@ -561,6 +561,66 @@ Captured data is organized in the vault:
 }
 ```
 
+## Development
+
+### Code Coverage
+
+Capsula uses [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov) for code coverage analysis. Coverage reports help identify untested code and ensure comprehensive test coverage across the workspace.
+
+**Current Coverage:** 48.22% line coverage (baseline as of 2026-01-09)
+
+#### Prerequisites
+
+Install `cargo-llvm-cov` and the required LLVM tools:
+
+```bash
+cargo install cargo-llvm-cov
+rustup component add llvm-tools-preview
+```
+
+#### Running Coverage
+
+Use the provided justfile recipes for convenience:
+
+```bash
+# Generate HTML coverage report
+just coverage
+
+# Generate and open HTML report in browser
+just coverage-open
+
+# Generate LCOV format (for CI/CD)
+just coverage-lcov
+
+# Clean coverage artifacts
+just coverage-clean
+```
+
+Or use cargo-llvm-cov directly:
+
+```bash
+# HTML report
+cargo llvm-cov --all-features --workspace --html
+
+# Text summary
+cargo llvm-cov --all-features --workspace --summary-only
+
+# LCOV format
+cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+```
+
+#### Viewing Reports
+
+HTML reports are generated in `target/llvm-cov/html/` and show:
+- **Line coverage**: Which lines were executed during tests
+- **Region coverage**: Code regions (branches, expressions) covered
+- **Function coverage**: Which functions were called
+
+Files are color-coded:
+- 🟢 Green: Well-covered (>80%)
+- 🟡 Yellow: Partially covered (50-80%)
+- 🔴 Red: Poorly covered (<50%)
+
 ## License
 
 This project is licensed under either of the MIT license or the Apache License 2.0 at your option.
