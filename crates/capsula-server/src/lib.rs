@@ -25,7 +25,10 @@ mod filters {
         clippy::unnecessary_wraps,
         reason = "Askama filter API requires Result return type"
     )]
-    pub fn pretty_json<T: std::fmt::Display>(s: T, _env: &dyn askama::Values) -> ::askama::Result<String> {
+    pub fn pretty_json<T: std::fmt::Display>(
+        s: T,
+        _env: &dyn askama::Values,
+    ) -> ::askama::Result<String> {
         let s_str = s.to_string();
         // Try to parse as JSON and pretty-print with 2-space indentation
         Ok(serde_json::from_str::<serde_json::Value>(&s_str)
