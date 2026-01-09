@@ -1,12 +1,15 @@
 use askama::Template;
 use askama_web::WebTemplate;
 
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "Askama filter_fn macro generates code that triggers this lint, but Result return type is required by the Askama filter API"
+)]
 mod filters {
-    #[expect(
-        clippy::unnecessary_wraps,
-        reason = "Askama filter API requires Result return type"
-    )]
-    pub fn format_command(s: &str, _: &dyn askama::Values) -> ::askama::Result<String> {
+    use askama::filter_fn;
+
+    #[filter_fn]
+    pub fn format_command(s: &str, _env: &dyn askama::Values) -> ::askama::Result<String> {
         // Try to parse as JSON array
         Ok(serde_json::from_str::<Vec<String>>(s).map_or_else(
             |_| s.to_string(),
@@ -17,13 +20,10 @@ mod filters {
         ))
     }
 
-    #[expect(
-        clippy::unnecessary_wraps,
-        reason = "Askama filter API requires Result return type"
-    )]
+    #[filter_fn]
     pub fn pretty_json<T: std::fmt::Display>(
         s: T,
-        _: &dyn askama::Values,
+        _env: &dyn askama::Values,
     ) -> ::askama::Result<String> {
         let s_str = s.to_string();
         // Try to parse as JSON and pretty-print with 2-space indentation
