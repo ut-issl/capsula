@@ -14,6 +14,7 @@ categories = ["web-programming::http-server"]
 askama = { workspace = true }
 askama_web = { workspace = true }
 axum = { workspace = true }
+capsula-api-types = { workspace = true }
 chrono = { workspace = true }
 mime_guess = { workspace = true }
 serde = { workspace = true }

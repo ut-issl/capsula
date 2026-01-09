@@ -480,6 +480,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b35204fbdc0b3f4446b89fc1ac2cf84a8a68971995d0bf2e925ec7cd960f9cb3"
 
 [[package]]
+name = "capsula-api-types"
+version = "0.10.0-alpha.1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "capsula-capture-command"
 version = "0.10.0-alpha.1"
 dependencies = [
@@ -585,6 +593,7 @@ dependencies = [
 name = "capsula-client"
 version = "0.10.0-alpha.1"
 dependencies = [
+ "capsula-api-types",
  "reqwest",
  "serde",
  "serde_json",
@@ -660,6 +669,7 @@ dependencies = [
  "askama",
  "askama_web",
  "axum",
+ "capsula-api-types",
  "chrono",
  "mime_guess",
  "reqwest",
