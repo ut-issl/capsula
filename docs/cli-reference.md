@@ -1,3 +1,7 @@
+---
+icon: material/console
+---
+
 # CLI Reference
 
 Complete reference for Capsula command-line interface.

@@ -1,3 +1,7 @@
+---
+icon: material/hook
+---
+
 # capture-env
 
 Captures the value of environment variables.

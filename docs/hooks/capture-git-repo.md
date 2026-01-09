@@ -1,3 +1,7 @@
+---
+icon: material/hook
+---
+
 # capture-git-repo
 
 Captures git repository state including commit hash, branch, and whether there are uncommitted changes.

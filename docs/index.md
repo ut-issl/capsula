@@ -1,3 +1,7 @@
+---
+icon: material/home
+---
+
 # Welcome to Capsula
 
 Capsula is a command-line tool that automatically captures and saves information about your command executions. It records what happened, when it happened, and the environment in which it happened.

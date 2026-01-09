@@ -1,3 +1,7 @@
+---
+icon: material/hook
+---
+
 # notify-slack
 
 Sends notifications to Slack when runs start (pre-run) or complete (post-run), with optional file attachments.

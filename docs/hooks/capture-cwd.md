@@ -1,3 +1,7 @@
+---
+icon: material/hook
+---
+
 # capture-cwd
 
 Captures the current working directory where Capsula is running.

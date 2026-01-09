@@ -1,3 +1,7 @@
+---
+icon: material/server
+---
+
 # Server Setup
 
 !!! warning "Under Construction"

@@ -1,3 +1,7 @@
+---
+icon: material/hook
+---
+
 # capture-file
 
 Captures files by copying them, moving them, or computing their hash.

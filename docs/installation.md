@@ -1,3 +1,7 @@
+---
+icon: material/download
+---
+
 # Installation
 
 This guide will help you install Capsula on your system.

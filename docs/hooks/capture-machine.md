@@ -1,3 +1,7 @@
+---
+icon: material/hook
+---
+
 # capture-machine
 
 Captures system information including CPU, memory, OS, and hostname.

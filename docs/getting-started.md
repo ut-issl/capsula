@@ -1,3 +1,7 @@
+---
+icon: material/rocket-launch
+---
+
 # Getting Started
 
 This guide will walk you through your first Capsula run and help you understand how it works.

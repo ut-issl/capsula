@@ -1,3 +1,7 @@
+---
+icon: material/cog
+---
+
 # Configuration
 
 Capsula is configured using a `capsula.toml` file. This page documents all configuration options.

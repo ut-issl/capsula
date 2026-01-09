@@ -1,3 +1,7 @@
+---
+icon: material/hook
+---
+
 # capture-command
 
 Runs a shell command and captures its output, exit code, and execution time.
