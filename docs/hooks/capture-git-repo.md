@@ -18,13 +18,13 @@ Captures git repository state including commit hash, branch, and whether there a
 ### Required Options
 
 | Option | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `path` | string | Path to the git repository (`.` for current directory) |
 
 ### Optional Options
 
 | Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| -------- | ------ | --------- | ------------- |
 | `allow_dirty` | boolean | `false` | If `false`, Capsula aborts when the repository has uncommitted changes |
 
 ### Example

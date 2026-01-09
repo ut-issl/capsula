@@ -14,3 +14,5 @@ code-block-style: false
 ul-indent:
   indent: 4
 no-duplicate-heading: false
+table-column-style:
+  style: compact

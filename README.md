@@ -6,7 +6,6 @@
 [![codecov](https://codecov.io/gh/ut-issl/capsula/graph/badge.svg?token=BZXF2PPDM0)](https://codecov.io/gh/ut-issl/capsula)
 [![Documentation](https://img.shields.io/badge/docs-capsula-blue)](https://www.space.t.u-tokyo.ac.jp/capsula/)
 
-
 > [!WARNING]
 > This project is in early development. The CLI interface and configuration format may change in future releases.
 

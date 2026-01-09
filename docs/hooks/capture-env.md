@@ -18,7 +18,7 @@ Captures the value of environment variables.
 ### Required Options
 
 | Option | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `name` | string | Name of the environment variable to capture |
 
 ### Example

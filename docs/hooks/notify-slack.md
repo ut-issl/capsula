@@ -35,6 +35,7 @@ Before using this hook, you need to set up a Slack app:
 ### 3. Invite Bot to Channel
 
 In your Slack channel, type:
+
 ```
 /invite @YourBotName
 ```
@@ -63,13 +64,13 @@ dotenv = ".env"
 ### Required Options
 
 | Option | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `channel` | string | Slack channel name (e.g., `"#general"`) or channel ID (e.g., `"C01234567"`) |
 
 ### Optional Options
 
 | Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| -------- | ------ | --------- | ------------- |
 | `token` | string | `SLACK_BOT_TOKEN` env var | Slack bot token (starts with `xoxb-`) |
 | `attachment_globs` | array of strings | `[]` | File patterns to attach (up to 10 files) |
 
@@ -149,7 +150,7 @@ attachment_globs = ["results/*.png", "plots/*.pdf", "summary.txt"]
 
 Same as [capture-file](capture-file.md):
 
-- `*.png` - All PNGs in current directory
+- `*.png` - All `.png` files in current directory
 - `results/**/*.csv` - All CSVs in results/ tree
 - `plot_?.pdf` - plot_1.pdf, plot_2.pdf, etc.
 

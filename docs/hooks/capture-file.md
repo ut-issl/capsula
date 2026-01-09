@@ -18,13 +18,13 @@ Captures files by copying them, moving them, or computing their hash.
 ### Required Options
 
 | Option | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `glob` | string | File pattern to match (e.g., `"*.txt"`, `"results/**/*.png"`) |
 
 ### Optional Options
 
 | Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| -------- | ------ | --------- | ------------- |
 | `mode` | string | `"copy"` | How to handle files: `"copy"`, `"move"`, or `"none"` |
 | `hash` | string | `"sha256"` | Hash algorithm: `"sha256"` or `"none"` |
 
