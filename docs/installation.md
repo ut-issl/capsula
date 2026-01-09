@@ -4,10 +4,7 @@ This guide will help you install Capsula on your system.
 
 ## Requirements
 
-Before installing Capsula, make sure you have:
-
 - **Rust toolchain** (version 1.90.0 or later)
-- **Git** (optional, needed only if you want to capture git repository state)
 
 !!! tip "Don't have Rust installed?"
     Visit [rustup.rs](https://rustup.rs/) to install Rust. It takes just a few minutes!
@@ -46,7 +43,7 @@ capsula --version
 You should see output like:
 
 ```
-capsula-cli 0.10.0-alpha.1
+capsula 0.9.0
 ```
 
 Try the help command:
@@ -65,38 +62,37 @@ cargo install capsula-cli --locked
 
 Cargo will automatically download and install the new version.
 
-## Installation Troubleshooting
+## Troubleshooting
 
 ### "cargo: command not found"
 
-This means Rust is not installed or not in your PATH. Install Rust from [rustup.rs](https://rustup.rs/) and restart your terminal.
+Rust is not installed or not in your PATH. Install Rust from [rustup.rs](https://rustup.rs/) and restart your terminal.
 
 ### Compilation Errors
 
-If you encounter compilation errors, try:
+**Rust version too old:**
 
-1. **Update Rust:**
-   ```bash
-   rustup update
-   ```
+Check your Rust version:
 
-2. **Clean cargo cache:**
-   ```bash
-   cargo clean
-   ```
+```bash
+rustc --version
+```
 
-3. **Try installing again:**
-   ```bash
-   cargo install capsula-cli --locked
-   ```
+Capsula requires Rust 1.90.0 or later. Update Rust:
 
-### Permission Errors
+```bash
+rustup update
+```
 
-If you get permission errors, cargo might be trying to install to a system directory. Make sure your Rust installation is set up for user-level installations (the default with rustup).
+Then try installing again:
 
-### Slow Installation
+```bash
+cargo install capsula-cli --locked
+```
 
-The first installation may take several minutes as cargo compiles Capsula and all its dependencies. Subsequent updates will be faster.
+**Missing system libraries:**
+
+If compilation fails with "linker" or "library not found" errors, you may need to install system development libraries. Read the error output carefully - it usually indicates which library is missing.
 
 ## Uninstalling Capsula
 
