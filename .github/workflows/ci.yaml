@@ -25,16 +25,55 @@ jobs:
       - run: cargo check --workspace
       - run: git diff --exit-code
 
-  tests:
-    name: cargo test
+  coverage:
+    name: Generate and upload coverage to Codecov
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://capsula:capsula@localhost:5432/capsula
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: capsula
+          POSTGRES_PASSWORD: capsula
+          POSTGRES_DB: capsula
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v6
+
       - uses: dtolnay/rust-toolchain@1.90.0
         with:
-          components: clippy, rustfmt
+          components: llvm-tools-preview
+
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features postgres
+
+      - name: Run migrations
+        run: |
+          cd crates/capsula-server
+          sqlx database create
+          sqlx migrate run
+
+      - name: Generate coverage
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   sqlx-check:
     name: Check SQLx prepared queries are up-to-date
@@ -78,7 +117,7 @@ jobs:
         uses: crate-ci/typos@v1.42.0
 
   collect:
-    needs: [checks, tests, sqlx-check, typos]
+    needs: [checks, coverage, sqlx-check, typos]
     runs-on: ubuntu-latest
     steps:
       - name: Collect results
