@@ -487,32 +487,10 @@ Some conditions cause Capsula to abort:
 - Run directory cannot be created
 - A hook requests abort (e.g., dirty git repo when `allow_dirty = false`)
 
-## What's Next?
 
-<div class="grid cards" markdown>
+## Next Steps
 
--   :material-hook:{ .lg .middle } **Hooks Reference**
+- [Configuration Guide](configuration.md) - Learn about all configuration options
+- [Hooks Reference](hooks.md) - Explore available hooks
+- [CLI Reference](cli-reference.md) - Complete command reference
 
-    ---
-
-    Learn about each hook type in detail.
-
-    [:octicons-arrow-right-24: Explore hooks](hooks.md)
-
--   :material-book-open-variant:{ .lg .middle } **Examples**
-
-    ---
-
-    See real-world configuration examples.
-
-    [:octicons-arrow-right-24: View examples](examples.md)
-
--   :material-help-circle:{ .lg .middle } **Troubleshooting**
-
-    ---
-
-    Having issues? Check common problems and solutions.
-
-    [:octicons-arrow-right-24: Troubleshooting guide](troubleshooting.md)
-
-</div>

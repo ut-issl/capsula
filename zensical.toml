@@ -43,10 +43,24 @@ Copyright &copy; 2025 The Intelligent Space Systems Laboratory (ISSL)
 # can be defined using TOML syntax.
 #
 # Read more: https://zensical.org/docs/setup/navigation/
-# nav = [
-#   { "Get started" = "index.md" },
-#   { "Markdown in 5min" = "markdown.md" },
-# ]
+nav = [
+  { "Home" = "index.md" },
+  { "Installation" = "installation.md" },
+  { "Getting Started" = "getting-started.md" },
+  { "Configuration" = "configuration.md" },
+  { "Hooks" = [
+    "hooks.md",
+    { "capture-cwd" = "hooks/capture-cwd.md" },
+    { "capture-env" = "hooks/capture-env.md" },
+    { "capture-git-repo" = "hooks/capture-git-repo.md" },
+    { "capture-file" = "hooks/capture-file.md" },
+    { "capture-machine" = "hooks/capture-machine.md" },
+    { "capture-command" = "hooks/capture-command.md" },
+    { "notify-slack" = "hooks/notify-slack.md" },
+  ]},
+  { "CLI Reference" = "cli-reference.md" },
+  { "Server Setup" = "server-setup.md" },
+]
 
 # With the "extra_css" option you can add your own CSS styling to customize
 # your Zensical project according to your needs. You can add any number of

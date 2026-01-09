@@ -554,32 +554,10 @@ Click on any hook below to see detailed documentation:
 
 </div>
 
-## What's Next?
 
-<div class="grid cards" markdown>
+## Next Steps
 
--   :material-book-open-variant:{ .lg .middle } **Examples**
+- [Configuration Guide](configuration.md) - Learn about all configuration options
+- [Hooks Reference](hooks.md) - Explore available hooks
+- [CLI Reference](cli-reference.md) - Complete command reference
 
-    ---
-
-    See complete examples for different use cases.
-
-    [:octicons-arrow-right-24: View examples](examples.md)
-
--   :material-cog:{ .lg .middle } **Configuration**
-
-    ---
-
-    Learn about all configuration options.
-
-    [:octicons-arrow-right-24: Configuration guide](configuration.md)
-
--   :material-help-circle:{ .lg .middle } **Troubleshooting**
-
-    ---
-
-    Having hook issues? Check the troubleshooting guide.
-
-    [:octicons-arrow-right-24: Troubleshooting](troubleshooting.md)
-
-</div>

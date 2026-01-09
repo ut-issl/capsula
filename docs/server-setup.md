@@ -451,32 +451,10 @@ brew uninstall postgresql@16
 sudo apt remove postgresql postgresql-contrib
 ```
 
-## What's Next?
 
-<div class="grid cards" markdown>
+## Next Steps
 
--   :material-console:{ .lg .middle } **CLI Reference**
+- [Configuration Guide](configuration.md) - Learn about all configuration options
+- [Hooks Reference](hooks.md) - Explore available hooks
+- [CLI Reference](cli-reference.md) - Complete command reference
 
-    ---
-
-    Learn about `capsula push` and `capsula vaults` commands.
-
-    [:octicons-arrow-right-24: CLI reference](cli-reference.md)
-
--   :material-book-open-variant:{ .lg .middle } **Examples**
-
-    ---
-
-    See examples of using the server.
-
-    [:octicons-arrow-right-24: View examples](examples.md)
-
--   :material-help-circle:{ .lg .middle } **Troubleshooting**
-
-    ---
-
-    Common issues and solutions.
-
-    [:octicons-arrow-right-24: Troubleshooting](troubleshooting.md)
-
-</div>

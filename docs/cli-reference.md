@@ -423,32 +423,10 @@ For complex commands with pipes or redirects, use quotes:
 capsula run bash -c 'python generate.py | grep result > output.txt'
 ```
 
-## What's Next?
 
-<div class="grid cards" markdown>
+## Next Steps
 
--   :material-cog:{ .lg .middle } **Configuration**
+- [Configuration Guide](configuration.md) - Learn about all configuration options
+- [Hooks Reference](hooks.md) - Explore available hooks
+- [CLI Reference](cli-reference.md) - Complete command reference
 
-    ---
-
-    Learn about all configuration options.
-
-    [:octicons-arrow-right-24: Configuration guide](configuration.md)
-
--   :material-hook:{ .lg .middle } **Hooks**
-
-    ---
-
-    Explore available hooks.
-
-    [:octicons-arrow-right-24: Hook reference](hooks.md)
-
--   :material-help-circle:{ .lg .middle } **Troubleshooting**
-
-    ---
-
-    Common issues and solutions.
-
-    [:octicons-arrow-right-24: Troubleshooting](troubleshooting.md)
-
-</div>

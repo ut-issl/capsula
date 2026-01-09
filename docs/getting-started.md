@@ -297,45 +297,12 @@ Available variables:
 - `CAPSULA_RUN_TIMESTAMP` - ISO 8601 timestamp
 - `CAPSULA_RUN_COMMAND` - The command being executed
 
+
 ## Next Steps
 
-Now that you understand the basics, explore more features:
-
-<div class="grid cards" markdown>
-
--   :material-cog:{ .lg .middle } **Configuration**
-
-    ---
-
-    Learn about all configuration options and hook types.
-
-    [:octicons-arrow-right-24: Configuration guide](configuration.md)
-
--   :material-hook:{ .lg .middle } **Hooks**
-
-    ---
-
-    Explore all available hooks and their options.
-
-    [:octicons-arrow-right-24: Hook reference](hooks.md)
-
--   :material-book-open-variant:{ .lg .middle } **Examples**
-
-    ---
-
-    See real-world examples for different use cases.
-
-    [:octicons-arrow-right-24: View examples](examples.md)
-
--   :material-console:{ .lg .middle } **CLI Reference**
-
-    ---
-
-    Complete reference for all Capsula commands.
-
-    [:octicons-arrow-right-24: CLI reference](cli-reference.md)
-
-</div>
+- [Configuration Guide](configuration.md) - Learn about all configuration options
+- [Hooks Reference](hooks.md) - Explore available hooks
+- [CLI Reference](cli-reference.md) - Complete command reference
 
 ## Quick Reference
 
