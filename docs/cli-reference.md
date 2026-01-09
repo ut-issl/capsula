@@ -426,7 +426,7 @@ capsula run bash -c 'python generate.py | grep result > output.txt'
 
 ## Next Steps
 
-- [Configuration Guide](configuration.md) - Learn about all configuration options
-- [Hooks Reference](hooks.md) - Explore available hooks
+- [Configuration Guide](configuration.md) - Learn about all configuration options and hook behavior
+- [Getting Started](getting-started.md) - See available hooks
 - [CLI Reference](cli-reference.md) - Complete command reference
 

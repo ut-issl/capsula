@@ -509,4 +509,4 @@ Not currently. This hook uses the Slack Web API which requires a bot token.
 - [capture-file](capture-file.md) - Capture files before attaching
 - [capture-command](capture-command.md) - Generate summaries to attach
 
-[:octicons-arrow-left-24: Back to Hooks](../hooks.md)
+[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

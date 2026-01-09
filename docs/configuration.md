@@ -118,7 +118,34 @@ SLACK_BOT_TOKEN=xoxb-...
 
 ## Hook Configuration
 
-Hooks are executed in the order they appear in your configuration file.
+Hooks are the core of Capsula - they capture information about your command execution. This section explains how to configure hooks and how they behave.
+
+### Hook Execution
+
+**Hooks run in order** - They execute sequentially in the order they appear in your configuration file.
+
+**Most errors are non-fatal** - If a hook fails, Capsula:
+
+- Logs a warning
+- Records the error in the hook's JSON output (with `"success": false`)
+- Continues executing remaining hooks
+
+This ensures partial success is always recorded, which is valuable for debugging.
+
+**Some hooks can abort execution** - Certain hooks can request to stop the run before your command executes. For example, `capture-git-repo` with `allow_dirty = false` will abort if the repository has uncommitted changes.
+
+**Hook output format** - All hooks produce JSON output with a standard `__meta` field:
+
+```json
+{
+  "__meta": {
+    "id": "capture-cwd",
+    "config": {},
+    "success": true
+  },
+  "cwd": "/path/to/directory"
+}
+```
 
 ### Pre-Run Hooks
 
@@ -154,142 +181,9 @@ channel = "#results"
 
 ## Available Hook Types
 
-### capture-cwd
+For a complete list of available hooks with descriptions, see the [Available Hooks](getting-started.md#available-hooks) table in the Getting Started guide.
 
-Captures the current working directory.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-cwd"
-```
-
-**No configuration needed.**
-
-[Learn more about capture-cwd →](hooks/capture-cwd.md)
-
-### capture-env
-
-Captures environment variables.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-env"
-name = "PATH"
-```
-
-**Required:**
-
-- `name` - Environment variable name
-
-[Learn more about capture-env →](hooks/capture-env.md)
-
-### capture-git-repo
-
-Captures git repository state.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-git-repo"
-path = "."
-allow_dirty = false
-```
-
-**Required:**
-
-- `path` - Path to repository (`.` for current directory)
-
-**Optional:**
-
-- `allow_dirty` - Allow uncommitted changes (default: `false`)
-    - If `false`, Capsula aborts when the repository has uncommitted changes
-
-[Learn more about capture-git-repo →](hooks/capture-git-repo.md)
-
-### capture-file
-
-Captures files by copying, moving, or hashing them.
-
-```toml
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/*.txt"
-mode = "copy"
-hash = "sha256"
-```
-
-**Required:**
-
-- `glob` - File pattern (e.g., `"*.txt"`, `"results/**/*.png"`)
-
-**Optional:**
-
-- `mode` - How to handle files (default: `"copy"`)
-    - `"copy"` - Copy files to vault
-    - `"move"` - Move files to vault
-    - `"none"` - Don't copy files (just hash)
-- `hash` - Hash algorithm (default: `"sha256"`)
-    - `"sha256"` - Compute SHA-256 hash
-    - `"none"` - Don't compute hash
-
-[Learn more about capture-file →](hooks/capture-file.md)
-
-### capture-machine
-
-Captures system information.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-machine"
-```
-
-**No configuration needed.**
-
-Captures: hostname, OS, CPU info, memory.
-
-[Learn more about capture-machine →](hooks/capture-machine.md)
-
-### capture-command
-
-Runs a command and captures its output.
-
-```toml
-[[post-run.hooks]]
-id = "capture-command"
-command = ["python", "--version"]
-abort_on_failure = false
-```
-
-**Required:**
-
-- `command` - Command as array (e.g., `["ls", "-la"]`)
-
-**Optional:**
-
-- `abort_on_failure` - Abort if command fails (default: `false`)
-
-[Learn more about capture-command →](hooks/capture-command.md)
-
-### notify-slack
-
-Sends notifications to Slack.
-
-```toml
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "#general"
-attachment_globs = ["*.png"]
-```
-
-**Required:**
-
-- `channel` - Slack channel (e.g., `"#general"`) or channel ID
-
-**Optional:**
-
-- `token` - Slack bot token (defaults to `SLACK_BOT_TOKEN` env var)
-- `attachment_globs` - File patterns to attach (up to 10 files)
-
-[Learn more about notify-slack →](hooks/notify-slack.md)
+Each hook has detailed documentation linked from that table with configuration options, examples, and use cases.
 
 ## Complete Configuration Example
 
@@ -446,39 +340,3 @@ glob = "results/**/*.csv"   # All .csv files in results/ and subdirectories
 glob = "data_?.json"        # data_1.json, data_2.json, etc.
 glob = "output.[tT][xX][tT]"  # output.txt, output.TXT, etc.
 ```
-
-## Error Handling
-
-### Hook Errors
-
-If a hook fails, Capsula logs a warning and continues:
-
-```
-WARN: Hook 'capture-file' failed: File not found: missing.txt
-```
-
-The error is also saved in the hook's JSON output:
-
-```json
-{
-  "__meta": {
-    "id": "capture-file",
-    "success": false,
-    "error": "File not found: missing.txt"
-  }
-}
-```
-
-### Fatal Errors
-
-Some conditions cause Capsula to abort:
-
-- Configuration file cannot be parsed
-- Run directory cannot be created
-- A hook requests abort (e.g., dirty git repo when `allow_dirty = false`)
-
-## Next Steps
-
-- [Configuration Guide](configuration.md) - Learn about all configuration options
-- [Hooks Reference](hooks.md) - Explore available hooks
-- [CLI Reference](cli-reference.md) - Complete command reference

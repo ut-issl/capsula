@@ -491,4 +491,4 @@ attachment_globs = ["report.pdf"]
 - [capture-git-repo](capture-git-repo.md) - Capture source code version
 - [notify-slack](notify-slack.md) - Send files to Slack
 
-[:octicons-arrow-left-24: Back to Hooks](../hooks.md)
+[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

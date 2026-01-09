@@ -354,4 +354,4 @@ grep -r '"hostname": "gpu-server-03"' .capsula/*/*/*/_ capsula/pre-run.json
 - [capture-command](capture-command.md) - Capture detailed system commands
 - [capture-env](capture-env.md) - Capture environment variables affecting performance
 
-[:octicons-arrow-left-24: Back to Hooks](../hooks.md)
+[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

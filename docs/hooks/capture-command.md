@@ -404,4 +404,4 @@ command = ["./scripts/check-environment.sh"]
 - [capture-machine](capture-machine.md) - Capture system information
 - [capture-git-repo](capture-git-repo.md) - Capture git state (with optional abort)
 
-[:octicons-arrow-left-24: Back to Hooks](../hooks.md)
+[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

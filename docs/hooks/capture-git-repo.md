@@ -354,4 +354,4 @@ allow_dirty = false
 - [capture-cwd](capture-cwd.md) - Capture working directory
 - [capture-command](capture-command.md) - Run `git` commands to capture more details
 
-[:octicons-arrow-left-24: Back to Hooks](../hooks.md)
+[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

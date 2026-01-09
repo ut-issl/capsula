@@ -276,4 +276,4 @@ No, this hook only reads environment variables - it doesn't modify them. Your co
 - [capture-cwd](capture-cwd.md) - Capture working directory (similar to `PWD` env var)
 - [capture-command](capture-command.md) - Run commands that use environment variables
 
-[:octicons-arrow-left-24: Back to Hooks](../hooks.md)
+[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

@@ -103,9 +103,3 @@ cargo uninstall capsula-cli
 ```
 
 This removes the Capsula binary but doesn't delete any captured data in your `.capsula` directories.
-
-## What's Next?
-
-Now that Capsula is installed, let's run your first command!
-
-[:octicons-arrow-right-24: Continue to Getting Started](getting-started.md)

@@ -241,38 +241,21 @@ Output:
 _capsula/    output.txt
 ```
 
-## Understanding Hooks
+## Available Hooks
 
-Hooks are the building blocks of Capsula. They tell Capsula what to capture and when.
+Capsula provides several hooks to capture different types of information. Hooks can run either before your command (pre-run) or after (post-run).
 
-### Pre-Run Hooks
+| Hook | Description | Typical Phase |
+|------|-------------|---------------|
+| [capture-cwd](hooks/capture-cwd.md) | Captures current working directory | Pre-run |
+| [capture-env](hooks/capture-env.md) | Captures environment variables | Pre-run |
+| [capture-git-repo](hooks/capture-git-repo.md) | Captures git repository state | Pre-run |
+| [capture-file](hooks/capture-file.md) | Captures files (copy/move/hash) | Both |
+| [capture-machine](hooks/capture-machine.md) | Captures system information | Pre-run |
+| [capture-command](hooks/capture-command.md) | Runs commands and captures output | Both |
+| [notify-slack](hooks/notify-slack.md) | Sends Slack notifications | Both |
 
-Run **before** your command and capture:
-
-- Initial state
-- Input configurations
-- Environment conditions
-
-Common pre-run hooks:
-
-- `capture-git-repo` - Git repository state
-- `capture-cwd` - Current directory
-- `capture-env` - Environment variables
-- `capture-file` - Input configuration files
-
-### Post-Run Hooks
-
-Run **after** your command and capture:
-
-- Results and outputs
-- Generated files
-- Final state
-
-Common post-run hooks:
-
-- `capture-file` - Output files and results
-- `capture-command` - Run analysis commands
-- `notify-slack` - Send notifications
+Click on any hook name to see its detailed documentation and configuration options.
 
 ## Working with Environment Variables
 
@@ -296,51 +279,3 @@ Available variables:
 - `CAPSULA_RUN_DIRECTORY` - Path to the run directory
 - `CAPSULA_RUN_TIMESTAMP` - ISO 8601 timestamp (UTC)
 - `CAPSULA_RUN_COMMAND` - The command being executed
-
-## Next Steps
-
-- [Configuration Guide](configuration.md) - Learn about all configuration options
-- [Hooks Reference](hooks.md) - Explore available hooks
-- [CLI Reference](cli-reference.md) - Complete command reference
-
-## Quick Reference
-
-### Essential Commands
-
-```bash
-# Run a command with Capsula
-capsula run <your-command>
-
-# Run with a custom config file
-capsula --config path/to/config.toml run <your-command>
-
-# List all runs
-capsula list
-
-# Check Capsula version
-capsula --version
-
-# Get help
-capsula --help
-```
-
-### Basic Configuration Template
-
-```toml title="capsula.toml"
-[vault]
-name = "my-vault"
-
-# Pre-run: capture initial state
-[[pre-run.hooks]]
-id = "capture-git-repo"
-path = "."
-
-[[pre-run.hooks]]
-id = "capture-cwd"
-
-# Post-run: capture results
-[[post-run.hooks]]
-id = "capture-file"
-glob = "output.txt"
-mode = "copy"
-```

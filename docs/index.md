@@ -87,15 +87,14 @@ Capsula creates an organized directory:
 
     Explore what Capsula can capture.
 
-    [:octicons-arrow-right-24: Hook reference](hooks.md)
+    [:octicons-arrow-right-24: Available hooks](getting-started.md#available-hooks)
 
 </div>
 
 ## Documentation
 
 - **[Installation](installation.md)** - Install and update Capsula
-- **[Getting Started](getting-started.md)** - Your first Capsula run
+- **[Getting Started](getting-started.md)** - Your first Capsula run and available hooks
 - **[Configuration](configuration.md)** - Configure vaults and hooks
-- **[Hooks](hooks.md)** - Available hooks and their options
 - **[CLI Reference](cli-reference.md)** - Command-line interface
 - **[Server Setup](server-setup.md)** - Optional server component

@@ -49,7 +49,6 @@ nav = [
   { "Getting Started" = "getting-started.md" },
   { "Configuration" = "configuration.md" },
   { "Hooks" = [
-    "hooks.md",
     { "capture-cwd" = "hooks/capture-cwd.md" },
     { "capture-env" = "hooks/capture-env.md" },
     { "capture-git-repo" = "hooks/capture-git-repo.md" },

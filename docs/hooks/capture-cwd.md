@@ -131,4 +131,4 @@ They may be different if you run Capsula from a subdirectory.
 - [capture-git-repo](capture-git-repo.md) - Capture repository information
 - [capture-env](capture-env.md) - Capture the `PWD` environment variable
 
-[:octicons-arrow-left-24: Back to Hooks](../hooks.md)
+[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)
