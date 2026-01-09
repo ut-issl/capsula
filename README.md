@@ -1,5 +1,10 @@
 # Capsula
 
+[![Crate Status](https://img.shields.io/crates/v/capsula-cli.svg)](https://crates.io/crates/capsula-cli)
+![Crates.io License](https://img.shields.io/crates/l/capsula-cli)
+[![Test Status](https://github.com/ut-issl/capsula/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/ut-issl/capsula/actions)
+[![codecov](https://codecov.io/gh/ut-issl/capsula/graph/badge.svg?token=BZXF2PPDM0)](https://codecov.io/gh/ut-issl/capsula)
+
 > [!WARNING]
 > This project is in early development. The CLI interface and configuration format may change in future releases.
 
@@ -33,7 +38,7 @@ cargo install capsula-cli --locked
 ### Install from the GitHub repository
 
 ```bash
-cargo install --git https://github.com/shunichironomura/capsula --locked capsula-cli
+cargo install --git https://github.com/ut-issl/capsula --locked capsula-cli
 ```
 
 ## Quick Start
