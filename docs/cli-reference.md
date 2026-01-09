@@ -104,7 +104,7 @@ Your command runs with these special environment variables:
 | `CAPSULA_RUN_ID` | Unique run identifier (ULID) | `01K8WSYC91YAE21R7CWHQ4KYN2` |
 | `CAPSULA_RUN_NAME` | Human-readable run name | `happy-river` |
 | `CAPSULA_RUN_DIRECTORY` | Absolute path to run directory | `/path/.capsula/vault/2025-01-09/143022-happy-river` |
-| `CAPSULA_RUN_TIMESTAMP` | ISO 8601 timestamp | `2025-01-09T14:30:22.473+00:00` |
+| `CAPSULA_RUN_TIMESTAMP` | ISO 8601 timestamp (UTC) | `2025-01-09T14:30:22.473+00:00` |
 | `CAPSULA_RUN_COMMAND` | Shell-quoted command string | `python train.py --epochs 100` |
 | `CAPSULA_PRE_RUN_OUTPUT_PATH` | Path to pre-run.json | `/path/.capsula/.../pre-run.json` |
 | `CAPSULA_PROJECT_ROOT` | Project root directory | `/path/to/project` |
@@ -231,7 +231,7 @@ Contains run information:
   "id": "01K8WSYC91YAE21R7CWHQ4KYN2",
   "name": "happy-river",
   "command": ["python", "train.py"],
-  "timestamp": "2025-01-09T14:30:22.473+00:00",
+  "timestamp": "2025-01-09T14:30:22.473+00:00",  // UTC
   "run_dir": "/path/.capsula/vault-name/2025-01-09/143022-happy-river"
 }
 ```

@@ -457,4 +457,3 @@ sudo apt remove postgresql postgresql-contrib
 - [Configuration Guide](configuration.md) - Learn about all configuration options
 - [Hooks Reference](hooks.md) - Explore available hooks
 - [CLI Reference](cli-reference.md) - Complete command reference
-

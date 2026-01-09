@@ -7,16 +7,19 @@ Capsula is configured using a `capsula.toml` file. This guide explains all confi
 Capsula looks for `capsula.toml` in the following order:
 
 1. **Path specified with `--config` flag**
+
    ```bash
    capsula --config /path/to/custom.toml run python script.py
    ```
 
 2. **Current directory**
+
    ```bash
    ./capsula.toml
    ```
 
 3. **Parent directories** (walking up the directory tree)
+
    ```bash
    ../capsula.toml
    ../../capsula.toml
@@ -198,7 +201,7 @@ allow_dirty = false
 **Optional:**
 
 - `allow_dirty` - Allow uncommitted changes (default: `false`)
-  - If `false`, Capsula aborts when the repository has uncommitted changes
+    - If `false`, Capsula aborts when the repository has uncommitted changes
 
 [Learn more about capture-git-repo →](hooks/capture-git-repo.md)
 
@@ -221,12 +224,12 @@ hash = "sha256"
 **Optional:**
 
 - `mode` - How to handle files (default: `"copy"`)
-  - `"copy"` - Copy files to vault
-  - `"move"` - Move files to vault
-  - `"none"` - Don't copy files (just hash)
+    - `"copy"` - Copy files to vault
+    - `"move"` - Move files to vault
+    - `"none"` - Don't copy files (just hash)
 - `hash` - Hash algorithm (default: `"sha256"`)
-  - `"sha256"` - Compute SHA-256 hash
-  - `"none"` - Don't compute hash
+    - `"sha256"` - Compute SHA-256 hash
+    - `"none"` - Don't compute hash
 
 [Learn more about capture-file →](hooks/capture-file.md)
 
@@ -444,20 +447,7 @@ glob = "data_?.json"        # data_1.json, data_2.json, etc.
 glob = "output.[tT][xX][tT]"  # output.txt, output.TXT, etc.
 ```
 
-## Validation and Error Handling
-
-### Configuration Errors
-
-If your configuration has errors, Capsula will show a clear error message:
-
-```bash
-$ capsula run echo test
-Error: Failed to parse configuration file
-  --> capsula.toml:5:1
-  |
-5 | [[pre-run.hooks]
-  | ^^^^^^^^^^^^^^^^ Missing closing bracket
-```
+## Error Handling
 
 ### Hook Errors
 
@@ -487,10 +477,8 @@ Some conditions cause Capsula to abort:
 - Run directory cannot be created
 - A hook requests abort (e.g., dirty git repo when `allow_dirty = false`)
 
-
 ## Next Steps
 
 - [Configuration Guide](configuration.md) - Learn about all configuration options
 - [Hooks Reference](hooks.md) - Explore available hooks
 - [CLI Reference](cli-reference.md) - Complete command reference
-

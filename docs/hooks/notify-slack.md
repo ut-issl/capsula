@@ -140,7 +140,7 @@ Notifications use Slack's Block Kit for rich formatting:
 
 Run Name: happy-river
 Run ID: 01K8WSYC91YAE21R7CWHQ4KYN2
-Timestamp: Jan 9, 2025 at 2:30 PM
+Timestamp: Jan 9, 2025 at 2:30 PM (UTC)
 Command: python train.py --epochs 100
 ```
 
@@ -151,7 +151,7 @@ Command: python train.py --epochs 100
 
 Run Name: happy-river
 Run ID: 01K8WSYC91YAE21R7CWHQ4KYN2
-Timestamp: Jan 9, 2025 at 2:30 PM
+Timestamp: Jan 9, 2025 at 2:30 PM (UTC)
 Command: python train.py --epochs 100
 ```
 

@@ -58,7 +58,7 @@ TIMESTAMP (UTC)      NAME                  COMMAND
 2025-01-09 14:30:22  happy-river           echo "Hello, Capsula!"
 ```
 
-Each run gets a timestamp and a randomly generated name (like "happy-river") for easy identification.
+Each run gets a timestamp (in UTC) and a randomly generated name (like "happy-river") for easy identification.
 
 ### Step 4: Explore the Vault
 
@@ -96,7 +96,7 @@ This shows information about the run:
   "id": "01K8WSYC91YAE21R7CWHQ4KYN2",
   "name": "happy-river",
   "command": ["echo", "Hello, Capsula!"],
-  "timestamp": "2025-01-09T14:30:22.473+00:00"
+  "timestamp": "2025-01-09T14:30:22.473+00:00"  // UTC
 }
 ```
 
@@ -194,7 +194,7 @@ Look at the pre-run data:
 
 ```bash
 # Replace with your actual run directory
-cat .capsula/my-experiments/2025-01-09/*/_ capsula/pre-run.json
+cat .capsula/my-experiments/2025-01-09/*/_capsula/pre-run.json
 ```
 
 You'll see captured data for:
@@ -294,9 +294,8 @@ Available variables:
 - `CAPSULA_RUN_ID` - Unique identifier for this run
 - `CAPSULA_RUN_NAME` - Human-readable name
 - `CAPSULA_RUN_DIRECTORY` - Path to the run directory
-- `CAPSULA_RUN_TIMESTAMP` - ISO 8601 timestamp
+- `CAPSULA_RUN_TIMESTAMP` - ISO 8601 timestamp (UTC)
 - `CAPSULA_RUN_COMMAND` - The command being executed
-
 
 ## Next Steps
 
