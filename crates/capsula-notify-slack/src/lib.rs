@@ -98,7 +98,8 @@ fn build_slack_blocks(
 
 /// Resolve glob patterns and collect matching file paths
 /// Globs are resolved relative to the provided base directory
-fn resolve_attachment_globs(
+#[doc(hidden)]
+pub fn resolve_attachment_globs(
     globs: &[String],
     base_dir: &Path,
 ) -> Result<Vec<PathBuf>, SlackNotifyError> {
