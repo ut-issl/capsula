@@ -29,5 +29,3 @@ id = "capture-cwd"
   "cwd": "/Users/username/projects/my-experiment"
 }
 ```
-
-[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

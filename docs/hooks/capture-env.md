@@ -56,5 +56,3 @@ name = "PATH"
   "value": null
 }
 ```
-
-[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

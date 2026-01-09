@@ -14,13 +14,13 @@ Runs a shell command and captures its output, exit code, and execution time.
 ### Required Options
 
 | Option | Type | Description |
-|--------|------|-------------|
+| -------- | ------ | ------------- |
 | `command` | array | Command and arguments as an array (e.g., `["python", "--version"]`) |
 
 ### Optional Options
 
 | Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| -------- | ------ | --------- | ------------- |
 | `abort_on_failure` | boolean | `false` | If `true`, Capsula aborts if this command exits with a non-zero code |
 
 ### Example
@@ -74,5 +74,3 @@ abort_on_failure = false
 
 !!! warning "Abort Behavior"
     When `abort_requested` is `true`, Capsula stops before running your main command.
-
-[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

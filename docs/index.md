@@ -57,7 +57,7 @@ Capsula creates an organized directory:
 
 <div class="grid cards" markdown>
 
--   :material-download:{ .lg .middle } **Installation**
+- :material-download:{ .lg .middle } **Installation**
 
     ---
 
@@ -65,7 +65,7 @@ Capsula creates an organized directory:
 
     [:octicons-arrow-right-24: Install Capsula](installation.md)
 
--   :material-rocket-launch:{ .lg .middle } **Getting Started**
+- :material-rocket-launch:{ .lg .middle } **Getting Started**
 
     ---
 
@@ -73,7 +73,7 @@ Capsula creates an organized directory:
 
     [:octicons-arrow-right-24: Quick start tutorial](getting-started.md)
 
--   :material-cog:{ .lg .middle } **Configuration**
+- :material-cog:{ .lg .middle } **Configuration**
 
     ---
 
@@ -81,7 +81,7 @@ Capsula creates an organized directory:
 
     [:octicons-arrow-right-24: Configuration guide](configuration.md)
 
--   :material-hook:{ .lg .middle } **Hooks**
+- :material-hook:{ .lg .middle } **Hooks**
 
     ---
 
@@ -90,11 +90,3 @@ Capsula creates an organized directory:
     [:octicons-arrow-right-24: Available hooks](getting-started.md#available-hooks)
 
 </div>
-
-## Documentation
-
-- **[Installation](installation.md)** - Install and update Capsula
-- **[Getting Started](getting-started.md)** - Your first Capsula run and available hooks
-- **[Configuration](configuration.md)** - Configure vaults and hooks
-- **[CLI Reference](cli-reference.md)** - Command-line interface
-- **[Server Setup](server-setup.md)** - Optional server component

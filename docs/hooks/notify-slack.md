@@ -201,5 +201,3 @@ Add `chat:write` and `files:write` scopes, then reinstall the app
 - Check file paths are correct
 - Verify files exist when hook runs
 - Check hook order if using `capture-file` with `mode = "move"`
-
-[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

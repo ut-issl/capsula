@@ -82,7 +82,7 @@ cat .capsula/my-project/2025-01-09/143022-happy-river/_capsula/pre-run.json
 ## Available Hooks
 
 | Hook | Description | Typical Phase |
-|------|-------------|---------------|
+| ------ | ------------- | --------------- |
 | [capture-cwd](hooks/capture-cwd.md) | Captures current working directory | Pre-run |
 | [capture-env](hooks/capture-env.md) | Captures environment variables | Pre-run |
 | [capture-git-repo](hooks/capture-git-repo.md) | Captures git repository state | Pre-run |

@@ -74,5 +74,3 @@ allow_dirty = false
 
 !!! warning "Abort Behavior"
     When `allow_dirty = false` and the repository is dirty, Capsula saves the hook output showing the dirty state, then aborts before running your command.
-
-[:octicons-arrow-left-24: Back to Configuration](../configuration.md#available-hook-types)

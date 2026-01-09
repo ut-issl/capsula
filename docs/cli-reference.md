@@ -54,7 +54,7 @@ capsula run bash -c 'python generate.py | grep result > output.txt'
 Your command runs with these environment variables:
 
 | Variable | Description | Example |
-|----------|-------------|---------|
+| ---------- | ------------- | --------- |
 | `CAPSULA_RUN_ID` | Unique run identifier (ULID) | `01K8WSYC91YAE21R7CWHQ4KYN2` |
 | `CAPSULA_RUN_NAME` | Human-readable run name | `happy-river` |
 | `CAPSULA_RUN_DIRECTORY` | Absolute path to run directory | `/path/.capsula/vault/2025-01-09/143022-happy-river` |

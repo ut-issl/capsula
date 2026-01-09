@@ -74,7 +74,6 @@ For the configuration of each hook, refer to its specific documentation.
 
 Pre-run hooks are executed **before** your command, in the order listed.
 
-
 ```toml
 [[pre-run.hooks]]
 id = "capture-git-repo"
