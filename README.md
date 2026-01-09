@@ -1,44 +1,27 @@
 # Capsula
 
+[![Crate Status](https://img.shields.io/crates/v/capsula-cli.svg)](https://crates.io/crates/capsula-cli)
+![Crates.io License](https://img.shields.io/crates/l/capsula-cli)
+[![Test Status](https://github.com/ut-issl/capsula/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/ut-issl/capsula/actions)
+[![codecov](https://codecov.io/gh/ut-issl/capsula/graph/badge.svg?token=BZXF2PPDM0)](https://codecov.io/gh/ut-issl/capsula)
+[![Documentation](https://img.shields.io/badge/docs-capsula-blue)](https://www.space.t.u-tokyo.ac.jp/capsula/)
+
 > [!WARNING]
 > This project is in early development. The CLI interface and configuration format may change in future releases.
 
-A powerful CLI tool for running hooks and capturing their output before and after your command executions. Capsula automatically records the state of your project environment before and after running commands, making your workflows reproducible and auditable.
+Capsula is a command-line tool that automatically captures and saves information about your command executions. It records what happened, when it happened, and the environment in which it happened.
 
-📚 **[Documentation](https://www.space.t.u-tokyo.ac.jp/capsula/)** - Complete guide with examples and API reference
+## What Does Capsula Do?
 
-> [!NOTE]
-> The Python version of Capsula is deprecated and can be found at the `python` branch of this repository.
+When you run a command with Capsula, it:
 
-## Features
+1. **Records the environment** - Captures git state, environment variables, file contents, and system information
+2. **Runs your command** - Executes your command normally, capturing its output
+3. **Saves everything** - Stores all captured data in an organized directory structure
 
-- 📸 **Context Capture**: Automatically capture git state, file contents, environment variables, and more
-- 🔄 **Reproducible Runs**: Complete record of execution hook for debugging and auditing
-- 🛡️ **Safety Checks**: Prevent execution on dirty repositories or other unsafe conditions
-- 📊 **Structured Output**: JSON-formatted capture data for easy processing
-- 🔧 **Extensible**: Multiple built-in hooks with clean error handling
+## Quick Example
 
-## Installation / Update
-
-Rust 1.90.0 or later is required.
-
-To install Capsula CLI or update to the latest version, use one of the following methods:
-
-### Install from crates.io (recommended)
-
-```bash
-cargo install capsula-cli --locked
-```
-
-### Install from the GitHub repository
-
-```bash
-cargo install --git https://github.com/shunichironomura/capsula --locked capsula-cli
-```
-
-## Quick Start
-
-1. **Create a configuration file** (`capsula.toml`) in your project root:
+Create a `capsula.toml` file:
 
 ```toml
 [vault]
@@ -46,521 +29,44 @@ name = "my-project"
 
 [[pre-run.hooks]]
 id = "capture-git-repo"
-name = "repo-name"
 path = "."
 
-[[pre-run.hooks]]
-id = "capture-cwd"
-
-[[pre-run.hooks]]
+[[post-run.hooks]]
 id = "capture-file"
-glob = "config.json"
+glob = "output.txt"
 mode = "copy"
-hash = "sha256"
 ```
 
-2. **Run a command with hooks**:
+Run your command:
 
 ```bash
 capsula run python train_model.py
 ```
 
-## Configuration
-
-### Basic Structure
-
-The `capsula.toml` configuration file defines:
-
-- **Vault**: Where to store captured data
-- **Phases**: Pre-run and post-run hooks
-
-```toml
-dotenv = ".env"             # Load environment variables from file (optional)
-
-[vault]
-name = "project-name"        # Vault identifier
-path = ".capsula"           # Storage path (optional, defaults to .capsula/{name})
-
-[pre-run]                 # Pre-execution hooks
-[[pre-run.hooks]]
-id = "capture-git-repo"
-# ... hook configuration
-
-[post-run]                # Post-execution hooks
-[[post-run.hooks]]
-id = "capture-file"
-# ... hook configuration
-```
-
-### Environment Variables from .env Files
-
-Capsula can automatically load environment variables from a `.env` file before executing hooks and commands. This is useful for managing secrets, API tokens, or environment-specific configuration.
-
-```toml
-dotenv = ".env"              # Relative path (relative to capsula.toml)
-# OR
-dotenv = "/absolute/path/to/.env"  # Absolute path
-```
-
-**Example `.env` file:**
-
-```bash
-DATABASE_URL=postgresql://localhost/mydb
-API_KEY=secret-key-here
-DEBUG=true
-```
-
-**Behavior:**
-
-- If the `dotenv` field is **not specified**, no environment file is loaded (default behavior)
-- If specified, the file is loaded **before** running any hooks or the main command
-- Environment variables are available to all hooks and the executed command
-- If the file fails to load, a warning is logged but execution continues
-- Relative paths are resolved relative to the directory containing `capsula.toml`
-
-**Use with Slack Hook:**
-
-```toml
-dotenv = ".env"  # Load SLACK_BOT_TOKEN from .env file
-
-[[pre-run.hooks]]
-id = "notify-slack"
-channel = "#general"
-# Token will be read from SLACK_BOT_TOKEN environment variable loaded from .env
-```
-
-> [!TIP]
-> Add your `.env` file to `.gitignore` to avoid committing secrets to version control.
-
-### Available Hook Types
-
-#### Git Hook
-
-Captures git repository state including commit hash and cleanliness check.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-git-repo"
-name = "repo-name"          # Hook name
-path = "."                  # Repository path
-allow_dirty = false         # Allow uncommitted changes (default: false)
-```
-
-**Output Example:**
-
-```json
-{
-  "__meta": {
-    "config": {
-      "name": "repo-name",
-      "path": ".",
-      "allow_dirty": false
-    },
-    "id": "capture-git-repo",
-    "success": true
-  },
-  "working_dir": "/path/to/repo",
-  "sha": "abc123...",
-  "is_dirty": false,
-  "abort_on_dirty": false
-}
-```
-
-#### Current Working Directory
-
-Captures the current working directory path.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-cwd"
-```
-
-**Output Example:**
-
-```json
-{
-  "__meta": {
-    "config": {},
-    "id": "capture-cwd",
-    "success": true
-  },
-  "cwd": "/current/working/directory"
-}
-```
-
-#### File Hook
-
-Captures file contents and/or metadata.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-file"
-glob = "config.json"        # File pattern to capture
-mode = "copy"               # Capture mode ("copy", "move", or "none". default: "copy")
-hash = "sha256"             # Calculate file hash ("sha256" or "none". default: "sha256")
-```
-
-**Output Example:**
-
-```json
-{
-  "__meta": {
-    "config": {
-      "glob": "config.json",
-      "mode": "copy",
-      "hash": "sha256"
-    },
-    "id": "capture-file",
-    "success": true
-  },
-  "files": [
-    {
-      "path": "/path/to/config.json",
-      "copied_path": "/vault/run-dir/config.json",
-      "hash": "sha256:abc123..."
-    }
-  ]
-}
-```
-
-#### Environment Variables Hook
-
-Captures specified environment variables.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-env"
-name = "HOME"                 # Variable name to capture
-```
-
-**Output Example:**
-
-```json
-{
-  "__meta": {
-    "config": {
-      "name": "HOME"
-    },
-    "id": "capture-env",
-    "success": true
-  },
-  "value": "/home/user"
-}
-```
-
-#### Command Hook
-
-Captures output of shell commands.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-command"
-command = ["uname", "-a"]
-abort_on_failure  = false  # Abort if command fails (default: false)
-```
-
-**Output Example:**
-
-```json
-{
-  "__meta": {
-    "config": {
-      "command": ["rustc", "--version"],
-      "abort_on_failure": false
-    },
-    "id": "capture-command",
-    "success": true
-  },
-  "status": 0,
-  "stdout": "rustc 1.91.0 (f8297e351 2025-10-28)\n",
-  "stderr": "",
-  "abort_requested": false
-}
-```
-
-#### Machine Hook
-
-Captures system information like CPU, memory, and OS details.
-
-```toml
-[[pre-run.hooks]]
-id = "capture-machine"
-```
-
-**Output Example:**
-
-```json
-{
-  "__meta": {
-    "config": {},
-    "id": "capture-machine",
-    "success": true
-  },
-  "hostname": "hostname.local",
-  "os": "Darwin",
-  "os_version": "26.0.1",
-  "kernel_version": "25.0.0",
-  "architecture": "aarch64",
-  "total_memory": 137438953472,
-  "cpus": [
-    {
-      "name": "1",
-      "brand": "Apple M3 Max",
-      "vender_id": "Apple",
-      "frequency_mhz": 4056
-    }
-  ]
-}
-```
-
-#### Slack Notification Hook
-
-Sends notifications to a Slack channel when a run starts (pre-run phase) or completes (post-run phase). Optionally attach files matching glob patterns.
-
-```toml
-# Send to a channel
-[[pre-run.hooks]]
-id = "notify-slack"
-channel = "#general"        # Slack channel name (or channel ID like "C01234567")
-token = "xoxb-..."          # Slack bot token (optional, can use SLACK_BOT_TOKEN env var)
-
-# Send as a DM to a user
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "D01234ABCD"      # Channel ID for DM with bot
-# Token will be read from SLACK_BOT_TOKEN env var
-
-# Post-run notification with file attachments
-[[post-run.hooks]]
-id = "notify-slack"
-channel = "#random"
-attachment_globs = ["*.png", "outputs/*.jpg"]  # Optional: attach files (up to 10 files)
-```
-
-> [!TIP]
-> It's recommended to set the Slack bot token via the `SLACK_BOT_TOKEN` environment variable instead of storing it in the configuration file. If the `token` field is omitted from the configuration, Capsula will automatically read it from the environment variable.
-
-**File Attachments:**
-
-The `attachment_globs` field allows you to attach files to Slack notifications:
-
-- Accepts an array of glob patterns (e.g., `["*.png", "outputs/*.jpg"]`)
-- Glob patterns are resolved relative to the project root
-- Up to 10 files can be attached per notification (Slack API limit)
-- Files are uploaded and shared to the specified channel along with the notification message
-- If more than 10 files match the patterns, only the first 10 are attached
-
-> [!TIP]
-> Consider hook order when using `attachment_globs`. If a `capture-file` hook with `mode = "move"` is defined before the `notify-slack` hook, files will already be moved to the run directory when searching for attachments, and won't be found at their original locations. Either:
->
-> 1. Place the `notify-slack` hook before the `capture-file` hook, or
-> 2. Use `mode = "copy"` in the `capture-file` hook to keep files at their original locations
-
-**Message Format:**
-
-Notifications are sent using Slack's Block Kit for rich formatting, displaying:
-
-- **Pre-run**: Header "🚀 Capsula Run Starting"
-- **Post-run**: Header "✅ Capsula Run Completed"
-
-Each message includes:
-
-- Run Name
-- Run ID
-- Timestamp (formatted in your local timezone)
-- Command being executed
-
-The messages use a structured layout similar to GitHub's Slack notifications for better readability.
-
-**Output Example:**
-
-```json
-{
-  "__meta": {
-    "config": {
-      "channel": "C01234567",
-      "token": "xoxb-..."
-    },
-    "id": "notify-slack",
-    "success": true
-  },
-  "message": "Slack notification sent successfully",
-  "response": "{\"ok\":true,\"channel\":\"C01234567\",\"ts\":\"1234567890.123456\"}"
-}
-```
-
-**Setup Requirements:**
-
-To use the Slack notification hook, you need to:
-
-1. Create a Slack app at <https://api.slack.com/apps>
-2. Add the `chat:write` bot token scope to your app
-3. Install the app to your workspace
-4. Copy the bot token (starts with `xoxb-`)
-5. Set the `SLACK_BOT_TOKEN` environment variable or add it to your config
-6. For channel notifications: Invite the bot to the channel you want to post to
-7. For DM notifications: Go to the DM with the bot and click the Bot's name to find the channel ID (e.g., `D01234ABCD`)
-
-## CLI Usage
-
-### Commands
-
-#### `capsula run <command>`
-
-Execute a command with full hook capture.
-
-```bash
-# Run with default config
-capsula run python script.py
-
-# Run with custom config
-capsula run --config my-config.toml python script.py
-
-# Run with arguments
-capsula run python train.py --epochs 100 --lr 0.01
-```
-
-**Behavior:**
-
-1. Runs pre-run hooks and saves their outputs to vault
-2. Checks for abort conditions (e.g., dirty git repo)
-3. Executes the command if safe, aborts otherwise
-4. Runs post-run hooks and saves their outputs to vault
-
-**Environment Variables:**
-
-When executing a command with `capsula run`, the following environment variables are automatically set and available to your command:
-
-| Variable | Description | Example |
-| ---------- | ------------- | --------- |
-| `CAPSULA_RUN_ID` | Unique ULID identifier for this run | `01K8WSYC91YAE21R7CWHQ4KYN2` |
-| `CAPSULA_RUN_NAME` | Human-readable generated name | `chubby-back` |
-| `CAPSULA_RUN_DIRECTORY` | Absolute path to the run directory in the vault | `/path/to/.capsula/vault-name/2025-10-31/093525-chubby-back` |
-| `CAPSULA_RUN_TIMESTAMP` | ISO 8601 timestamp of when the run started | `2025-10-31T09:35:25.473+00:00` |
-| `CAPSULA_RUN_COMMAND` | Shell-quoted string of the executed command | `python train.py --epochs 100` |
-| `CAPSULA_PRE_RUN_OUTPUT_PATH` | Path to the pre-run output JSON file | `/path/to/.capsula/vault-name/.../pre-run.json` |
-
-> [!CAUTION]
-> While `CAPSULA_RUN_DIRECTORY` is available, it is **not recommended** to write files directly to this directory. Instead, output files to your project root and capture them using the `capture-file` hook in the post-run phase. This approach ensures files are properly tracked and managed by Capsula's file handling system.
-
-These variables can be used within your scripts to access run metadata:
-
-```python
-# Example: Embed run name in matplotlib figures for traceability
-import os
-import matplotlib.pyplot as plt
-
-run_name = os.environ.get('CAPSULA_RUN_NAME')
-
-# Create your plot
-plt.plot([1, 2, 3, 4], [1, 4, 2, 3])
-plt.title('Experiment Results')
-
-# Add run name to the figure - useful when copying plots to presentations
-plt.figtext(0.99, 0.01, f'Run: {run_name}',
-            ha='right', va='bottom', fontsize=8, alpha=0.7)
-
-# Save to project root, then capture with post-run hook
-plt.savefig('results.png')
-```
-
-```toml
-# Configure a post-run hook to capture the output file
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results.png"
-mode = "move"  # Move the file to the vault
-```
-
-#### `capsula list`
-
-List all captured runs in the vault.
-
-```bash
-# List runs with default config
-capsula list
-
-# List runs with custom config
-capsula list --config my-config.toml
-```
-
-**Example Output:**
+Capsula creates an organized directory:
 
 ```
-TIMESTAMP (UTC)      NAME                  COMMAND
----------------------------------------------------------------------------------------------
-2025-10-31 09:35:29  kind-year             echo hello
-2025-10-31 09:35:28  smelly-apparel        echo hello
-2025-10-31 09:35:26  clear-waste           echo hello
-2025-10-31 09:30:15  cheap-trip            echo this is a very long command with many argu...
+.capsula/my-project/2025-01-09/143022-happy-river/
+├── _capsula/
+│   ├── metadata.json      # What ran, when, and where
+│   ├── pre-run.json       # Environment before
+│   ├── command.json       # Command output
+│   └── post-run.json      # Results after
+└── output.txt             # Your output file
 ```
 
-The output shows:
+## Why Use Capsula?
 
-- **Timestamp**: UTC time when the command was executed
-- **Name**: Human-readable generated name for the run
-- **Command**: The command that was executed (truncated if too long)
-
-## Output Structure
-
-### Metadata
-
-Every hook output includes metadata for traceability:
-
-```json
-{
-  "__meta": {
-    "config": {},    // Configuration used for this hook
-    "id": "capture-cwd",  // Hook ID from configuration
-    "success": true  // Capture success status
-  }
-  // ... hook-specific data
-}
-```
-
-### Vault Structure
-
-Captured data is organized in the vault:
-
-```
-.capsula/
-└── vault-name/
-    └── 2025-10-31/                    # Date-based directory (YYYY-MM-DD, UTC)
-        └── 093525-chubby-back/        # Unique run directory (HHMMSS-run-name)
-            ├── _capsula/              # Capsula metadata directory
-            │   ├── metadata.json      # Run metadata (ID, name, command, timestamp)
-            │   ├── pre-run.json       # Pre-phase hook outputs (array)
-            │   ├── command.json       # Command execution results
-            │   └── post-run.json      # Post-phase hook outputs (array)
-            └── [captured files]       # Files copied by file hooks
-```
-
-**metadata.json** contains run information:
-
-```json
-{
-  "id": "01K8WSYC91YAE21R7CWHQ4KYN2",
-  "name": "chubby-back",
-  "command": ["echo", "hello"],
-  "timestamp": "2025-10-31T09:35:25.473+00:00",
-  "run_dir": "/path/to/.capsula/vault-name/2025-10-31/093525-chubby-back"
-}
-```
-
-**command.json** contains command execution results:
-
-```json
-{
-  "exit_code": 0,
-  "stdout": "hello\n",
-  "stderr": "",
-  "duration": {
-    "secs": 0,
-    "nanos": 1986042
-  }
-}
-```
+- **Reproducibility** - Capture the exact environment and inputs for every run
+- **Traceability** - Know which code version produced which results
+- **Auditing** - Generate complete execution records
+- **Debugging** - Understand what went wrong by reviewing the complete context
 
 ## License
 
-This project is licensed under either of the MIT license or the Apache License 2.0 at your option.
+Licensed under either of:
+
+- MIT License ([LICENSE-MIT](LICENSE-MIT))
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+
+at your option.

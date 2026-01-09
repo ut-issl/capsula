@@ -1,194 +1,114 @@
+---
+icon: material/rocket-launch
+---
+
 # Getting Started
 
-This guide will help you install Capsula and run your first command.
+This guide will walk you through your first Capsula run and help you understand how it works.
 
-## Prerequisites
+!!! info "Before you begin"
+    Make sure you have [installed Capsula](installation.md) and can run `capsula --version`.
 
-- Rust toolchain (1.70 or later)
-- Git (for repository state capture)
+## How Capsula Works
 
-## Installation
+When you run a command with Capsula:
 
-### From Source
+1. **Pre-run hooks execute in order** - Capsula runs your configured pre-run hooks sequentially
+2. **Your command executes** - Capsula runs your command normally
+3. **Post-run hooks execute in order** - Capsula runs your configured post-run hooks sequentially
 
-Clone the repository and install:
-
-```bash
-git clone https://github.com/ut-issl/capsula.git
-cd capsula
-cargo install --path crates/capsula-cli --locked
-```
-
-### Verify Installation
-
-Check that Capsula is installed:
-
-```bash
-capsula --version
-```
+All outputs are saved in a structured directory called a "vault".
 
 ## Your First Run
 
-### 1. Create a Configuration File
+Create a `capsula.toml` file:
 
-Create a `capsula.toml` file in your project directory:
-
-```toml
+```toml title="capsula.toml"
 [vault]
 name = "my-project"
 
 [[pre-run.hooks]]
-id = "capture-cwd"
+id = "capture-git-repo"
+path = "."
+allow_dirty = true
 
 [[pre-run.hooks]]
-id = "capture-git-repo"
-name = "my-repo"
-path = "."
+id = "capture-cwd"
 
 [[post-run.hooks]]
-id = "capture-command"
-command = ["echo", "Post-run complete"]
+id = "capture-file"
+glob = "*.txt"
+mode = "copy"
 ```
 
-### 2. Run a Command
-
-Execute a command with Capsula:
+Run a command:
 
 ```bash
-capsula run echo "Hello, Capsula!"
+capsula run echo "Hello, Capsula!" > output.txt
 ```
 
-This will:
-
-1. Create a run directory in `.capsula/my-project/{date}/{time-name}/`
-2. Execute pre-run hooks (capture working directory and git state)
-3. Run your command
-4. Execute post-run hooks
-5. Save all captured data
-
-### 3. View the Output
-
-Check the captured data:
+List your runs:
 
 ```bash
-# List all runs
 capsula list
-
-# View the latest run directory
-ls -la .capsula/my-project/$(date +%Y-%m-%d)/
 ```
 
-The run directory contains:
+Output:
 
 ```
-.capsula/my-project/2025-12-30/143022-chubby-back/
-├── _capsula/
-│   ├── metadata.json      # Run metadata (ID, command, timestamp)
+TIMESTAMP (UTC)      NAME                  COMMAND
+---------------------------------------------------------------------------------------------
+2025-01-09 14:30:22  happy-river           echo "Hello, Capsula!" > output.txt
+```
+
+Each run gets a timestamp (UTC) and a randomly generated name for easy identification.
+
+## Exploring the Vault
+
+Capsula stores everything in `.capsula/`:
+
+```
+.capsula/my-project/2025-01-09/143022-happy-river/
+├── _capsula/              # Metadata directory
+│   ├── metadata.json      # Run info (ID, name, command, timestamp)
 │   ├── pre-run.json       # Pre-run hook outputs
 │   ├── command.json       # Command execution results
 │   └── post-run.json      # Post-run hook outputs
+└── output.txt             # Your captured file
 ```
 
-### 4. Inspect the JSON Files
-
-View the metadata:
+View what the pre-run hooks recorded:
 
 ```bash
-cat .capsula/my-project/*/latest/_capsula/metadata.json
+cat .capsula/my-project/2025-01-09/143022-happy-river/_capsula/pre-run.json
 ```
 
-View pre-run hook results:
+## Available Hooks
 
-```bash
-cat .capsula/my-project/*/latest/_capsula/pre-run.json
-```
+| Hook | Description | Typical Phase |
+| ------ | ------------- | --------------- |
+| [capture-cwd](hooks/capture-cwd.md) | Captures current working directory | Pre-run |
+| [capture-env](hooks/capture-env.md) | Captures environment variables | Pre-run |
+| [capture-git-repo](hooks/capture-git-repo.md) | Captures git repository state | Pre-run |
+| [capture-file](hooks/capture-file.md) | Captures files (copy/move/hash) | Both |
+| [capture-machine](hooks/capture-machine.md) | Captures system information | Pre-run |
+| [capture-command](hooks/capture-command.md) | Runs commands and captures output | Both |
+| [notify-slack](hooks/notify-slack.md) | Sends Slack notifications | Both |
 
-## Common Use Cases
-
-### Capture Python Script Execution
-
-```toml
-[vault]
-name = "ml-experiments"
-
-[[pre-run.hooks]]
-id = "capture-git-repo"
-name = "ml-project"
-path = "."
-allow_dirty = false  # Fail if repo is dirty
-
-[[pre-run.hooks]]
-id = "capture-env"
-name = "PYTHONPATH"
-
-[[pre-run.hooks]]
-id = "capture-env"
-name = "CUDA_VISIBLE_DEVICES"
-
-[[pre-run.hooks]]
-id = "capture-file"
-glob = "config.yaml"
-mode = "copy"
-
-[[post-run.hooks]]
-id = "capture-file"
-glob = "results/metrics.json"
-mode = "copy"
-```
-
-Run your script:
-
-```bash
-capsula run python train.py --config config.yaml
-```
-
-### Capture Build Execution
-
-```toml
-[vault]
-name = "builds"
-
-[[pre-run.hooks]]
-id = "capture-git-repo"
-name = "build-project"
-path = "."
-
-[[pre-run.hooks]]
-id = "capture-command"
-command = ["rustc", "--version"]
-
-[[post-run.hooks]]
-id = "capture-command"
-command = ["ls", "-lh", "target/release/"]
-```
-
-Run your build:
-
-```bash
-capsula run cargo build --release
-```
+Click on any hook name for detailed configuration options and examples.
 
 ## Environment Variables
 
-Your command has access to special environment variables:
+Capsula sets these environment variables when running your command:
+
+- `CAPSULA_RUN_ID` - Unique identifier
+- `CAPSULA_RUN_NAME` - Human-readable name (e.g., "happy-river")
+- `CAPSULA_RUN_DIRECTORY` - Path to the run directory
+- `CAPSULA_RUN_TIMESTAMP` - ISO 8601 timestamp (UTC)
+- `CAPSULA_RUN_COMMAND` - The command being executed
+
+You can use these in your commands:
 
 ```bash
-capsula run bash -c 'echo "Run ID: $CAPSULA_RUN_ID"'
+capsula run bash -c 'echo "Run: $CAPSULA_RUN_NAME"'
 ```
-
-Available variables:
-
-- `CAPSULA_RUN_ID`: Unique ULID for this run
-- `CAPSULA_RUN_NAME`: Human-readable name (e.g., "chubby-back")
-- `CAPSULA_RUN_DIRECTORY`: Absolute path to the run directory
-- `CAPSULA_RUN_TIMESTAMP`: ISO 8601 timestamp
-- `CAPSULA_RUN_COMMAND`: The command being executed
-- `CAPSULA_PRE_RUN_OUTPUT_PATH`: Path to pre-run.json
-- `CAPSULA_PROJECT_ROOT`: Project root directory
-
-## Next Steps
-
-- [Configuration](configuration.md) - Learn about all configuration options
-- [Hooks](hooks.md) - Explore available hook types
-- [Architecture](architecture.md) - Understand how Capsula works
-- [Development](development.md) - Contribute to Capsula

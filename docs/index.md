@@ -1,103 +1,96 @@
-# Capsula
+---
+icon: material/home
+---
 
-**A powerful CLI tool for capturing and preserving the context of command executions**
+# Welcome to Capsula
 
-Capsula is a Rust-based tool that records the state of your project environment before and after running commands. It's perfect for reproducibility, auditing, and understanding exactly what happened during a command execution.
+Capsula is a command-line tool that automatically captures and saves information about your command executions. It records what happened, when it happened, and the environment in which it happened.
 
-## Why Capsula?
+## What Does Capsula Do?
 
-- **Reproducibility**: Capture the complete context of your experiments and builds
-- **Auditing**: Track what changed when you ran specific commands
-- **Debugging**: Understand the environment state when issues occur
-- **Collaboration**: Share complete execution context with teammates
+When you run a command with Capsula, it:
 
-## Key Features
+1. **Records the environment** - Captures git state, environment variables, file contents, and system information
+2. **Runs your command** - Executes your command normally, capturing its output
+3. **Saves everything** - Stores all captured data in an organized directory structure
 
-### Pre and Post-Run Hooks
+## Quick Example
 
-Execute hooks before and after your commands to capture:
-
-- Git repository state (commit hash, dirty status)
-- Environment variables
-- File contents and hashes
-- System information (CPU, memory, OS)
-- Custom command outputs
-
-### Organized Output
-
-All captured data is stored in a structured directory:
-
-```
-.capsula/{vault-name}/{YYYY-MM-DD}/{HHMMSS-name}/
-├── _capsula/
-│   ├── metadata.json
-│   ├── pre-run.json
-│   ├── command.json
-│   └── post-run.json
-└── [captured files]
-```
-
-### Flexible Configuration
-
-Configure hooks using a simple TOML file:
+Create a `capsula.toml` file:
 
 ```toml
 [vault]
-name = "my-experiments"
+name = "my-project"
 
 [[pre-run.hooks]]
 id = "capture-git-repo"
-name = "my-repo"
 path = "."
-allow_dirty = true
-
-[[pre-run.hooks]]
-id = "capture-env"
-name = "PATH"
 
 [[post-run.hooks]]
 id = "capture-file"
 glob = "output.txt"
 mode = "copy"
-hash = "sha256"
 ```
 
-### Environment Variables
-
-Commands executed with Capsula have access to special environment variables:
-
-- `CAPSULA_RUN_ID`: Unique identifier for the run
-- `CAPSULA_RUN_DIRECTORY`: Path to the run directory
-- `CAPSULA_RUN_TIMESTAMP`: ISO 8601 timestamp
-- And more...
-
-## Quick Start
-
-Install Capsula:
-
-```bash
-cargo install --path crates/capsula-cli --locked
-```
-
-Run a command with Capsula:
+Run your command:
 
 ```bash
 capsula run python train_model.py
 ```
 
-List previous runs:
+Capsula creates an organized directory:
 
-```bash
-capsula list
+```
+.capsula/my-project/2025-01-09/143022-happy-river/
+├── _capsula/
+│   ├── metadata.json      # What ran, when, and where
+│   ├── pre-run.json       # Environment before
+│   ├── command.json       # Command output
+│   └── post-run.json      # Results after
+└── output.txt             # Your output file
 ```
 
-## What's Next?
+## Why Use Capsula?
 
-- [Getting Started](getting-started.md) - Installation and first steps
-- [Configuration](configuration.md) - Learn how to configure Capsula
-- [Architecture](architecture.md) - Understand how Capsula works
-- [Development](development.md) - Contribute to Capsula
+- **Reproducibility** - Capture the exact environment and inputs for every run
+- **Traceability** - Know which code version produced which results
+- **Auditing** - Generate complete execution records
+- **Debugging** - Understand what went wrong by reviewing the complete context
 
-## Project Status
+## Getting Started
 
-Capsula is written in Rust and actively developed. The Python version found on the main branch is deprecated.
+<div class="grid cards" markdown>
+
+- :material-download:{ .lg .middle } **Installation**
+
+    ---
+
+    Install Capsula on your system.
+
+    [:octicons-arrow-right-24: Install Capsula](installation.md)
+
+- :material-rocket-launch:{ .lg .middle } **Getting Started**
+
+    ---
+
+    Run your first command with Capsula.
+
+    [:octicons-arrow-right-24: Quick start tutorial](getting-started.md)
+
+- :material-cog:{ .lg .middle } **Configuration**
+
+    ---
+
+    Learn how to configure Capsula.
+
+    [:octicons-arrow-right-24: Configuration guide](configuration.md)
+
+- :material-hook:{ .lg .middle } **Hooks**
+
+    ---
+
+    Explore what Capsula can capture.
+
+    [:octicons-arrow-right-24: Available hooks](getting-started.md#available-hooks)
+
+</div>
