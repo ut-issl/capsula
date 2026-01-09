@@ -2,11 +2,14 @@ use askama::Template;
 use askama_web::WebTemplate;
 
 mod filters {
+    use askama::filter_fn;
+
+    #[filter_fn]
     #[expect(
         clippy::unnecessary_wraps,
         reason = "Askama filter API requires Result return type"
     )]
-    pub fn format_command(s: &str, _: &dyn askama::Values) -> ::askama::Result<String> {
+    pub fn format_command(s: &str, _env: &dyn askama::Values) -> ::askama::Result<String> {
         // Try to parse as JSON array
         Ok(serde_json::from_str::<Vec<String>>(s).map_or_else(
             |_| s.to_string(),
@@ -17,14 +20,12 @@ mod filters {
         ))
     }
 
+    #[filter_fn]
     #[expect(
         clippy::unnecessary_wraps,
         reason = "Askama filter API requires Result return type"
     )]
-    pub fn pretty_json<T: std::fmt::Display>(
-        s: T,
-        _: &dyn askama::Values,
-    ) -> ::askama::Result<String> {
+    pub fn pretty_json<T: std::fmt::Display>(s: T, _env: &dyn askama::Values) -> ::askama::Result<String> {
         let s_str = s.to_string();
         // Try to parse as JSON and pretty-print with 2-space indentation
         Ok(serde_json::from_str::<serde_json::Value>(&s_str)

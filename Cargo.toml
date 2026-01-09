@@ -13,8 +13,8 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 anyhow = "1"
-askama = "0.14"
-askama_web = { version = "0.14", features = ["axum-0.8"] }
+askama = "0.15"
+askama_web = { version = "0.15", features = ["axum-0.8"] }
 axum = { version = "0.8", features = ["multipart"] }
 capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.10.0-alpha.1" }
 capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.10.0-alpha.1" }
