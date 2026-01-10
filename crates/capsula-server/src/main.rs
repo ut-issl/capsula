@@ -12,7 +12,7 @@ struct Args {
     host: String,
 
     /// Port to bind to
-    #[arg(short, long, env = "CAPSULA_PORT", default_value = "3000")]
+    #[arg(short, long, env = "CAPSULA_PORT", default_value = "8000")]
     port: u16,
 
     /// `PostgreSQL` connection string
@@ -68,6 +68,15 @@ async fn main() {
             std::process::exit(1);
         }
     };
+
+    // Run database migrations
+    info!("Running database migrations...");
+    let migrations = sqlx::migrate!("./migrations");
+    if let Err(e) = migrations.run(&pool).await {
+        error!("Failed to run migrations: {}", e);
+        std::process::exit(1);
+    }
+    info!("Database migrations completed");
 
     let app = build_app(pool, args.storage_path.into());
 
