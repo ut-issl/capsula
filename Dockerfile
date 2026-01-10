@@ -7,6 +7,9 @@ WORKDIR /usr/src/capsula-workspace
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
+# Set SQLx to offline mode (uses .sqlx metadata from crates/capsula-server/.sqlx)
+ENV SQLX_OFFLINE=true
+
 # Build for release
 RUN cargo build --release -p capsula-server
 
@@ -37,9 +40,6 @@ WORKDIR /app
 
 # Switch to non-root user
 USER capsula
-
-# Expose port
-EXPOSE 3000
 
 # Run the server
 CMD ["capsula-server"]
