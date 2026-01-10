@@ -104,7 +104,10 @@ pub async fn create_pool(database_url: &str, max_connections: u32) -> Result<PgP
 }
 
 pub fn build_app(pool: PgPool, storage_path: PathBuf) -> Router {
-    let static_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
+    // Check for CAPSULA_STATIC_DIR env var first, then fall back to compile-time path
+    let static_dir = std::env::var("CAPSULA_STATIC_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static"));
 
     let state = AppState { pool, storage_path };
 

@@ -35,11 +35,17 @@ COPY --from=builder /usr/src/capsula-workspace/target/release/capsula-server /us
 COPY --from=builder /usr/src/capsula-workspace/crates/capsula-server/static /app/static
 COPY --from=builder /usr/src/capsula-workspace/crates/capsula-server/templates /app/templates
 
+# Copy migrations
+COPY --from=builder /usr/src/capsula-workspace/crates/capsula-server/migrations /app/migrations
+
 # Set working directory
 WORKDIR /app
 
 # Switch to non-root user
 USER capsula
+
+# Set static files directory for runtime
+ENV CAPSULA_STATIC_DIR=/app/static
 
 # Run the server
 CMD ["capsula-server"]
