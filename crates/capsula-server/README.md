@@ -54,7 +54,7 @@ cargo run -p capsula-server -- \
   --log-level debug
 ```
 
-The server will start on `http://127.0.0.1:3000` by default.
+The server will start on `http://127.0.0.1:8500` by default.
 
 ### Using Docker
 
@@ -70,7 +70,7 @@ docker run -d \
 # Run the server
 cargo run -p capsula-server -- \
   --host 0.0.0.0 \
-  --port 3000 \
+  --port 8500 \
   --database-url "postgresql://postgres:password@localhost:5432/capsula"
 ```
 
@@ -91,7 +91,7 @@ Options:
   -H, --host <HOST>
           Host to bind to [env: CAPSULA_HOST=] [default: 127.0.0.1]
   -p, --port <PORT>
-          Port to bind to [env: CAPSULA_PORT=] [default: 3000]
+          Port to bind to [env: CAPSULA_PORT=] [default: 8500]
   -d, --database-url <DATABASE_URL>
           PostgreSQL connection string [env: DATABASE_URL=]
   -s, --storage-path <STORAGE_PATH>
@@ -117,7 +117,7 @@ The server can be configured via **command-line flags** or **environment variabl
 | CLI Flag | Short | Environment Variable | Default | Description |
 |----------|-------|---------------------|---------|-------------|
 | `--host` | `-H` | `CAPSULA_HOST` | `127.0.0.1` | Host to bind to |
-| `--port` | `-p` | `CAPSULA_PORT` | `3000` | Port to bind to |
+| `--port` | `-p` | `CAPSULA_PORT` | `8500` | Port to bind to |
 | `--database-url` | `-d` | `DATABASE_URL` | (required) | PostgreSQL connection string |
 | `--storage-path` | `-s` | `STORAGE_PATH` | `./storage` | Directory for file storage |
 | `--max-connections` | | `CAPSULA_MAX_CONNECTIONS` | `5` | Database connection pool size |
@@ -191,13 +191,13 @@ Configure the Capsula CLI to push runs to the server:
 [vault]
 name = "my-project"
 
-server = "http://localhost:3000"
+server = "http://localhost:8500"
 ```
 
 2. Or use environment variable:
 
 ```bash
-export CAPSULA_SERVER_URL="http://localhost:3000"
+export CAPSULA_SERVER_URL="http://localhost:8500"
 ```
 
 3. Push a run:
@@ -304,7 +304,7 @@ If you see connection errors:
 
 ### Port Already in Use
 
-If port 3000 is already in use, set a different port:
+If port 8500 is already in use, set a different port:
 
 ```bash
 capsula-server --port 8080 --database-url "postgresql://localhost/capsula"

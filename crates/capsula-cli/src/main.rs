@@ -54,7 +54,11 @@ enum Commands {
         #[arg(long, conflicts_with = "run_id")]
         all: bool,
 
-        /// Server URL (e.g., <http://localhost:3000>)
+        #[expect(
+            clippy::doc_markdown,
+            reason = "It's not a link, just an example value"
+        )]
+        /// Server URL (e.g., http://localhost:8500)
         #[arg(long, env = "CAPSULA_SERVER_URL")]
         server: Option<String>,
     },
@@ -67,7 +71,11 @@ enum Commands {
 #[derive(Subcommand, Debug)]
 enum VaultsCommands {
     List {
-        /// Server URL (e.g., <http://localhost:3000>)
+        #[expect(
+            clippy::doc_markdown,
+            reason = "It's not a link, just an example value"
+        )]
+        /// Server URL (e.g., http://localhost:8500)
         #[arg(long, env = "CAPSULA_SERVER_URL")]
         server: Option<String>,
     },

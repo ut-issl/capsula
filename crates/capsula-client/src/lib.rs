@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_client_creation() {
-        let client = CapsulaClient::new("http://localhost:3000");
-        assert_eq!(client.base_url, "http://localhost:3000");
+        let client = CapsulaClient::new("http://localhost:8500");
+        assert_eq!(client.base_url, "http://localhost:8500");
     }
 }
