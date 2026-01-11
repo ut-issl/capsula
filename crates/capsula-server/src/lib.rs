@@ -106,10 +106,7 @@ pub async fn create_pool(database_url: &str, max_connections: u32) -> Result<PgP
 pub fn build_app(pool: PgPool, storage_path: PathBuf) -> Router {
     let static_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
 
-    let state = AppState {
-        pool,
-        storage_path,
-    };
+    let state = AppState { pool, storage_path };
 
     Router::new()
         .route("/", get(index))
@@ -435,7 +432,10 @@ async fn list_vaults(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
-async fn get_vault_info(State(state): State<AppState>, Path(name): Path<String>) -> impl IntoResponse {
+async fn get_vault_info(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> impl IntoResponse {
     info!("Getting vault info: {}", name);
 
     let result = sqlx::query!(
@@ -717,7 +717,10 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
     clippy::else_if_without_else,
     reason = "There is `continue` or `return` in each branch, so `else` is redundant"
 )]
-async fn upload_files(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
+async fn upload_files(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
     let storage_path = &state.storage_path;
     info!("Received file upload request");
 
