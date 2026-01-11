@@ -1,3 +1,9 @@
+envfile := justfile_directory() / ".env.server"
+
+# Construct the DATABASE_URL from environment variables in the envfile
+
+database_url := shell("dotenvx --quiet run -f \"$1\" -- bash -c 'echo \"postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB\"'", envfile)
+
 default:
     just --list
 
@@ -31,10 +37,14 @@ coverage-clean:
     cargo llvm-cov clean --workspace
 
 start-db:
-    docker compose -f ./crates/capsula-server/compose.yaml up -d
+    dotenvx run -f {{ envfile }} -- docker compose up postgres --detach
 
 stop-db:
-    docker compose -f ./crates/capsula-server/compose.yaml down
+    dotenvx run -f {{ envfile }} -- docker compose down
 
-serve $DATABASE_URL="postgres://capsula:capsula_dev@localhost:5432/capsula" $RUST_LOG="info":
-    cargo run -p capsula-server
+serve $RUST_LOG="info":
+    cargo run -p capsula-server -- --database-url {{ database_url }}
+
+[working-directory('crates/capsula-server')]
+sqlx-prepare:
+    cargo sqlx prepare --database-url {{ database_url }}
