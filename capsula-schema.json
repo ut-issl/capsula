@@ -1,0 +1,328 @@
+{
+  "$defs": {
+    "capture_file_CaptureMode": {
+      "enum": ["copy", "move", "none"],
+      "type": "string"
+    },
+    "capture_file_HashAlgorithm": {
+      "enum": ["sha256", "none"],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Configuration file schema for Capsula - a tool for capturing and preserving command execution context",
+  "properties": {
+    "dotenv": {
+      "description": "Path to .env file to load environment variables from",
+      "type": "string"
+    },
+    "post-run": {
+      "additionalProperties": false,
+      "description": "Hooks to run after command execution",
+      "properties": {
+        "hooks": {
+          "description": "Array of hooks to execute after the command",
+          "items": {
+            "oneOf": [
+              {
+                "properties": {
+                  "id": {
+                    "const": "capture-cwd",
+                    "type": "string"
+                  }
+                },
+                "required": ["id"],
+                "title": "CwdHookConfig",
+                "type": "object"
+              },
+              {
+                "description": "Configuration for `GitHook`",
+                "properties": {
+                  "allow_dirty": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "id": {
+                    "const": "capture-git-repo",
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "name", "path"],
+                "title": "GitHookConfig",
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "glob": {
+                    "type": "string"
+                  },
+                  "hash": {
+                    "$ref": "#/$defs/capture_file_HashAlgorithm",
+                    "default": "sha256"
+                  },
+                  "id": {
+                    "const": "capture-file",
+                    "type": "string"
+                  },
+                  "mode": {
+                    "$ref": "#/$defs/capture_file_CaptureMode",
+                    "default": "copy"
+                  }
+                },
+                "required": ["id", "glob"],
+                "title": "FileHookConfig",
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "id": {
+                    "const": "capture-env",
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "name"],
+                "title": "EnvVarHookConfig",
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "abort_on_failure": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "command": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "id": {
+                    "const": "capture-command",
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "command"],
+                "title": "CommandHookConfig",
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "id": {
+                    "const": "capture-machine",
+                    "type": "string"
+                  }
+                },
+                "required": ["id"],
+                "title": "MachineHookConfig",
+                "type": "object"
+              },
+              {
+                "description": "Configuration for the Slack notification hook\n\n# Fields\n* `channel` - The Slack channel to send notifications to (e.g., \"#random\")\n* `token` - The Slack bot token. If not provided, will read from `SLACK_BOT_TOKEN` environment variable\n* `attachment_globs` - Optional list of glob patterns to match files for attachment (up to 10 files)\n\n# Example\n```toml\n[[post_run.hooks]]\nid = \"notify-slack\"\nchannel = \"#random\"\nattachment_globs = [\"*.png\", \"outputs/*.jpg\"]\n```",
+                "properties": {
+                  "attachment_globs": {
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "channel": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "const": "notify-slack",
+                    "type": "string"
+                  },
+                  "token": {
+                    "default": "",
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "channel"],
+                "title": "SlackNotifyHookConfig",
+                "type": "object"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "pre-run": {
+      "additionalProperties": false,
+      "description": "Hooks to run before command execution",
+      "properties": {
+        "hooks": {
+          "description": "Array of hooks to execute before the command",
+          "items": {
+            "oneOf": [
+              {
+                "properties": {
+                  "id": {
+                    "const": "capture-cwd",
+                    "type": "string"
+                  }
+                },
+                "required": ["id"],
+                "title": "CwdHookConfig",
+                "type": "object"
+              },
+              {
+                "description": "Configuration for `GitHook`",
+                "properties": {
+                  "allow_dirty": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "id": {
+                    "const": "capture-git-repo",
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "name", "path"],
+                "title": "GitHookConfig",
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "glob": {
+                    "type": "string"
+                  },
+                  "hash": {
+                    "$ref": "#/$defs/capture_file_HashAlgorithm",
+                    "default": "sha256"
+                  },
+                  "id": {
+                    "const": "capture-file",
+                    "type": "string"
+                  },
+                  "mode": {
+                    "$ref": "#/$defs/capture_file_CaptureMode",
+                    "default": "copy"
+                  }
+                },
+                "required": ["id", "glob"],
+                "title": "FileHookConfig",
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "id": {
+                    "const": "capture-env",
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "name"],
+                "title": "EnvVarHookConfig",
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "abort_on_failure": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "command": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "id": {
+                    "const": "capture-command",
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "command"],
+                "title": "CommandHookConfig",
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "id": {
+                    "const": "capture-machine",
+                    "type": "string"
+                  }
+                },
+                "required": ["id"],
+                "title": "MachineHookConfig",
+                "type": "object"
+              },
+              {
+                "description": "Configuration for the Slack notification hook\n\n# Fields\n* `channel` - The Slack channel to send notifications to (e.g., \"#random\")\n* `token` - The Slack bot token. If not provided, will read from `SLACK_BOT_TOKEN` environment variable\n* `attachment_globs` - Optional list of glob patterns to match files for attachment (up to 10 files)\n\n# Example\n```toml\n[[post_run.hooks]]\nid = \"notify-slack\"\nchannel = \"#random\"\nattachment_globs = [\"*.png\", \"outputs/*.jpg\"]\n```",
+                "properties": {
+                  "attachment_globs": {
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "channel": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "const": "notify-slack",
+                    "type": "string"
+                  },
+                  "token": {
+                    "default": "",
+                    "type": "string"
+                  }
+                },
+                "required": ["id", "channel"],
+                "title": "SlackNotifyHookConfig",
+                "type": "object"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "server": {
+      "description": "URL of the Capsula server for pushing runs (e.g., http://localhost:8500)",
+      "format": "uri",
+      "type": "string"
+    },
+    "vault": {
+      "description": "Vault configuration for storing captured runs",
+      "properties": {
+        "name": {
+          "description": "Name of the vault (should be unique in the storage)",
+          "type": "string"
+        },
+        "path": {
+          "description": "Path to the vault directory (defaults to .capsula/{name})",
+          "type": "string"
+        }
+      },
+      "required": ["name"],
+      "type": "object"
+    }
+  },
+  "required": ["vault"],
+  "title": "Capsula Configuration",
+  "type": "object"
+}

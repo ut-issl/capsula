@@ -7,11 +7,12 @@ use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 pub struct FileHookConfig {
     glob: String,
     #[serde(default)]
@@ -20,7 +21,7 @@ pub struct FileHookConfig {
     hash: HashAlgorithm,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CaptureMode {
     #[default]
@@ -29,7 +30,7 @@ pub enum CaptureMode {
     None,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum HashAlgorithm {
     #[default]

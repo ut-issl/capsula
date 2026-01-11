@@ -6,13 +6,14 @@ use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::path::PathBuf;
 use tracing::{debug, warn};
 
 /// Configuration for `GitHook`
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 pub struct GitHookConfig {
     name: String,
     path: PathBuf,

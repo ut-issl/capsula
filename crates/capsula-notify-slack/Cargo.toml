@@ -14,6 +14,7 @@ categories = ["development-tools"]
 capsula-core = { workspace = true }
 glob = { workspace = true }
 reqwest = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 shlex = { workspace = true }

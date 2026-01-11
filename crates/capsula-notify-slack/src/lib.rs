@@ -4,6 +4,7 @@ use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PostRun, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::{Path, PathBuf};
@@ -26,7 +27,7 @@ const MAX_SLACK_ATTACHMENTS: usize = 10;
 /// channel = "#random"
 /// attachment_globs = ["*.png", "outputs/*.jpg"]
 /// ```
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 pub struct SlackNotifyHookConfig {
     channel: String,
     #[serde(default = "token_from_env")]

@@ -66,6 +66,16 @@ enum Commands {
         #[command(subcommand)]
         command: VaultsCommands,
     },
+    /// Generate JSON schema for hook configurations
+    Schema {
+        /// Output file path (prints to stdout if not specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        
+        /// Generate full capsula.toml schema instead of just hook schemas
+        #[arg(long)]
+        full: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -405,12 +415,49 @@ fn find_run_dir(vault_dir: &std::path::Path, run_id: &str) -> Result<PathBuf> {
     reason = "TODO: Refactor into smaller functions"
 )]
 fn run() -> Result<()> {
+    let cli = Cli::parse();
+
+    // Handle schema command early (doesn't need config)
+    if let Commands::Schema { output, full } = &cli.command {
+        let json_output = if *full {
+            debug!("Generating full JSON schema for capsula.toml");
+            let schema = capsula_registry::generate_full_config_schema();
+            serde_json::to_string_pretty(&schema)
+                .context("Failed to serialize schema to JSON")?
+        } else {
+            debug!("Generating JSON schema for hook configurations");
+            let schemas = capsula_registry::generate_hook_schemas();
+            
+            // Create a combined schema document with all hooks
+            let schema_doc = serde_json::json!({
+                "description": "JSON schemas for Capsula hook configurations",
+                "hooks": schemas.iter().map(|schema| {
+                    serde_json::json!({
+                        "id": schema.id,
+                        "schema": schema.config_schema,
+                    })
+                }).collect::<Vec<_>>(),
+            });
+            
+            serde_json::to_string_pretty(&schema_doc)
+                .context("Failed to serialize schema to JSON")?
+        };
+        
+        if let Some(output_path) = output {
+            std::fs::write(output_path, &json_output)
+                .with_context(|| format!("Failed to write schema to {}", output_path.display()))?;
+            info!("Schema written to: {}", output_path.display());
+        } else {
+            println!("{json_output}");
+        }
+        return Ok(());
+    }
+
     // Create the registry with all available hook types
     debug!("Creating hook registries");
     let pre_run_hook_registry = create_pre_run_hook_registry();
     let post_run_hook_registry = create_post_run_hook_registry();
 
-    let cli = Cli::parse();
     let config_file_path = cli.config.unwrap_or_else(|| PathBuf::from("capsula.toml"));
     debug!("Using configuration file: {}", config_file_path.display());
 
@@ -775,6 +822,10 @@ path = \".\"
                 }
             }
         },
+        Commands::Schema { .. } => {
+            // Handled earlier in the function
+            unreachable!("Schema command should have been handled earlier")
+        }
     }
     Ok(())
 }

@@ -213,3 +213,228 @@ pub fn standard_post_run_hook_registry() -> HookRegistry<PostRun> {
         .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {e}"))
         .build()
 }
+
+/// Schema information for a hook type
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct HookSchema {
+    pub id: &'static str,
+    pub config_schema: schemars::Schema,
+}
+
+/// Generate JSON schemas for all registered hook types
+///
+/// Returns a vector of hook schemas, each containing the hook ID and its configuration schema.
+/// The schemas describe the configuration structure for each hook type.
+///
+/// # Example
+/// ```ignore
+/// let schemas = generate_hook_schemas();
+/// for schema in schemas {
+///     println!("Hook '{}' schema:", schema.id);
+///     println!("{}", serde_json::to_string_pretty(&schema.config_schema).unwrap());
+/// }
+/// ```
+#[must_use]
+pub fn generate_hook_schemas() -> Vec<HookSchema> {
+    use capsula_core::hook::Hook;
+
+    vec![
+        HookSchema {
+            id: <capsula_capture_cwd::CwdHook as Hook<PreRun>>::ID,
+            config_schema: schemars::schema_for!(capsula_capture_cwd::CwdHookConfig),
+        },
+        HookSchema {
+            id: <capsula_capture_git_repo::GitHook as Hook<PreRun>>::ID,
+            config_schema: schemars::schema_for!(capsula_capture_git_repo::GitHookConfig),
+        },
+        HookSchema {
+            id: <capsula_capture_file::FileHook as Hook<PreRun>>::ID,
+            config_schema: schemars::schema_for!(capsula_capture_file::FileHookConfig),
+        },
+        HookSchema {
+            id: <capsula_capture_env::EnvVarHook as Hook<PreRun>>::ID,
+            config_schema: schemars::schema_for!(capsula_capture_env::EnvVarHookConfig),
+        },
+        HookSchema {
+            id: <capsula_capture_command::CommandHook as Hook<PreRun>>::ID,
+            config_schema: schemars::schema_for!(capsula_capture_command::CommandHookConfig),
+        },
+        HookSchema {
+            id: <capsula_capture_machine::MachineHook as Hook<PreRun>>::ID,
+            config_schema: schemars::schema_for!(capsula_capture_machine::MachineHookConfig),
+        },
+        HookSchema {
+            id: <capsula_notify_slack::SlackNotifyHook as Hook<PreRun>>::ID,
+            config_schema: schemars::schema_for!(capsula_notify_slack::SlackNotifyHookConfig),
+        },
+    ]
+}
+
+/// Generate a complete JSON schema for the entire capsula.toml configuration file
+///
+/// This schema validates the full structure including vault, dotenv, server,
+/// and both pre-run and post-run hook arrays.
+///
+/// # Returns
+/// A JSON Schema value that can be used to validate capsula.toml files
+#[expect(
+    clippy::too_many_lines,
+    reason = "Schema generation is inherently verbose"
+)]
+#[must_use]
+pub fn generate_full_config_schema() -> serde_json::Value {
+    let hook_schemas = generate_hook_schemas();
+
+    // Collect all $defs from hook schemas to move them to root level
+    let mut root_defs = serde_json::Map::new();
+
+    // Build oneOf array for hook validation based on ID
+    let hook_one_of: Vec<serde_json::Value> = hook_schemas
+        .iter()
+        .map(|hook| {
+            let mut hook_schema =
+                serde_json::to_value(&hook.config_schema).unwrap_or_else(|_| serde_json::json!({}));
+
+            // Extract $defs from this hook schema and add to root_defs with prefixed names
+            if let Some(defs) = hook_schema.get("$defs").and_then(|d| d.as_object()) {
+                for (def_name, def_value) in defs {
+                    let prefixed_name = format!("{}_{}", hook.id.replace('-', "_"), def_name);
+                    root_defs.insert(prefixed_name.clone(), def_value.clone());
+                }
+                hook_schema.as_object_mut().unwrap().remove("$defs");
+            }
+
+            // Update $ref paths in properties to point to root level
+            if let Some(props) = hook_schema
+                .get_mut("properties")
+                .and_then(|p| p.as_object_mut())
+            {
+                for (_, prop_value) in props.iter_mut() {
+                    if let Some(ref_path) = prop_value.get("$ref").and_then(|r| r.as_str()) {
+                        if ref_path.starts_with("#/$defs/") {
+                            let def_name = ref_path.strip_prefix("#/$defs/").unwrap();
+                            let new_ref =
+                                format!("#/$defs/{}_{}", hook.id.replace('-', "_"), def_name);
+                            prop_value
+                                .as_object_mut()
+                                .unwrap()
+                                .insert("$ref".to_string(), serde_json::json!(new_ref));
+                        }
+                    }
+                }
+            }
+
+            // Remove the nested $schema field (not needed in oneOf)
+            hook_schema.as_object_mut().unwrap().remove("$schema");
+
+            // Add the 'id' field requirement to the schema
+            if let Some(props) = hook_schema
+                .get_mut("properties")
+                .and_then(|p| p.as_object_mut())
+            {
+                props.insert(
+                    "id".to_string(),
+                    serde_json::json!({
+                        "const": hook.id,
+                        "type": "string"
+                    }),
+                );
+            } else {
+                // If no properties exist, create them
+                hook_schema["properties"] = serde_json::json!({
+                    "id": {
+                        "const": hook.id,
+                        "type": "string"
+                    }
+                });
+            }
+
+            // Ensure 'id' is in required array
+            if let Some(required) = hook_schema
+                .get_mut("required")
+                .and_then(|r| r.as_array_mut())
+            {
+                if !required.iter().any(|v| v == "id") {
+                    required.insert(0, serde_json::json!("id"));
+                }
+            } else {
+                hook_schema["required"] = serde_json::json!(["id"]);
+            }
+
+            hook_schema
+        })
+        .collect();
+
+    let mut schema = serde_json::json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Capsula Configuration",
+        "description": "Configuration file schema for Capsula - a tool for capturing and preserving command execution context",
+        "type": "object",
+        "required": ["vault"],
+        "properties": {
+            "vault": {
+                "type": "object",
+                "description": "Vault configuration for storing captured runs",
+                "required": ["name"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the vault (should be unique in the storage)"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the vault directory (defaults to .capsula/{name})"
+                    }
+                }
+            },
+            "dotenv": {
+                "type": "string",
+                "description": "Path to .env file to load environment variables from"
+            },
+            "server": {
+                "type": "string",
+                "description": "URL of the Capsula server for pushing runs (e.g., http://localhost:8500)",
+                "format": "uri"
+            },
+            "pre-run": {
+                "type": "object",
+                "description": "Hooks to run before command execution",
+                "properties": {
+                    "hooks": {
+                        "type": "array",
+                        "description": "Array of hooks to execute before the command",
+                        "items": {
+                            "oneOf": hook_one_of.clone()
+                        }
+                    }
+                },
+                "additionalProperties": false
+            },
+            "post-run": {
+                "type": "object",
+                "description": "Hooks to run after command execution",
+                "properties": {
+                    "hooks": {
+                        "type": "array",
+                        "description": "Array of hooks to execute after the command",
+                        "items": {
+                            "oneOf": hook_one_of
+                        }
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "additionalProperties": false
+    });
+
+    // Add $defs if we have any
+    if !root_defs.is_empty() {
+        schema
+            .as_object_mut()
+            .unwrap()
+            .insert("$defs".to_string(), serde_json::Value::Object(root_defs));
+    }
+
+    schema
+}

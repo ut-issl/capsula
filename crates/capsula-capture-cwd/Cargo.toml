@@ -12,6 +12,7 @@ categories = ["development-tools", "filesystem"]
 
 [dependencies]
 capsula-core = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

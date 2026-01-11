@@ -48,3 +48,17 @@ serve $RUST_LOG="info":
 [working-directory('crates/capsula-server')]
 sqlx-prepare:
     cargo sqlx prepare --database-url {{ database_url }}
+
+# Generate JSON schema for capsula.toml (full config schema)
+schema:
+    cargo run -p capsula-cli -- schema --full --output capsula-schema.json
+    @echo "Schema generated: capsula-schema.json"
+
+# Generate hook-only schemas (for documentation)
+schema-hooks:
+    cargo run -p capsula-cli -- schema --output capsula-hooks-schema.json
+    @echo "Hook schemas generated: capsula-hooks-schema.json"
+
+# Validate capsula.toml against the schema
+schema-validate: schema
+    uvx check-jsonschema --schemafile capsula-schema.json capsula.toml
