@@ -15,11 +15,11 @@ services:
       dockerfile: Dockerfile
     environment:
       - CAPSULA_HOST=0.0.0.0
-      - CAPSULA_PORT=3000
+      - CAPSULA_PORT=8500
       - DATABASE_URL=postgresql://${POSTGRES_USER?Variable POSTGRES_USER not set}:${POSTGRES_PASSWORD?Variable POSTGRES_PASSWORD not set}@postgres:5432/${POSTGRES_DB?Variable POSTGRES_DB not set}
       - CAPSULA_STORAGE_PATH=/data
     ports:
-      - "${CAPSULA_PORT?Variable CAPSULA_PORT not set}:3000"
+      - "${CAPSULA_PORT?Variable CAPSULA_PORT not set}:8500"
     depends_on:
       - postgres
     volumes:

@@ -209,7 +209,7 @@ fn test_capsula_config_with_server_url() {
 [vault]
 name = "test-vault"
 
-server = "http://localhost:3000"
+server = "http://localhost:8500"
 
 [[pre-run.hooks]]
 id = "capture-cwd"
