@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.90 as builder
+FROM rust:1.90 AS builder
 
 WORKDIR /usr/src/capsula-workspace
 
@@ -23,10 +23,8 @@ RUN apt-get update && \
     libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -m -u 1000 capsula && \
-    mkdir -p /var/lib/capsula/storage && \
-    chown -R capsula:capsula /var/lib/capsula
+# Create non-root user with UID 1000
+RUN useradd --create-home --uid 1000 capsula
 
 # Copy binary from builder
 COPY --from=builder /usr/src/capsula-workspace/target/release/capsula-server /usr/local/bin/capsula-server
