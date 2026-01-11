@@ -31,14 +31,30 @@ createdb capsula
 ### From Source
 
 ```bash
-# Set the database URL
-export DATABASE_URL="postgresql://localhost/capsula"
+# Basic usage with database URL
+cargo run -p capsula-server -- --database-url "postgresql://localhost/capsula"
 
-# Run the server
+# Or use environment variable
+export DATABASE_URL="postgresql://localhost/capsula"
 cargo run -p capsula-server
+
+# Custom host and port
+cargo run -p capsula-server -- \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --database-url "postgresql://localhost/capsula"
+
+# All options
+cargo run -p capsula-server -- \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --database-url "postgresql://localhost/capsula" \
+  --storage-path /var/lib/capsula/storage \
+  --max-connections 10 \
+  --log-level debug
 ```
 
-The server will start on `http://localhost:3000` by default.
+The server will start on `http://127.0.0.1:3000` by default.
 
 ### Using Docker
 
@@ -52,26 +68,89 @@ docker run -d \
   postgres:16
 
 # Run the server
-DATABASE_URL="postgresql://postgres:password@localhost:5432/capsula" \
-  cargo run -p capsula-server
+cargo run -p capsula-server -- \
+  --host 0.0.0.0 \
+  --port 3000 \
+  --database-url "postgresql://postgres:password@localhost:5432/capsula"
+```
+
+## Command Line Options
+
+You can view all available options with `--help`:
+
+```bash
+cargo run -p capsula-server -- --help
+```
+
+```
+Web server for managing and viewing Capsula runs
+
+Usage: capsula-server [OPTIONS] --database-url <DATABASE_URL>
+
+Options:
+  -H, --host <HOST>
+          Host to bind to [env: CAPSULA_HOST=] [default: 127.0.0.1]
+  -p, --port <PORT>
+          Port to bind to [env: CAPSULA_PORT=] [default: 3000]
+  -d, --database-url <DATABASE_URL>
+          PostgreSQL connection string [env: DATABASE_URL=]
+  -s, --storage-path <STORAGE_PATH>
+          Storage directory for captured files [env: STORAGE_PATH=] [default: ./storage]
+      --max-connections <MAX_CONNECTIONS>
+          Maximum database connections [env: CAPSULA_MAX_CONNECTIONS=] [default: 5]
+  -l, --log-level <LOG_LEVEL>
+          Log level (error, warn, info, debug, trace) [env: RUST_LOG=] [default: info]
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 ```
 
 ## Configuration
 
-Environment variables:
+The server can be configured via **command-line flags** or **environment variables**. Command-line flags take precedence over environment variables.
 
-- `DATABASE_URL`: PostgreSQL connection string (required)
-- `PORT`: Server port (default: 3000)
-- `HOST`: Server host (default: 127.0.0.1)
-- `RUST_LOG`: Logging level (e.g., `info`, `debug`, `warn`)
+**Priority order:** CLI flags > Environment variables > Default values
 
-Example:
+### Configuration Options
 
+| CLI Flag | Short | Environment Variable | Default | Description |
+|----------|-------|---------------------|---------|-------------|
+| `--host` | `-H` | `CAPSULA_HOST` | `127.0.0.1` | Host to bind to |
+| `--port` | `-p` | `CAPSULA_PORT` | `3000` | Port to bind to |
+| `--database-url` | `-d` | `DATABASE_URL` | (required) | PostgreSQL connection string |
+| `--storage-path` | `-s` | `STORAGE_PATH` | `./storage` | Directory for file storage |
+| `--max-connections` | | `CAPSULA_MAX_CONNECTIONS` | `5` | Database connection pool size |
+| `--log-level` | `-l` | `RUST_LOG` | `info` | Logging level |
+
+### Configuration Examples
+
+**Using CLI flags only:**
 ```bash
-DATABASE_URL="postgresql://localhost/capsula" \
-PORT=8080 \
-RUST_LOG=debug \
-cargo run -p capsula-server
+capsula-server \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --database-url "postgresql://localhost/capsula" \
+  --storage-path /data/storage \
+  --log-level debug
+```
+
+**Using environment variables only:**
+```bash
+export DATABASE_URL="postgresql://localhost/capsula"
+export CAPSULA_HOST="0.0.0.0"
+export CAPSULA_PORT="8080"
+export STORAGE_PATH="/data/storage"
+export RUST_LOG="debug"
+capsula-server
+```
+
+**Mixed (CLI overrides environment):**
+```bash
+export DATABASE_URL="postgresql://localhost/capsula"
+export CAPSULA_PORT="8080"
+# Override port with CLI flag
+capsula-server --port 9000  # Will use port 9000, not 8080
 ```
 
 ## API Endpoints
@@ -228,7 +307,9 @@ If you see connection errors:
 If port 3000 is already in use, set a different port:
 
 ```bash
-PORT=8080 cargo run -p capsula-server
+capsula-server --port 8080 --database-url "postgresql://localhost/capsula"
+# Or with environment variable
+CAPSULA_PORT=8080 capsula-server --database-url "postgresql://localhost/capsula"
 ```
 
 ### Migration Errors

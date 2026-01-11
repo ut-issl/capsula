@@ -1,35 +1,111 @@
 use capsula_server::{build_app, create_pool};
+use clap::Parser;
 use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
+
+/// Web server for managing and viewing Capsula runs
+#[derive(Parser, Debug)]
+#[command(name = "capsula-server", version, about)]
+struct Args {
+    /// Host to bind to
+    #[arg(short = 'H', long, env = "CAPSULA_HOST", default_value = "127.0.0.1")]
+    host: String,
+
+    /// Port to bind to
+    #[arg(short, long, env = "CAPSULA_PORT", default_value = "3000")]
+    port: u16,
+
+    /// `PostgreSQL` connection string
+    #[arg(short, long, env = "DATABASE_URL")]
+    database_url: String,
+
+    /// Storage directory for captured files
+    #[arg(short, long, env = "STORAGE_PATH", default_value = "./storage")]
+    storage_path: String,
+
+    /// Maximum database connections
+    #[arg(long, env = "CAPSULA_MAX_CONNECTIONS", default_value = "5")]
+    max_connections: u32,
+
+    /// Log level (error, warn, info, debug, trace)
+    #[arg(short, long, env = "RUST_LOG", default_value = "info")]
+    log_level: String,
+}
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    let args = Args::parse();
 
-    let database_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+    // Initialize logging with configured level
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::new(&args.log_level))
+        .init();
 
-    info!("Connecting to database: {}", database_url);
+    info!("Starting Capsula Server");
+    info!("Host: {}", args.host);
+    info!("Port: {}", args.port);
+    info!("Storage path: {}", args.storage_path);
+    info!("Max database connections: {}", args.max_connections);
+    info!("Log level: {}", args.log_level);
 
-    let pool = match create_pool(&database_url).await {
+    info!("Connecting to database...");
+
+    let pool = match create_pool(&args.database_url, args.max_connections).await {
         Ok(pool) => {
             info!("Database connection established");
             pool
         }
         Err(e) => {
             error!("Failed to connect to database: {}", e);
+            error!("Database URL: {}", args.database_url);
+            error!(
+                "\nPlease ensure:\n\
+                 1. PostgreSQL is running\n\
+                 2. The database exists (try: createdb capsula)\n\
+                 3. The connection string is correct\n\
+                 4. You have proper permissions"
+            );
             std::process::exit(1);
         }
     };
 
-    let app = build_app(pool);
+    // Run database migrations
+    info!("Running database migrations...");
+    let migrations = sqlx::migrate!("./migrations");
+    if let Err(e) = migrations.run(&pool).await {
+        error!("Failed to run migrations: {}", e);
+        std::process::exit(1);
+    }
+    info!("Database migrations completed");
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .expect("Failed to bind to port 3000");
+    let app = build_app(pool, args.storage_path.into());
 
-    info!("Server listening on http://127.0.0.1:3000");
+    let bind_addr = format!("{}:{}", args.host, args.port);
+    let listener = match tokio::net::TcpListener::bind(&bind_addr).await {
+        Ok(listener) => listener,
+        Err(e) => {
+            error!("Failed to bind to {}: {}", bind_addr, e);
+            if e.kind() == std::io::ErrorKind::AddrInUse {
+                error!(
+                    "Port {} is already in use. Try a different port with --port <PORT>",
+                    args.port
+                );
+            } else if e.kind() == std::io::ErrorKind::AddrNotAvailable {
+                error!(
+                    "Cannot bind to host {}. Try --host 0.0.0.0 or --host 127.0.0.1",
+                    args.host
+                );
+            } else {
+                error!("Check your network configuration and try again");
+            }
+            std::process::exit(1);
+        }
+    };
 
-    axum::serve(listener, app)
-        .await
-        .expect("Failed to start server");
+    info!("Server listening on http://{}", bind_addr);
+
+    if let Err(e) = axum::serve(listener, app).await {
+        error!("Server error: {}", e);
+        std::process::exit(1);
+    }
 }

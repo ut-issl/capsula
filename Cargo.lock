@@ -671,6 +671,7 @@ dependencies = [
  "axum",
  "capsula-api-types",
  "chrono",
+ "clap",
  "mime_guess",
  "reqwest",
  "serde",

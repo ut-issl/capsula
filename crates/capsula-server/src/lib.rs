@@ -51,6 +51,12 @@ use std::path::PathBuf;
 use tower_http::services::ServeDir;
 use tracing::{error, info, warn};
 
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+    pub storage_path: PathBuf,
+}
+
 mod models;
 
 #[derive(Template, WebTemplate)]
@@ -89,16 +95,18 @@ struct ErrorTemplate {
     message: String,
 }
 
-pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+pub async fn create_pool(database_url: &str, max_connections: u32) -> Result<PgPool, sqlx::Error> {
     sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(max_connections)
         .acquire_timeout(std::time::Duration::from_secs(3))
         .connect(database_url)
         .await
 }
 
-pub fn build_app(pool: PgPool) -> Router {
+pub fn build_app(pool: PgPool, storage_path: PathBuf) -> Router {
     let static_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static");
+
+    let state = AppState { pool, storage_path };
 
     Router::new()
         .route("/", get(index))
@@ -114,7 +122,7 @@ pub fn build_app(pool: PgPool) -> Router {
         .route("/api/v1/upload", post(upload_files))
         .nest_service("/static", ServeDir::new(static_dir))
         .fallback(not_found)
-        .with_state(pool)
+        .with_state(state)
 }
 
 async fn index() -> impl IntoResponse {
@@ -132,7 +140,7 @@ async fn not_found() -> impl IntoResponse {
     )
 }
 
-async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
+async fn vaults_page(State(state): State<AppState>) -> impl IntoResponse {
     info!("Rendering vaults page");
 
     let result = sqlx::query!(
@@ -143,7 +151,7 @@ async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
         ORDER BY vault
         "#
     )
-    .fetch_all(&pool)
+    .fetch_all(&state.pool)
     .await;
 
     match result {
@@ -166,7 +174,7 @@ async fn vaults_page(State(pool): State<PgPool>) -> impl IntoResponse {
 }
 
 async fn runs_page(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Query(params): Query<models::ListRunsQuery>,
 ) -> impl IntoResponse {
     let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(50) + 1;
@@ -188,7 +196,7 @@ async fn runs_page(
             "#,
             vault
         )
-        .fetch_one(&pool)
+        .fetch_one(&state.pool)
         .await
         .unwrap_or(Some(0))
         .unwrap_or(0)
@@ -199,7 +207,7 @@ async fn runs_page(
             FROM runs
             "#
         )
-        .fetch_one(&pool)
+        .fetch_one(&state.pool)
         .await
         .unwrap_or(Some(0))
         .unwrap_or(0)
@@ -224,7 +232,7 @@ async fn runs_page(
             limit,
             offset
         )
-        .fetch_all(&pool)
+        .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as!(
@@ -240,7 +248,7 @@ async fn runs_page(
             limit,
             offset
         )
-        .fetch_all(&pool)
+        .fetch_all(&state.pool)
         .await
     };
 
@@ -264,7 +272,7 @@ async fn runs_page(
 }
 
 async fn run_detail_page(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<RunDetailTemplate, StatusCode> {
     info!("Rendering run detail page for: {}", id);
@@ -281,7 +289,7 @@ async fn run_detail_page(
         "#,
         id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&state.pool)
     .await
     .map_err(|e| {
         error!("Database error while fetching run: {}", e);
@@ -303,7 +311,7 @@ async fn run_detail_page(
         "#,
         id
     )
-    .fetch_all(&pool)
+    .fetch_all(&state.pool)
     .await;
 
     let (pre_run_hooks, post_run_hooks) = match hook_outputs_result {
@@ -350,7 +358,7 @@ async fn run_detail_page(
         "#,
         id
     )
-    .fetch_all(&pool)
+    .fetch_all(&state.pool)
     .await;
 
     let files = match files_result {
@@ -369,8 +377,8 @@ async fn run_detail_page(
     })
 }
 
-async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
-    match sqlx::query("SELECT 1").fetch_one(&pool).await {
+async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
+    match sqlx::query("SELECT 1").fetch_one(&state.pool).await {
         Ok(_) => Json(json!({
             "status": "ok",
             "database": "connected"
@@ -383,7 +391,7 @@ async fn health_check(State(pool): State<PgPool>) -> impl IntoResponse {
     }
 }
 
-async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
+async fn list_vaults(State(state): State<AppState>) -> impl IntoResponse {
     info!("Listing all vaults");
 
     let result = sqlx::query!(
@@ -394,7 +402,7 @@ async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
         ORDER BY vault
         "#
     )
-    .fetch_all(&pool)
+    .fetch_all(&state.pool)
     .await;
 
     match result {
@@ -424,7 +432,10 @@ async fn list_vaults(State(pool): State<PgPool>) -> impl IntoResponse {
     }
 }
 
-async fn get_vault_info(State(pool): State<PgPool>, Path(name): Path<String>) -> impl IntoResponse {
+async fn get_vault_info(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> impl IntoResponse {
     info!("Getting vault info: {}", name);
 
     let result = sqlx::query!(
@@ -436,7 +447,7 @@ async fn get_vault_info(State(pool): State<PgPool>, Path(name): Path<String>) ->
         "#,
         name
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&state.pool)
     .await;
 
     match result {
@@ -474,7 +485,7 @@ async fn get_vault_info(State(pool): State<PgPool>, Path(name): Path<String>) ->
 }
 
 async fn list_runs(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Query(params): Query<models::ListRunsQuery>,
 ) -> impl IntoResponse {
     let limit = params.limit.unwrap_or(100);
@@ -505,7 +516,7 @@ async fn list_runs(
             limit,
             offset
         )
-        .fetch_all(&pool)
+        .fetch_all(&state.pool)
         .await
     } else {
         sqlx::query_as!(
@@ -521,7 +532,7 @@ async fn list_runs(
             limit,
             offset
         )
-        .fetch_all(&pool)
+        .fetch_all(&state.pool)
         .await
     };
 
@@ -546,7 +557,7 @@ async fn list_runs(
 }
 
 async fn create_run(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(request): Json<models::CreateRunRequest>,
 ) -> impl IntoResponse {
     info!("Creating run: {}", request.id);
@@ -572,7 +583,7 @@ async fn create_run(
         request.stdout,
         request.stderr
     )
-    .execute(&pool)
+    .execute(&state.pool)
     .await;
 
     match result {
@@ -604,7 +615,7 @@ async fn create_run(
     }
 }
 
-async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl IntoResponse {
+async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     info!("Getting run: {}", id);
 
     let result = sqlx::query_as!(
@@ -618,7 +629,7 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
         "#,
         id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&state.pool)
     .await;
 
     match result {
@@ -636,7 +647,7 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
                 "#,
                 id
             )
-            .fetch_all(&pool)
+            .fetch_all(&state.pool)
             .await;
 
             let (pre_run_hooks, post_run_hooks) = match hook_outputs_result {
@@ -706,11 +717,12 @@ async fn get_run(State(pool): State<PgPool>, Path(id): Path<String>) -> impl Int
     clippy::else_if_without_else,
     reason = "There is `continue` or `return` in each branch, so `else` is redundant"
 )]
-async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> impl IntoResponse {
+async fn upload_files(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    let storage_path = &state.storage_path;
     info!("Received file upload request");
-
-    let storage_root = std::env::var("STORAGE_PATH").unwrap_or_else(|_| "./storage".to_string());
-    let storage_path = PathBuf::from(&storage_root);
 
     if let Err(e) = tokio::fs::create_dir_all(&storage_path).await {
         error!("Failed to create storage directory: {}", e);
@@ -898,7 +910,7 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
                         storage_path_str,
                         content_type
                     )
-                    .execute(&pool)
+                    .execute(&state.pool)
                     .await;
 
                     match result {
@@ -952,7 +964,7 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
                     hook.meta.success,
                     hook.meta.error
                 )
-                .execute(&pool)
+                .execute(&state.pool)
                 .await;
 
                 match result {
@@ -985,7 +997,7 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
                     hook.meta.success,
                     hook.meta.error
                 )
-                .execute(&pool)
+                .execute(&state.pool)
                 .await;
 
                 match result {
@@ -1021,7 +1033,7 @@ async fn upload_files(State(pool): State<PgPool>, mut multipart: Multipart) -> i
 }
 
 async fn download_file(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Path((run_id, file_path)): Path<(String, String)>,
 ) -> Result<Response, StatusCode> {
     info!("Downloading file: run_id={}, path={}", run_id, file_path);
@@ -1036,7 +1048,7 @@ async fn download_file(
         run_id,
         file_path
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&state.pool)
     .await
     .map_err(|e| {
         error!("Database error while fetching file metadata: {}", e);

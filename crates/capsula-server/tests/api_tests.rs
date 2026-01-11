@@ -29,12 +29,13 @@ impl TestContext {
         let database_url =
             format!("postgres://capsula:capsula_dev@{host}:{host_port}/capsula?sslmode=disable");
 
-        let pool = create_pool(&database_url).await.unwrap();
+        let pool = create_pool(&database_url, 5).await.unwrap();
         let migrations_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
         let migrator = sqlx::migrate::Migrator::new(migrations_path).await.unwrap();
         migrator.run(&pool).await.unwrap();
 
-        let app = build_app(pool);
+        let storage_path = std::env::temp_dir().join("capsula-test-storage");
+        let app = build_app(pool, storage_path);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
