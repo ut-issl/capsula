@@ -5,6 +5,8 @@ services:
       - POSTGRES_USER=${POSTGRES_USER?Variable POSTGRES_USER not set}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable POSTGRES_PASSWORD not set}
       - POSTGRES_DB=${POSTGRES_DB?Variable POSTGRES_DB not set}
+    ports:
+      - "${POSTGRES_PORT?Variable POSTGRES_PORT not set}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
   app:
@@ -12,12 +14,12 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - CAPSULA_HOST=${CAPSULA_HOST?Variable CAPSULA_HOST not set}
-      - CAPSULA_PORT=${CAPSULA_PORT?Variable CAPSULA_PORT not set}
+      - CAPSULA_HOST=0.0.0.0
+      - CAPSULA_PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER?Variable POSTGRES_USER not set}:${POSTGRES_PASSWORD?Variable POSTGRES_PASSWORD not set}@postgres:5432/${POSTGRES_DB?Variable POSTGRES_DB not set}
       - CAPSULA_STORAGE_PATH=/data
     ports:
-      - "8000:8000"
+      - "${CAPSULA_PORT?Variable CAPSULA_PORT not set}:3000"
     depends_on:
       - postgres
     volumes:
