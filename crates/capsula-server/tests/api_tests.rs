@@ -45,7 +45,8 @@ impl TestContext {
         migrator.run(&pool).await.unwrap();
 
         let storage_path = std::env::temp_dir().join("capsula-test-storage");
-        let app = build_app(pool, storage_path);
+        // Use 100MB limit for tests (same as production default)
+        let app = build_app(pool, storage_path, 104_857_600);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {

@@ -122,6 +122,7 @@ The server can be configured via **command-line flags** or **environment variabl
 | `--storage-path` | `-s` | `STORAGE_PATH` | `./storage` | Directory for file storage |
 | `--max-connections` | | `CAPSULA_MAX_CONNECTIONS` | `5` | Database connection pool size |
 | `--log-level` | `-l` | `RUST_LOG` | `info` | Logging level |
+| `--max-body-size` | | `CAPSULA_MAX_BODY_SIZE` | `104857600` | Maximum upload body size in bytes (default: 100MB) |
 
 ### Configuration Examples
 
@@ -132,7 +133,8 @@ capsula-server \
   --port 8080 \
   --database-url "postgresql://localhost/capsula" \
   --storage-path /data/storage \
-  --log-level debug
+  --log-level debug \
+  --max-body-size 209715200  # 200MB
 ```
 
 **Using environment variables only:**
@@ -142,6 +144,7 @@ export CAPSULA_HOST="0.0.0.0"
 export CAPSULA_PORT="8080"
 export STORAGE_PATH="/data/storage"
 export RUST_LOG="debug"
+export CAPSULA_MAX_BODY_SIZE="209715200"  # 200MB
 capsula-server
 ```
 
