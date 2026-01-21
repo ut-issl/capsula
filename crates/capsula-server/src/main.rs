@@ -31,6 +31,10 @@ struct Args {
     /// Log level (error, warn, info, debug, trace)
     #[arg(short, long, env = "RUST_LOG", default_value = "info")]
     log_level: String,
+
+    /// Maximum body size for uploads in bytes (default: 100MB)
+    #[arg(long, env = "CAPSULA_MAX_BODY_SIZE", default_value = "104857600")]
+    max_body_size: usize,
 }
 
 #[tokio::main]
@@ -47,6 +51,7 @@ async fn main() {
     info!("Port: {}", args.port);
     info!("Storage path: {}", args.storage_path);
     info!("Max database connections: {}", args.max_connections);
+    info!("Max body size: {} bytes", args.max_body_size);
     info!("Log level: {}", args.log_level);
 
     info!("Connecting to database...");
@@ -79,7 +84,7 @@ async fn main() {
     }
     info!("Database migrations completed");
 
-    let app = build_app(pool, args.storage_path.into());
+    let app = build_app(pool, args.storage_path.into(), args.max_body_size);
 
     let bind_addr = format!("{}:{}", args.host, args.port);
     let listener = match tokio::net::TcpListener::bind(&bind_addr).await {

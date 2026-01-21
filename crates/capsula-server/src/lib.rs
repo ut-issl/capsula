@@ -37,7 +37,7 @@ mod filters {
 use axum::{
     Router,
     body::Body,
-    extract::{Multipart, Path, Query, State},
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Json, Response},
     routing::{get, post},
@@ -103,7 +103,7 @@ pub async fn create_pool(database_url: &str, max_connections: u32) -> Result<PgP
         .await
 }
 
-pub fn build_app(pool: PgPool, storage_path: PathBuf) -> Router {
+pub fn build_app(pool: PgPool, storage_path: PathBuf, max_body_size: usize) -> Router {
     let static_dir: PathBuf = std::env::var("CAPSULA_STATIC_DIR")
         .expect("CAPSULA_STATIC_DIR environment variable must be set")
         .into();
@@ -121,7 +121,10 @@ pub fn build_app(pool: PgPool, storage_path: PathBuf) -> Router {
         .route("/api/v1/runs", post(create_run).get(list_runs))
         .route("/api/v1/runs/{id}", get(get_run))
         .route("/api/v1/runs/{id}/files/{*path}", get(download_file))
-        .route("/api/v1/upload", post(upload_files))
+        .route(
+            "/api/v1/upload",
+            post(upload_files).layer(DefaultBodyLimit::max(max_body_size)),
+        )
         .nest_service("/static", ServeDir::new(static_dir))
         .fallback(not_found)
         .with_state(state)
