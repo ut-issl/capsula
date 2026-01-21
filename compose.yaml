@@ -16,6 +16,7 @@ services:
     environment:
       - CAPSULA_HOST=0.0.0.0
       - CAPSULA_PORT=8500
+      - CAPSULA_MAX_BODY_SIZE=${CAPSULA_MAX_BODY_SIZE:-104857600}
       - DATABASE_URL=postgresql://${POSTGRES_USER?Variable POSTGRES_USER not set}:${POSTGRES_PASSWORD?Variable POSTGRES_PASSWORD not set}@postgres:5432/${POSTGRES_DB?Variable POSTGRES_DB not set}
     ports:
       - "${CAPSULA_PORT?Variable CAPSULA_PORT not set}:8500"
