@@ -730,7 +730,11 @@ async fn upload_files(
     info!("Received file upload request");
 
     if let Err(e) = tokio::fs::create_dir_all(&storage_path).await {
-        error!("Failed to create storage directory: {}", e);
+        error!(
+            "Failed to create storage directory at {}: {}",
+            storage_path.display(),
+            e
+        );
         return Json(json!({
             "status": "error",
             "error": format!("Failed to create storage directory: {}", e)
@@ -857,7 +861,11 @@ async fn upload_files(
                 let hash_dir = &hash[0..2];
                 let file_storage_dir = storage_path.join(hash_dir);
                 if let Err(e) = tokio::fs::create_dir_all(&file_storage_dir).await {
-                    error!("Failed to create hash directory: {}", e);
+                    error!(
+                        "Failed to create hash directory at {}: {}",
+                        file_storage_dir.display(),
+                        e
+                    );
                     return Json(json!({
                         "status": "error",
                         "error": format!("Failed to create storage directory: {}", e)
