@@ -14,7 +14,7 @@ A web server for storing, browsing, and managing Capsula runs with a PostgreSQL 
 ## Prerequisites
 
 - PostgreSQL 12 or higher
-- Rust 1.90 or higher (for building from source)
+- Rust 1.91 or higher (for building from source)
 
 ## Database Setup
 
