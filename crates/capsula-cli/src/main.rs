@@ -58,12 +58,8 @@ enum Commands {
         #[arg(long, conflicts_with = "run_id")]
         all: bool,
 
-        #[expect(
-            clippy::doc_markdown,
-            reason = "It's not a link, just an example value"
-        )]
-        /// Server URL (e.g., http://localhost:8500)
-        #[arg(long, env = "CAPSULA_SERVER_URL")]
+        /// Server URL (can also be set via `CAPSULA_SERVER_URL` env var after dotenv loading)
+        #[arg(long)]
         server: Option<String>,
     },
     Vaults {
@@ -75,12 +71,8 @@ enum Commands {
 #[derive(Subcommand, Debug)]
 enum VaultsCommands {
     List {
-        #[expect(
-            clippy::doc_markdown,
-            reason = "It's not a link, just an example value"
-        )]
-        /// Server URL (e.g., http://localhost:8500)
-        #[arg(long, env = "CAPSULA_SERVER_URL")]
+        /// Server URL (can also be set via `CAPSULA_SERVER_URL` env var after dotenv loading)
+        #[arg(long)]
         server: Option<String>,
     },
 }
@@ -129,6 +121,36 @@ fn resolve_vault_path(
     } else {
         project_root.join(config_vault_path)
     }
+}
+
+/// Resolve the server URL with priority: CLI argument > environment variable > config file.
+///
+/// This function is called after dotenv loading, so environment variables from the dotenv file
+/// are available. This is important because Clap's `env` attribute reads environment variables
+/// at parse time, before the dotenv file is loaded.
+fn resolve_server_url(cli_server: Option<String>, config_server: Option<&str>) -> Option<String> {
+    // Priority 1: CLI argument
+    if let Some(server) = cli_server {
+        debug!("Using server URL from CLI argument: {}", server);
+        return Some(server);
+    }
+
+    // Priority 2: Environment variable (checked after dotenv loading)
+    if let Ok(env_server) = std::env::var("CAPSULA_SERVER_URL") {
+        debug!(
+            "Using server URL from CAPSULA_SERVER_URL env var: {}",
+            env_server
+        );
+        return Some(env_server);
+    }
+
+    // Priority 3: Config file
+    if let Some(server) = config_server {
+        debug!("Using server URL from config file: {}", server);
+        return Some(server.to_string());
+    }
+
+    None
 }
 
 fn create_pre_run_hook_registry() -> capsula_registry::HookRegistry<PreRun> {
@@ -694,10 +716,9 @@ path = \".\"
                 anyhow::bail!("Either provide a run ID/name or use --all flag");
             }
 
-            // Priority: CLI flag > Environment variable > Config file
-            let server_url = server
-                .or_else(|| config.server.clone())
-                .ok_or_else(|| {
+            // Priority: CLI flag > Environment variable (after dotenv) > Config file
+            let server_url =
+                resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
                     anyhow::anyhow!(
                         "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
                     )
@@ -793,10 +814,9 @@ path = \".\"
         }
         Commands::Vaults { command } => match command {
             VaultsCommands::List { server } => {
-                // Priority: CLI flag > Environment variable > Config file
-                let server_url = server
-                    .or_else(|| config.server.clone())
-                    .ok_or_else(|| {
+                // Priority: CLI flag > Environment variable (after dotenv) > Config file
+                let server_url =
+                    resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
                         anyhow::anyhow!(
                             "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
                         )
