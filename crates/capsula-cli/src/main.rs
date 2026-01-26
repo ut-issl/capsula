@@ -35,6 +35,10 @@ struct Cli {
     #[arg(short, long, global(true))]
     config: Option<PathBuf>,
 
+    /// Override the vault path (can also be set via `CAPSULA_VAULT_PATH` env var after dotenv loading)
+    #[arg(long, global(true))]
+    vault_path: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -54,12 +58,8 @@ enum Commands {
         #[arg(long, conflicts_with = "run_id")]
         all: bool,
 
-        #[expect(
-            clippy::doc_markdown,
-            reason = "It's not a link, just an example value"
-        )]
-        /// Server URL (e.g., http://localhost:8500)
-        #[arg(long, env = "CAPSULA_SERVER_URL")]
+        /// Server URL (can also be set via `CAPSULA_SERVER_URL` env var after dotenv loading)
+        #[arg(long)]
         server: Option<String>,
     },
     Vaults {
@@ -71,14 +71,86 @@ enum Commands {
 #[derive(Subcommand, Debug)]
 enum VaultsCommands {
     List {
-        #[expect(
-            clippy::doc_markdown,
-            reason = "It's not a link, just an example value"
-        )]
-        /// Server URL (e.g., http://localhost:8500)
-        #[arg(long, env = "CAPSULA_SERVER_URL")]
+        /// Server URL (can also be set via `CAPSULA_SERVER_URL` env var after dotenv loading)
+        #[arg(long)]
         server: Option<String>,
     },
+}
+
+/// Resolve the vault path with priority: CLI argument > environment variable > config file.
+///
+/// This function is called after dotenv loading, so environment variables from the dotenv file
+/// are available. This is important because Clap's `env` attribute reads environment variables
+/// at parse time, before the dotenv file is loaded.
+fn resolve_vault_path(
+    cli_vault_path: Option<PathBuf>,
+    config_vault_path: &std::path::Path,
+    project_root: &std::path::Path,
+) -> PathBuf {
+    // Priority 1: CLI argument
+    if let Some(path) = cli_vault_path {
+        debug!("Using vault path from CLI argument: {}", path.display());
+        return if path.is_absolute() {
+            path
+        } else {
+            project_root.join(path)
+        };
+    }
+
+    // Priority 2: Environment variable (checked after dotenv loading)
+    if let Ok(env_path) = std::env::var("CAPSULA_VAULT_PATH") {
+        let path = PathBuf::from(&env_path);
+        debug!(
+            "Using vault path from CAPSULA_VAULT_PATH env var: {}",
+            path.display()
+        );
+        return if path.is_absolute() {
+            path
+        } else {
+            project_root.join(path)
+        };
+    }
+
+    // Priority 3: Config file
+    debug!(
+        "Using vault path from config file: {}",
+        config_vault_path.display()
+    );
+    if config_vault_path.is_absolute() {
+        config_vault_path.to_path_buf()
+    } else {
+        project_root.join(config_vault_path)
+    }
+}
+
+/// Resolve the server URL with priority: CLI argument > environment variable > config file.
+///
+/// This function is called after dotenv loading, so environment variables from the dotenv file
+/// are available. This is important because Clap's `env` attribute reads environment variables
+/// at parse time, before the dotenv file is loaded.
+fn resolve_server_url(cli_server: Option<String>, config_server: Option<&str>) -> Option<String> {
+    // Priority 1: CLI argument
+    if let Some(server) = cli_server {
+        debug!("Using server URL from CLI argument: {}", server);
+        return Some(server);
+    }
+
+    // Priority 2: Environment variable (checked after dotenv loading)
+    if let Ok(env_server) = std::env::var("CAPSULA_SERVER_URL") {
+        debug!(
+            "Using server URL from CAPSULA_SERVER_URL env var: {}",
+            env_server
+        );
+        return Some(env_server);
+    }
+
+    // Priority 3: Config file
+    if let Some(server) = config_server {
+        debug!("Using server URL from config file: {}", server);
+        return Some(server.to_string());
+    }
+
+    None
 }
 
 fn create_pre_run_hook_registry() -> capsula_registry::HookRegistry<PreRun> {
@@ -485,12 +557,8 @@ path = \".\"
         }
     }
 
-    // TODO: Resolving paths against project_root should be done in config parsing
-    let vault_dir = if config.vault.path.is_absolute() {
-        config.vault.path.clone()
-    } else {
-        project_root.join(&config.vault.path)
-    };
+    // Resolve vault path with priority: CLI > env var (after dotenv) > config
+    let vault_dir = resolve_vault_path(cli.vault_path, &config.vault.path, &project_root);
 
     match cli.command {
         Commands::List => {
@@ -648,10 +716,9 @@ path = \".\"
                 anyhow::bail!("Either provide a run ID/name or use --all flag");
             }
 
-            // Priority: CLI flag > Environment variable > Config file
-            let server_url = server
-                .or_else(|| config.server.clone())
-                .ok_or_else(|| {
+            // Priority: CLI flag > Environment variable (after dotenv) > Config file
+            let server_url =
+                resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
                     anyhow::anyhow!(
                         "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
                     )
@@ -747,10 +814,9 @@ path = \".\"
         }
         Commands::Vaults { command } => match command {
             VaultsCommands::List { server } => {
-                // Priority: CLI flag > Environment variable > Config file
-                let server_url = server
-                    .or_else(|| config.server.clone())
-                    .ok_or_else(|| {
+                // Priority: CLI flag > Environment variable (after dotenv) > Config file
+                let server_url =
+                    resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
                         anyhow::anyhow!(
                             "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
                         )
