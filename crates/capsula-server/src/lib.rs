@@ -616,7 +616,7 @@ async fn search_runs(
                 error!("Failed to execute count query: {}", e);
                 return Json(json!({
                     "status": "error",
-                    "error": e.to_string()
+                    "error": "Query execution failed"
                 }));
             }
         }
@@ -640,7 +640,7 @@ async fn search_runs(
                 error!("Failed to execute search query: {}", e);
                 return Json(json!({
                     "status": "error",
-                    "error": e.to_string()
+                    "error": "Query execution failed"
                 }));
             }
         }

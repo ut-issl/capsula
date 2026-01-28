@@ -5,6 +5,10 @@
 
 use crate::models::{HookFilter, SearchRunsRequest, SortOrder};
 use chrono::{DateTime, Utc};
+use sql_json_path::JsonPath;
+
+/// Maximum length for JSONPath expressions (DoS prevention)
+const MAX_JSONPATH_LENGTH: usize = 500;
 
 /// Error types for query building
 #[derive(Debug, thiserror::Error)]
@@ -185,25 +189,23 @@ impl RunQueryBuilder {
         Ok(self)
     }
 
-    /// Validate a JSONPath expression (basic validation)
+    /// Validate a JSONPath expression using SQL/JSON path parser
+    ///
+    /// Uses `sql-json-path` crate which is compatible with PostgreSQL's SQL/JSON
+    /// path language, including `starts with`, `like_regex`, `.type()`, `.size()`,
+    /// arithmetic operators, etc.
     fn validate_jsonpath(expr: &str) -> Result<(), QueryError> {
-        // Basic validation: must start with $
-        if !expr.starts_with('$') {
-            return Err(QueryError::InvalidJsonPath(format!(
-                "JSONPath must start with '$': {expr}"
-            )));
+        // Length limit for DoS prevention
+        if expr.len() > MAX_JSONPATH_LENGTH {
+            return Err(QueryError::InvalidJsonPath(
+                "JSONPath expression too long (max 500 characters)".to_string(),
+            ));
         }
 
-        // Check for obviously dangerous patterns (SQL injection attempts)
-        let dangerous_patterns = ["--", ";", "/*", "*/", "DROP", "DELETE", "INSERT", "UPDATE"];
-        let upper = expr.to_uppercase();
-        for pattern in dangerous_patterns {
-            if upper.contains(pattern) {
-                return Err(QueryError::InvalidJsonPath(format!(
-                    "Invalid characters in JSONPath: {expr}"
-                )));
-            }
-        }
+        // Parse using SQL/JSON path parser (PostgreSQL compatible)
+        JsonPath::new(expr).map_err(|e| {
+            QueryError::InvalidJsonPath(format!("Invalid JSONPath syntax: {e}"))
+        })?;
 
         Ok(())
     }

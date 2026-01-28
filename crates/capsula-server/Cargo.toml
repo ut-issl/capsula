@@ -3,10 +3,10 @@ name = "capsula-server"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+description = "Web server for managing and viewing Capsula runs"
 readme.workspace = true
 repository.workspace = true
 license.workspace = true
-description = "Web server for managing and viewing Capsula runs"
 keywords = ["capsula", "server", "web"]
 categories = ["web-programming::http-server"]
 
@@ -22,6 +22,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 shlex = { workspace = true }
+sql-json-path = { workspace = true }
 sqlx = { workspace = true, features = ["migrate"] }
 thiserror = { workspace = true }
 tokio = { workspace = true }
