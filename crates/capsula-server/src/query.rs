@@ -203,9 +203,8 @@ impl RunQueryBuilder {
         }
 
         // Parse using SQL/JSON path parser (PostgreSQL compatible)
-        JsonPath::new(expr).map_err(|e| {
-            QueryError::InvalidJsonPath(format!("Invalid JSONPath syntax: {e}"))
-        })?;
+        JsonPath::new(expr)
+            .map_err(|e| QueryError::InvalidJsonPath(format!("Invalid JSONPath syntax: {e}")))?;
 
         Ok(())
     }
@@ -291,9 +290,7 @@ mod tests {
             config_filter: None,
             output_filter: "$.sha ? (@ starts with \"abc\")".to_string(),
         };
-        let builder = RunQueryBuilder::new()
-            .with_hook_filter(&filter)
-            .unwrap();
+        let builder = RunQueryBuilder::new().with_hook_filter(&filter).unwrap();
         let query = builder.build_query();
         assert!(query.contains("EXISTS"));
         assert!(query.contains("jsonb_path_exists"));
