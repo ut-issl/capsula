@@ -23,6 +23,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 shlex = { workspace = true }
 sqlx = { workspace = true, features = ["migrate"] }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tower-http = { workspace = true }

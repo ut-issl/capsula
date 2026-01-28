@@ -63,6 +63,7 @@ pub struct AppState {
 }
 
 mod models;
+mod query;
 
 #[derive(Template, WebTemplate)]
 #[template(path = "index.html")]
@@ -124,6 +125,7 @@ pub fn build_app(pool: PgPool, storage_path: PathBuf, max_body_size: usize) -> R
         .route("/api/v1/vaults", get(list_vaults))
         .route("/api/v1/vaults/{name}", get(get_vault_info))
         .route("/api/v1/runs", post(create_run).get(list_runs))
+        .route("/api/v1/runs/search", post(search_runs))
         .route("/api/v1/runs/{id}", get(get_run))
         .route("/api/v1/runs/{id}/files/{*path}", get(download_file))
         .route(
@@ -564,6 +566,189 @@ async fn list_runs(
             }))
         }
     }
+}
+
+/// Search runs with `JSONPath` filters on hook outputs
+#[expect(clippy::too_many_lines, reason = "TODO: Refactor later")]
+async fn search_runs(
+    State(state): State<AppState>,
+    Json(request): Json<models::SearchRunsRequest>,
+) -> impl IntoResponse {
+    info!(
+        "Searching runs: vault={:?}, hook_filters={}",
+        request.vault,
+        request.hook_filters.len()
+    );
+
+    // Build the query
+    let builder = match query::RunQueryBuilder::from_request(&request) {
+        Ok(b) => b,
+        Err(e) => {
+            error!("Failed to build query: {}", e);
+            return Json(json!({
+                "status": "error",
+                "error": e.to_string()
+            }));
+        }
+    };
+
+    let query_sql = builder.build_query();
+    let count_sql = builder.build_count_query();
+    let bind_values = builder.bind_values();
+
+    info!("Executing search query: {}", query_sql);
+
+    // Execute count query first
+    let total: i64 = {
+        let mut query = sqlx::query_scalar::<_, i64>(&count_sql);
+        for value in bind_values {
+            query = match value {
+                query::BindValue::String(s) => query.bind(s.clone()),
+                query::BindValue::I32(i) => query.bind(*i),
+                query::BindValue::I64(i) => query.bind(*i),
+                query::BindValue::DateTime(dt) => query.bind(*dt),
+                query::BindValue::Bool(b) => query.bind(*b),
+            };
+        }
+        match query.fetch_one(&state.pool).await {
+            Ok(count) => count,
+            Err(e) => {
+                error!("Failed to execute count query: {}", e);
+                return Json(json!({
+                    "status": "error",
+                    "error": e.to_string()
+                }));
+            }
+        }
+    };
+
+    // Execute main query
+    let runs: Vec<models::Run> = {
+        let mut query = sqlx::query_as::<_, models::Run>(&query_sql);
+        for value in bind_values {
+            query = match value {
+                query::BindValue::String(s) => query.bind(s.clone()),
+                query::BindValue::I32(i) => query.bind(*i),
+                query::BindValue::I64(i) => query.bind(*i),
+                query::BindValue::DateTime(dt) => query.bind(*dt),
+                query::BindValue::Bool(b) => query.bind(*b),
+            };
+        }
+        match query.fetch_all(&state.pool).await {
+            Ok(runs) => runs,
+            Err(e) => {
+                error!("Failed to execute search query: {}", e);
+                return Json(json!({
+                    "status": "error",
+                    "error": e.to_string()
+                }));
+            }
+        }
+    };
+
+    info!("Found {} runs (total: {})", runs.len(), total);
+
+    // Determine what to include in response
+    let include_files = request.include.contains(&models::IncludeField::Files);
+    let include_stdout = request.include.contains(&models::IncludeField::Stdout);
+    let include_stderr = request.include.contains(&models::IncludeField::Stderr);
+    let include_hooks = request.include.contains(&models::IncludeField::Hooks);
+
+    // Build response
+    let mut results = Vec::with_capacity(runs.len());
+    for run in runs {
+        let files = if include_files {
+            match sqlx::query_as::<_, models::CapturedFile>(
+                "SELECT path, size, hash, storage_path, content_type \
+                 FROM captured_files WHERE run_id = $1 ORDER BY path",
+            )
+            .bind(&run.id)
+            .fetch_all(&state.pool)
+            .await
+            {
+                Ok(files) => Some(
+                    files
+                        .into_iter()
+                        .map(|f| models::FileInfo {
+                            path: f.path.clone(),
+                            size: f.size,
+                            hash: f.hash,
+                            url: format!("/api/v1/runs/{}/files/{}", run.id, f.path),
+                        })
+                        .collect(),
+                ),
+                Err(e) => {
+                    warn!("Failed to fetch files for run {}: {}", run.id, e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        let (pre_run_hooks, post_run_hooks) = if include_hooks {
+            match sqlx::query_as::<_, models::RunOutputRow>(
+                "SELECT phase, hook_id, config, output, success, error \
+                 FROM run_outputs WHERE run_id = $1 ORDER BY id",
+            )
+            .bind(&run.id)
+            .fetch_all(&state.pool)
+            .await
+            {
+                Ok(rows) => {
+                    let mut pre_hooks = Vec::new();
+                    let mut post_hooks = Vec::new();
+                    for row in rows {
+                        let hook_output = models::HookOutput {
+                            meta: models::HookMeta {
+                                id: row.hook_id,
+                                config: row.config,
+                                success: row.success,
+                                error: row.error,
+                            },
+                            output: row.output,
+                        };
+                        if row.phase == "pre" {
+                            pre_hooks.push(hook_output);
+                        } else if row.phase == "post" {
+                            post_hooks.push(hook_output);
+                        }
+                    }
+                    (Some(pre_hooks), Some(post_hooks))
+                }
+                Err(e) => {
+                    warn!("Failed to fetch hooks for run {}: {}", run.id, e);
+                    (None, None)
+                }
+            }
+        } else {
+            (None, None)
+        };
+
+        results.push(models::SearchRunResult {
+            id: run.id,
+            name: run.name,
+            timestamp: run.timestamp,
+            vault: run.vault,
+            command: run.command,
+            project_root: run.project_root,
+            exit_code: run.exit_code,
+            duration_ms: run.duration_ms,
+            stdout: if include_stdout { run.stdout } else { None },
+            stderr: if include_stderr { run.stderr } else { None },
+            files,
+            pre_run_hooks,
+            post_run_hooks,
+        });
+    }
+
+    let response = models::SearchRunsResponse {
+        status: "ok".to_string(),
+        total,
+        runs: results,
+    };
+
+    Json(serde_json::to_value(response).expect("Failed to serialize SearchRunsResponse"))
 }
 
 async fn create_run(
