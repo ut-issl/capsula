@@ -5,6 +5,11 @@ use askama_web::WebTemplate;
     clippy::unnecessary_wraps,
     reason = "Askama filter_fn macro generates code that triggers this lint, but Result return type is required by the Askama filter API"
 )]
+#[expect(
+    clippy::inline_always,
+    clippy::unused_self,
+    reason = "Askama's #[filter_fn] macro generates builder pattern code with #[inline(always)] that triggers these lints"
+)]
 mod filters {
     use askama::filter_fn;
 
