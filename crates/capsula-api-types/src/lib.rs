@@ -48,15 +48,15 @@ pub struct ErrorResponse {
 // Search API Types
 // =============================================================================
 
-/// A filter condition on a hook's config or output using JSONPath
+/// A filter condition on a hook's config or output using `JSONPath`
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HookFilter {
     /// The hook ID (e.g., "capture-git-repo", "capture-env")
     pub hook_id: String,
-    /// JSONPath expression to match against hook's config (optional)
+    /// `JSONPath` expression to match against hook's config (optional)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config_filter: Option<String>,
-    /// JSONPath expression to match against hook's output
+    /// `JSONPath` expression to match against hook's output
     pub output_filter: String,
 }
 
@@ -95,7 +95,7 @@ pub struct SearchRunsRequest {
     /// Filter by exact exit code
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
-    /// Filter by success (exit_code = 0) or failure (exit_code != 0)
+    /// Filter by success (`exit_code` = 0) or failure (`exit_code` != 0)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub success: Option<bool>,
     /// Hook output filters (AND logic)

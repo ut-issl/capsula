@@ -712,6 +712,8 @@ async fn search_runs(
                             pre_hooks.push(hook_output);
                         } else if row.phase == "post" {
                             post_hooks.push(hook_output);
+                        } else {
+                            // Unknown phase, skip
                         }
                     }
                     (Some(pre_hooks), Some(post_hooks))

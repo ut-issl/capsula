@@ -99,7 +99,7 @@ pub struct SearchRunsRequest {
     pub to: Option<DateTime<Utc>>,
     /// Filter by exact exit code
     pub exit_code: Option<i32>,
-    /// Filter by success (exit_code = 0) or failure (exit_code != 0)
+    /// Filter by success (`exit_code` = 0) or failure (`exit_code` != 0)
     pub success: Option<bool>,
     /// Hook output filters (AND logic)
     #[serde(default)]
@@ -116,14 +116,14 @@ pub struct SearchRunsRequest {
     pub offset: Option<i64>,
 }
 
-/// A filter condition on a hook's config or output using JSONPath
+/// A filter condition on a hook's config or output using `JSONPath`
 #[derive(Debug, Deserialize)]
 pub struct HookFilter {
     /// The hook ID (e.g., "capture-git-repo", "capture-env")
     pub hook_id: String,
-    /// JSONPath expression to match against hook's config (optional)
+    /// `JSONPath` expression to match against hook's config (optional)
     pub config_filter: Option<String>,
-    /// JSONPath expression to match against hook's output
+    /// `JSONPath` expression to match against hook's output
     pub output_filter: String,
 }
 

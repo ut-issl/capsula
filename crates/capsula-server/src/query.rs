@@ -1,13 +1,14 @@
-//! Query builder for constructing SQL queries with JSONPath filters
+//! Query builder for constructing SQL queries with `JSONPath` filters
 //!
 //! This module provides a builder for constructing dynamic SQL queries
-//! that filter runs based on metadata and hook outputs using JSONPath expressions.
+//! that filter runs based on metadata and hook outputs using `JSONPath` expressions.
 
 use crate::models::{HookFilter, SearchRunsRequest, SortOrder};
 use chrono::{DateTime, Utc};
 use sql_json_path::JsonPath;
+use std::fmt::Write;
 
-/// Maximum length for JSONPath expressions (DoS prevention)
+/// Maximum length for `JSONPath` expressions (prevents denial-of-service)
 const MAX_JSONPATH_LENGTH: usize = 500;
 
 /// Error types for query building
@@ -38,7 +39,7 @@ pub struct RunQueryBuilder {
 
 /// A bind value for SQL queries
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Some variants are reserved for future use
+#[expect(dead_code, reason = "Some variants are reserved for future use")]
 pub enum BindValue {
     String(String),
     I32(i32),
@@ -49,7 +50,7 @@ pub enum BindValue {
 
 impl RunQueryBuilder {
     /// Create a new query builder
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             conditions: Vec::new(),
             hook_exists_clauses: Vec::new(),
@@ -132,7 +133,7 @@ impl RunQueryBuilder {
         self
     }
 
-    /// Add a success filter (exit_code = 0 or exit_code != 0)
+    /// Add a success filter (`exit_code` = 0 or `exit_code` != 0)
     pub fn with_success(mut self, success: bool) -> Self {
         if success {
             self.conditions.push("r.exit_code = 0".to_string());
@@ -143,7 +144,7 @@ impl RunQueryBuilder {
         self
     }
 
-    /// Add a hook filter using JSONPath
+    /// Add a hook filter using `JSONPath`
     pub fn with_hook_filter(mut self, filter: &HookFilter) -> Result<Self, QueryError> {
         // Validate JSONPath expressions (basic validation)
         Self::validate_jsonpath(&filter.output_filter)?;
@@ -189,9 +190,9 @@ impl RunQueryBuilder {
         Ok(self)
     }
 
-    /// Validate a JSONPath expression using SQL/JSON path parser
+    /// Validate a `JSONPath` expression using SQL/JSON path parser
     ///
-    /// Uses `sql-json-path` crate which is compatible with PostgreSQL's SQL/JSON
+    /// Uses `sql-json-path` crate which is compatible with `PostgreSQL`'s SQL/JSON
     /// path language, including `starts with`, `like_regex`, `.type()`, `.size()`,
     /// arithmetic operators, etc.
     fn validate_jsonpath(expr: &str) -> Result<(), QueryError> {
@@ -237,11 +238,12 @@ impl RunQueryBuilder {
         }
 
         // Add LIMIT and OFFSET
-        query.push_str(&format!(
+        let _ = write!(
+            query,
             " LIMIT {} OFFSET {}",
             self.limit.min(1000),
             self.offset
-        ));
+        );
 
         query
     }
@@ -290,7 +292,9 @@ mod tests {
             config_filter: None,
             output_filter: "$.sha ? (@ starts with \"abc\")".to_string(),
         };
-        let builder = RunQueryBuilder::new().with_hook_filter(&filter).unwrap();
+        let builder = RunQueryBuilder::new()
+            .with_hook_filter(&filter)
+            .expect("valid JSONPath filter should succeed");
         let query = builder.build_query();
         assert!(query.contains("EXISTS"));
         assert!(query.contains("jsonb_path_exists"));
@@ -318,7 +322,7 @@ mod tests {
             .with_vault("my-project")
             .with_success(true)
             .with_hook_filter(&filter)
-            .unwrap();
+            .expect("valid JSONPath filter should succeed");
         let query = builder.build_query();
 
         assert!(query.contains("r.vault = $1"));
