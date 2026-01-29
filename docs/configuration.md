@@ -81,6 +81,7 @@ Pre-run hooks are executed **before** your command, in the order listed.
 ```toml
 [[pre-run.hooks]]
 id = "capture-git-repo"
+name = "my-project"
 path = "."
 
 [[pre-run.hooks]]
@@ -108,6 +109,7 @@ name = "research-experiments"
 
 [[pre-run.hooks]]
 id = "capture-git-repo"
+name = "research"
 path = "."
 allow_dirty = false
 

@@ -19,6 +19,7 @@ Captures git repository state including commit hash, branch, and whether there a
 
 | Option | Type | Description |
 | -------- | ------ | ------------- |
+| `name` | string | Name used for the patch file when the repository has uncommitted changes |
 | `path` | string | Path to the git repository (`.` for current directory) |
 
 ### Optional Options
@@ -32,6 +33,7 @@ Captures git repository state including commit hash, branch, and whether there a
 ```toml
 [[pre-run.hooks]]
 id = "capture-git-repo"
+name = "my-project"
 path = "."
 allow_dirty = false
 ```
@@ -45,6 +47,7 @@ allow_dirty = false
   "__meta": {
     "id": "capture-git-repo",
     "config": {
+      "name": "my-project",
       "path": ".",
       "allow_dirty": false
     },
@@ -64,6 +67,7 @@ allow_dirty = false
   "__meta": {
     "id": "capture-git-repo",
     "config": {
+      "name": "my-project",
       "path": ".",
       "allow_dirty": true
     },

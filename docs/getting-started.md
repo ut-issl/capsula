@@ -29,6 +29,7 @@ name = "my-project"
 
 [[pre-run.hooks]]
 id = "capture-git-repo"
+name = "my-project"
 path = "."
 allow_dirty = true
 
