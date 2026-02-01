@@ -11,6 +11,10 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 use tracing::{debug, warn};
 
+fn default_remote() -> String {
+    "origin".to_string()
+}
+
 /// Configuration for `GitHook`
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GitHookConfig {
@@ -18,6 +22,10 @@ pub struct GitHookConfig {
     path: PathBuf,
     #[serde(default)]
     allow_dirty: bool,
+    #[serde(default)]
+    require_pushed: bool,
+    #[serde(default = "default_remote")]
+    remote: String,
 }
 
 #[derive(Debug)]
@@ -31,6 +39,7 @@ pub struct GitCaptured {
     working_dir: PathBuf,
     sha: String, // TODO: Use more suitable type
     is_dirty: bool,
+    is_pushed: bool,
     #[serde(skip)]
     abort_requested: bool,
 }
@@ -138,16 +147,55 @@ where
             std::fs::write(&patch_file_path, diff_content).map_err(GitHookError::IoError)?;
         }
 
+        // Check if HEAD is pushed to the configured remote
+        debug!(
+            "GitHook: Checking if HEAD is pushed to remote '{}'",
+            self.config.remote
+        );
+        let is_pushed = Self::check_pushed(&repo, oid, &self.config.remote)?;
+        debug!("GitHook: HEAD is pushed: {}", is_pushed);
+
+        if self.config.require_pushed && !is_pushed {
+            warn!(
+                "HEAD commit is not pushed to remote '{}'. Run will be aborted after hooks capture.",
+                self.config.remote
+            );
+        }
+
         Ok(GitCaptured {
             working_dir: repo_path,
             sha: oid.to_string(),
             is_dirty,
-            abort_requested: is_dirty && !self.config.allow_dirty,
+            is_pushed,
+            abort_requested: (is_dirty && !self.config.allow_dirty)
+                || (self.config.require_pushed && !is_pushed),
         })
     }
 }
 
 impl GitHook {
+    fn check_pushed(repo: &Repository, head_oid: git2::Oid, remote: &str) -> CapsulaResult<bool> {
+        let remote_branch_prefix = format!("refs/remotes/{remote}/");
+
+        // Check remote branches: HEAD is at tip or ancestor of a remote branch
+        for reference in repo.references().map_err(GitHookError::from)? {
+            let reference = reference.map_err(GitHookError::from)?;
+            if let Some(name) = reference.name()
+                && name.starts_with(&remote_branch_prefix)
+                && let Ok(remote_commit) = reference.peel_to_commit()
+                && (remote_commit.id() == head_oid
+                    || repo
+                        .graph_descendant_of(remote_commit.id(), head_oid)
+                        .map_err(GitHookError::from)?)
+            {
+                debug!("HEAD ({head_oid}) found in remote branch: {name}");
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
     fn diff_content(repo: &Repository) -> CapsulaResult<String> {
         let mut diff_opts = git2::DiffOptions::new();
         diff_opts.include_untracked(true);
