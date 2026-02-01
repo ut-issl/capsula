@@ -462,58 +462,6 @@ fn git_hook_custom_remote() {
 }
 
 #[test]
-fn git_hook_detects_tagged_commit_as_pushed() {
-    // Arrange - create a tag on HEAD (no remote push)
-    let temp_dir = init_git_repo();
-
-    let run_dir = temp_dir.join("run");
-    fs::create_dir_all(&run_dir).unwrap();
-
-    // Create a lightweight tag (disable signing to avoid GPG prompts in test)
-    Command::new("git")
-        .args(["tag", "--no-sign", "v1.0"])
-        .current_dir(&temp_dir)
-        .output()
-        .expect("git tag failed");
-
-    let config = json!({
-        "name": "test-repo",
-        "path": ".",
-        "require_pushed": true,
-    });
-    let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
-
-    let run_metadata = PreparedRun {
-        id: Ulid::new(),
-        name: "test-run".to_string(),
-        command: vec![],
-        run_dir,
-        project_root: temp_dir.clone(),
-    };
-    let params = RuntimeParams::<PreRun>::default();
-
-    // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
-        .serialize_json()
-        .expect("serialization should succeed");
-
-    // Assert - tag points to HEAD, so it should be considered pushed
-    assert_eq!(
-        json.get("is_pushed").and_then(serde_json::Value::as_bool),
-        Some(true),
-        "Tagged commit should be detected as pushed"
-    );
-    assert!(
-        !captured.abort_requested(),
-        "Should not abort when commit is tagged"
-    );
-
-    // Cleanup
-    fs::remove_dir_all(&temp_dir).ok();
-}
-
-#[test]
 fn git_hook_captures_dirty_repo_with_allow_dirty() {
     // Arrange - create a git repository with uncommitted changes
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));

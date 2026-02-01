@@ -193,20 +193,6 @@ impl GitHook {
             }
         }
 
-        // Check tags: HEAD is directly pointed to by a tag.
-        // Tags are not remote-specific, but a pushed tag keeps the commit accessible.
-        for reference in repo.references().map_err(GitHookError::from)? {
-            let reference = reference.map_err(GitHookError::from)?;
-            if let Some(name) = reference.name()
-                && name.starts_with("refs/tags/")
-                && let Ok(tag_commit) = reference.peel_to_commit()
-                && tag_commit.id() == head_oid
-            {
-                debug!("HEAD ({head_oid}) found in tag: {name}");
-                return Ok(true);
-            }
-        }
-
         Ok(false)
     }
 

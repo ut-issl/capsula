@@ -93,12 +93,11 @@ remote = "origin"
     When `allow_dirty = false` and the repository is dirty, Capsula saves the hook output showing the dirty state, then aborts before running your command.
 
 !!! warning "Abort Behavior (push check)"
-    When `require_pushed = true` and the HEAD commit is not reachable from any remote branch or tag, Capsula saves the hook output, then aborts before running your command.
+    When `require_pushed = true` and the HEAD commit is not reachable from any remote branch, Capsula saves the hook output, then aborts before running your command.
 
 !!! note "Push check details"
-    - The push check verifies that the HEAD commit is reachable from a remote-tracking branch of the configured remote, or pointed to by a local tag. It does **not** require HEAD to be at the tip of a remote branch — ancestor commits are also considered pushed.
+    - The push check verifies that the HEAD commit is reachable from a remote-tracking branch of the configured remote. It does **not** require HEAD to be at the tip of a remote branch — ancestor commits are also considered pushed.
     - The check relies on local remote-tracking references. Run `git fetch` before `capsula run` if you need up-to-date remote state.
-    - Local tags are checked, but a local tag does not guarantee the tag has been pushed to the remote.
 
 !!! warning "Squash merge and commit reachability"
     Even if `require_pushed = true` passes at the time of the run, the commit may later become unreachable if the branch is squash-merged and deleted. After a squash merge, the original commits are replaced by a single new commit on the target branch, and the original commit SHAs are no longer reachable. To preserve commit reachability, use **merge commits** (not squash merge) when merging branches that contain experiment runs.
