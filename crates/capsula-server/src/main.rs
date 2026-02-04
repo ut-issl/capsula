@@ -43,6 +43,7 @@ async fn main() {
 
     // Initialize logging with configured level
     tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
         .with_env_filter(EnvFilter::new(&args.log_level))
         .init();
 
