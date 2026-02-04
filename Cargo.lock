@@ -481,7 +481,7 @@ checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
 name = "capsula-api-types"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-command"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -501,7 +501,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-cwd"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -513,7 +513,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-env"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-file"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-core",
  "glob",
@@ -539,7 +539,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-git-repo"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-core",
  "git2",
@@ -552,7 +552,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-machine"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -565,7 +565,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-cli"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -591,7 +591,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-client"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-api-types",
  "reqwest",
@@ -603,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-config"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-core",
  "capsula-registry",
@@ -616,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-core"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "chrono",
  "clap",
@@ -630,7 +630,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-notify-slack"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-core",
  "glob",
@@ -646,7 +646,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-registry"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "capsula-capture-command",
  "capsula-capture-cwd",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-server"
-version = "0.9.5"
+version = "0.10.0"
 dependencies = [
  "askama",
  "askama_web",

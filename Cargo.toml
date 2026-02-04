@@ -4,7 +4,7 @@ members = ["crates/*"]
 default-members = ["crates/capsula-cli"]
 
 [workspace.package]
-version = "0.9.5"
+version = "0.10.0"
 edition = "2024"
 rust-version = "1.91"
 readme = "README.md"
@@ -16,19 +16,19 @@ anyhow = "1"
 askama = "0.15"
 askama_web = { version = "0.15", features = ["axum-0.8"] }
 axum = { version = "0.8", features = ["multipart"] }
-capsula-api-types = { path = "crates/capsula-api-types", version = "0.9.5" }
-capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.9.5" }
-capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.9.5" }
-capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.9.5" }
-capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.9.5" }
-capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.9.5" }
-capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.9.5" }
-capsula-cli = { path = "crates/capsula-cli", version = "0.9.5" }
-capsula-client = { path = "crates/capsula-client", version = "0.9.5" }
-capsula-config = { path = "crates/capsula-config", version = "0.9.5" }
-capsula-core = { path = "crates/capsula-core", version = "0.9.5" }
-capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.9.5" }
-capsula-registry = { path = "crates/capsula-registry", version = "0.9.5" }
+capsula-api-types = { path = "crates/capsula-api-types", version = "0.10.0" }
+capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.10.0" }
+capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.10.0" }
+capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.10.0" }
+capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.10.0" }
+capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.10.0" }
+capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.10.0" }
+capsula-cli = { path = "crates/capsula-cli", version = "0.10.0" }
+capsula-client = { path = "crates/capsula-client", version = "0.10.0" }
+capsula-config = { path = "crates/capsula-config", version = "0.10.0" }
+capsula-core = { path = "crates/capsula-core", version = "0.10.0" }
+capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.10.0" }
+capsula-registry = { path = "crates/capsula-registry", version = "0.10.0" }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 dotenvy = "0.15.7"
