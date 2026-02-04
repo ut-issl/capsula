@@ -925,6 +925,8 @@ fn main() {
         .without_time()
         .with_level(true)
         .compact()
+        // Output
+        .with_writer(std::io::stderr)
         // Filtering
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),

@@ -210,7 +210,7 @@ fn test_capsula_push_requires_server_url() {
 
     cmd.assert()
         .failure()
-        .stdout(predicate::str::contains("Server URL not specified"));
+        .stderr(predicate::str::contains("Server URL not specified"));
 }
 
 #[test]
@@ -228,7 +228,7 @@ fn test_capsula_vaults_list_requires_server_url() {
 
     cmd.assert()
         .failure()
-        .stdout(predicate::str::contains("Server URL not specified"));
+        .stderr(predicate::str::contains("Server URL not specified"));
 }
 
 #[test]
@@ -245,7 +245,7 @@ fn test_capsula_run_with_nonexistent_config() {
 
     cmd.assert()
         .failure()
-        .stdout(predicate::str::contains("Configuration file not found"));
+        .stderr(predicate::str::contains("Configuration file not found"));
 }
 
 #[test]
@@ -261,7 +261,7 @@ fn test_capsula_run_without_command() {
 
     cmd.assert()
         .failure()
-        .stdout(predicate::str::contains("No command specified"));
+        .stderr(predicate::str::contains("No command specified"));
 }
 
 #[test]
