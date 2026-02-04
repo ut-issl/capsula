@@ -1,13 +1,12 @@
-#![allow(
+//! Integration tests for the capsula CLI tool.
+#![expect(
     clippy::unwrap_used,
-    clippy::uninlined_format_args,
-    clippy::redundant_closure_for_method_calls,
-    deprecated,
     reason = "Test code doesn't need production-level error handling"
 )]
 
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
+use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -18,15 +17,49 @@ fn create_test_config(dir: &TempDir, vault_name: &str) -> PathBuf {
     let config_content = format!(
         r#"
 [vault]
-name = "{}"
+name = "{vault_name}"
 
 [[pre-run.hooks]]
 id = "capture-cwd"
 "#,
-        vault_name
     );
     fs::write(&config_path, config_content).unwrap();
     config_path
+}
+
+#[derive(Deserialize)]
+struct TestRunMetadata {
+    name: String,
+}
+
+fn find_first_run(vault_dir: &std::path::Path) -> (PathBuf, String) {
+    let date_dirs: Vec<_> = fs::read_dir(vault_dir)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_dir())
+        .collect();
+
+    for date_dir in date_dirs {
+        let run_dirs: Vec<_> = fs::read_dir(date_dir.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.path().is_dir())
+            .collect();
+
+        for run_dir in run_dirs {
+            let run_path = run_dir.path();
+            let metadata_path = run_path.join("_capsula").join("metadata.json");
+            if !metadata_path.exists() {
+                continue;
+            }
+
+            let content = fs::read_to_string(&metadata_path).unwrap();
+            let metadata: TestRunMetadata = serde_json::from_str(&content).unwrap();
+            return (run_path, metadata.name);
+        }
+    }
+
+    panic!("No run directory found");
 }
 
 #[test]
@@ -34,7 +67,7 @@ fn test_capsula_run_creates_run_directory() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = create_test_config(&temp_dir, "test-vault");
 
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg(&config_path)
@@ -51,7 +84,7 @@ fn test_capsula_run_creates_run_directory() {
     // Check that at least one run directory exists
     let date_dirs: Vec<_> = fs::read_dir(&vault_dir)
         .unwrap()
-        .filter_map(|e| e.ok())
+        .filter_map(Result::ok)
         .filter(|e| e.path().is_dir())
         .collect();
 
@@ -64,7 +97,7 @@ fn test_capsula_run_creates_run_directory() {
     for date_dir in date_dirs {
         let run_dirs: Vec<_> = fs::read_dir(date_dir.path())
             .unwrap()
-            .filter_map(|e| e.ok())
+            .filter_map(Result::ok)
             .filter(|e| e.path().is_dir())
             .collect();
 
@@ -92,12 +125,42 @@ fn test_capsula_run_creates_run_directory() {
 }
 
 #[test]
+fn test_capsula_run_dir_prints_path() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config(&temp_dir, "test-vault");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("echo")
+        .arg("hello");
+
+    cmd.assert().success();
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, run_name) = find_first_run(&vault_dir);
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-dir")
+        .arg(&run_name);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains(run_dir.to_string_lossy().as_ref()));
+}
+
+#[test]
 fn test_capsula_list_shows_runs() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = create_test_config(&temp_dir, "test-vault");
 
     // First, create a run
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg(&config_path)
@@ -108,7 +171,7 @@ fn test_capsula_list_shows_runs() {
     cmd.assert().success();
 
     // Now list runs
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg(&config_path)
@@ -127,7 +190,7 @@ fn test_capsula_push_requires_server_url() {
     let config_path = create_test_config(&temp_dir, "test-vault");
 
     // First, create a run
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg(&config_path)
@@ -138,7 +201,7 @@ fn test_capsula_push_requires_server_url() {
     cmd.assert().success();
 
     // Try to push without server URL (should fail)
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg(&config_path)
@@ -156,7 +219,7 @@ fn test_capsula_vaults_list_requires_server_url() {
     let config_path = create_test_config(&temp_dir, "test-vault");
 
     // Try to list vaults without server URL (should fail)
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg(&config_path)
@@ -172,7 +235,7 @@ fn test_capsula_vaults_list_requires_server_url() {
 fn test_capsula_run_with_nonexistent_config() {
     let temp_dir = TempDir::new().unwrap();
 
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg("nonexistent.toml")
@@ -190,7 +253,7 @@ fn test_capsula_run_without_command() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = create_test_config(&temp_dir, "test-vault");
 
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg(&config_path)
@@ -217,7 +280,7 @@ id = "capture-cwd"
     fs::write(&config_path, config_content).unwrap();
 
     // Create a run to ensure config is valid
-    let mut cmd = Command::cargo_bin("capsula").unwrap();
+    let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg(&config_path)
