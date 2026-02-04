@@ -92,3 +92,19 @@ TIMESTAMP (UTC)      NAME                  COMMAND
 2025-01-09 14:30:28  clever-mountain       python script.py
 2025-01-09 14:30:26  quiet-lake            cargo build --release
 ```
+
+## `capsula run-dir`
+
+Print the run directory for a run name.
+
+### Usage
+
+```bash
+capsula run-dir <RUN_NAME>
+```
+
+### Example
+
+```bash
+capsula run-dir happy-river
+```

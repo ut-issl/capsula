@@ -49,6 +49,11 @@ enum Commands {
         #[arg(trailing_var_arg = true)]
         cmd: Vec<String>,
     },
+    /// Print the run directory for a given run name
+    RunDir {
+        /// Run name to locate (e.g., happy-river)
+        run_name: String,
+    },
     List,
     Push {
         /// Run ID or name to push (e.g., 01HQXYZ... or chubby-back)
@@ -468,6 +473,70 @@ fn find_run_dir(vault_dir: &std::path::Path, run_id: &str) -> Result<PathBuf> {
     )
 }
 
+fn find_run_dir_by_name(vault_dir: &std::path::Path, run_name: &str) -> Result<PathBuf> {
+    let mut best_match: Option<(PathBuf, Option<DateTime<chrono::FixedOffset>>)> = None;
+    let mut match_count = 0usize;
+
+    for entry in walkdir::WalkDir::new(vault_dir)
+        .min_depth(2)
+        .max_depth(2)
+        .into_iter()
+        .filter_entry(|e| e.file_type().is_dir())
+    {
+        let entry = entry?;
+        let capsula_dir = entry.path().join("_capsula");
+        if !capsula_dir.exists() {
+            continue;
+        }
+
+        let metadata_path = capsula_dir.join("metadata.json");
+        if !metadata_path.exists() {
+            continue;
+        }
+
+        let metadata_content = std::fs::read_to_string(&metadata_path)?;
+        let metadata: RunMetadata = serde_json::from_str(&metadata_content)?;
+
+        if metadata.name != run_name {
+            continue;
+        }
+
+        match_count += 1;
+        let timestamp = DateTime::parse_from_rfc3339(&metadata.timestamp).ok();
+        match best_match {
+            None => {
+                best_match = Some((entry.path().to_path_buf(), timestamp));
+            }
+            Some((_, ref best_timestamp)) => {
+                let is_newer = match (timestamp, best_timestamp) {
+                    (Some(current), Some(best)) => current > *best,
+                    (Some(_), None) => true,
+                    _ => false,
+                };
+                if is_newer {
+                    best_match = Some((entry.path().to_path_buf(), timestamp));
+                }
+            }
+        }
+    }
+
+    if let Some((path, _)) = best_match {
+        if match_count > 1 {
+            warn!(
+                "Found {} runs named '{}'; returning the newest by timestamp.",
+                match_count, run_name
+            );
+        }
+        return Ok(path);
+    }
+
+    anyhow::bail!(
+        "Run with name '{}' not found in vault {}",
+        run_name,
+        vault_dir.display()
+    )
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "TODO: Refactor into smaller functions"
@@ -596,6 +665,10 @@ path = \".\"
                     timestamp_display, run.name, command_truncated
                 );
             }
+        }
+        Commands::RunDir { run_name } => {
+            let run_dir = find_run_dir_by_name(&vault_dir, &run_name)?;
+            println!("{}", run_dir.display());
         }
         Commands::Run { cmd } => {
             // Sanity check
