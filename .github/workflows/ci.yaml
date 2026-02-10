@@ -131,7 +131,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Spell check with typos
-        uses: crate-ci/typos@v1.43.3
+        uses: crate-ci/typos@v1.43.4
 
   collect:
     needs: [checks, coverage, sqlx-check, msrv, typos]
