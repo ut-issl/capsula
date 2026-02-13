@@ -20,7 +20,7 @@ This guide will help you install Capsula on your system.
 This is the easiest way to install Capsula:
 
 ```bash
-cargo install capsula-cli --locked
+cargo install capsula --locked
 ```
 
 This downloads and compiles the latest stable version from Rust's package registry.
@@ -30,7 +30,7 @@ This downloads and compiles the latest stable version from Rust's package regist
 To install the latest development version:
 
 ```bash
-cargo install --git https://github.com/ut-issl/capsula --locked capsula-cli
+cargo install --git https://github.com/ut-issl/capsula --locked
 ```
 
 !!! warning "Development version"
@@ -61,7 +61,7 @@ capsula --help
 To update Capsula to the latest version, run the same install command again:
 
 ```bash
-cargo install capsula-cli --locked
+cargo install capsula --locked
 ```
 
 Cargo will automatically download and install the new version.
@@ -91,7 +91,7 @@ rustup update
 Then try installing again:
 
 ```bash
-cargo install capsula-cli --locked
+cargo install capsula --locked
 ```
 
 **Missing system libraries:**
@@ -103,7 +103,7 @@ If compilation fails with "linker" or "library not found" errors, you may need t
 If you need to uninstall Capsula:
 
 ```bash
-cargo uninstall capsula-cli
+cargo uninstall capsula
 ```
 
 This removes the Capsula binary but doesn't delete any captured data in your `.capsula` directories.

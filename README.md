@@ -1,7 +1,7 @@
 # Capsula
 
-[![Crate Status](https://img.shields.io/crates/v/capsula-cli.svg)](https://crates.io/crates/capsula-cli)
-![Crates.io License](https://img.shields.io/crates/l/capsula-cli)
+[![Crate Status](https://img.shields.io/crates/v/capsula.svg)](https://crates.io/crates/capsula)
+![Crates.io License](https://img.shields.io/crates/l/capsula)
 [![Test Status](https://github.com/ut-issl/capsula/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/ut-issl/capsula/actions)
 [![codecov](https://codecov.io/gh/ut-issl/capsula/graph/badge.svg?token=BZXF2PPDM0)](https://codecov.io/gh/ut-issl/capsula)
 [![Documentation](https://img.shields.io/badge/docs-capsula-blue)](https://www.space.t.u-tokyo.ac.jp/capsula/)

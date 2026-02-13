@@ -17,7 +17,7 @@ Capsula is a CLI tool for capturing and preserving the context of command execut
 cargo build --workspace
 
 # Build only the CLI
-cargo build -p capsula-cli
+cargo build -p capsula
 
 # Build for release
 cargo build --release
@@ -60,11 +60,11 @@ cargo check --workspace
 cargo install --path crates/capsula-cli --locked
 
 # Run directly with cargo
-cargo run -p capsula-cli -- run echo "hello"
-cargo run -p capsula-cli -- list
+cargo run -p capsula -- run echo "hello"
+cargo run -p capsula -- list
 
 # Run with a specific config
-cargo run -p capsula-cli -- --config path/to/config.toml run python script.py
+cargo run -p capsula -- --config path/to/config.toml run python script.py
 ```
 
 ## Architecture
@@ -84,7 +84,7 @@ The workspace consists of 11 crates organized into three dependency tiers:
 
 **Tier 3 - CLI and Hook Implementations:**
 
-- **capsula-cli**: Command-line interface and orchestration (main entry point)
+- **capsula**: Command-line interface and orchestration (main entry point)
 - **Hook implementation crates** (7 total):
   - `capsula-capture-cwd`: Current working directory
   - `capsula-capture-env`: Environment variables

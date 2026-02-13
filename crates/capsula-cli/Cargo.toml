@@ -1,5 +1,5 @@
 [package]
-name = "capsula-cli"
+name = "capsula"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
