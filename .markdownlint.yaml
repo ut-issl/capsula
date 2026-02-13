@@ -12,7 +12,7 @@ ol-prefix: false
 no-trailing-punctuation: false
 code-block-style: false
 ul-indent:
-  indent: 4
+  indent: 2
 no-duplicate-heading: false
 table-column-style:
   style: compact
