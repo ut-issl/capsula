@@ -57,7 +57,7 @@ cargo check --workspace
 
 ```bash
 # Install locally from source
-cargo install --path crates/capsula-cli --locked
+cargo install --path crates/capsula-cli --locked capsula
 
 # Run directly with cargo
 cargo run -p capsula -- run echo "hello"
