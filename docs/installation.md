@@ -30,7 +30,7 @@ This downloads and compiles the latest stable version from Rust's package regist
 To install the latest development version:
 
 ```bash
-cargo install --git https://github.com/ut-issl/capsula --locked
+cargo install --git https://github.com/ut-issl/capsula --locked capsula
 ```
 
 !!! warning "Development version"
