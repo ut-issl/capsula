@@ -27,6 +27,25 @@ id = "capture-cwd"
     config_path
 }
 
+/// Helper to create a capsula.toml config with both pre-run and post-run hooks
+fn create_test_config_with_post_run(dir: &TempDir, vault_name: &str) -> PathBuf {
+    let config_path = dir.path().join("capsula.toml");
+    let config_content = format!(
+        r#"
+[vault]
+name = "{vault_name}"
+
+[[pre-run.hooks]]
+id = "capture-cwd"
+
+[[post-run.hooks]]
+id = "capture-cwd"
+"#,
+    );
+    fs::write(&config_path, config_content).unwrap();
+    config_path
+}
+
 #[derive(Deserialize)]
 struct TestRunMetadata {
     name: String,
@@ -289,4 +308,167 @@ id = "capture-cwd"
         .arg("test");
 
     cmd.assert().success();
+}
+
+#[test]
+fn test_run_start_creates_directory_and_pre_run() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config_with_post_run(&temp_dir, "test-vault");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-start");
+
+    let output = cmd.assert().success();
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+    let run_name = stdout.trim();
+    assert!(
+        !run_name.is_empty(),
+        "run-start should print run name to stdout"
+    );
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    assert!(vault_dir.exists(), "Vault directory should exist");
+
+    let (run_dir, found_name) = find_first_run(&vault_dir);
+    assert_eq!(found_name, run_name);
+
+    let capsula_dir = run_dir.join("_capsula");
+    assert!(
+        capsula_dir.join("metadata.json").exists(),
+        "metadata.json should exist"
+    );
+    assert!(
+        capsula_dir.join("pre-run.json").exists(),
+        "pre-run.json should exist"
+    );
+    assert!(
+        !capsula_dir.join("command.json").exists(),
+        "command.json should NOT exist"
+    );
+    assert!(
+        !capsula_dir.join("post-run.json").exists(),
+        "post-run.json should NOT exist"
+    );
+}
+
+#[test]
+fn test_run_start_prints_name_to_stdout() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config(&temp_dir, "test-vault");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-start");
+
+    let output = cmd.assert().success();
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+    let lines: Vec<&str> = stdout.trim().lines().collect();
+    assert_eq!(
+        lines.len(),
+        1,
+        "stdout should contain exactly one line (the run name)"
+    );
+    // Run names from the `names` crate are two hyphenated words
+    assert!(
+        lines[0].contains('-'),
+        "Run name should be hyphenated (e.g., 'happy-river')"
+    );
+}
+
+#[test]
+fn test_run_end_creates_post_run() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config_with_post_run(&temp_dir, "test-vault");
+
+    // First, start a run
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-start");
+
+    let output = cmd.assert().success();
+    let run_name = String::from_utf8(output.get_output().stdout.clone())
+        .unwrap()
+        .trim()
+        .to_string();
+
+    // Now end the run
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-end")
+        .arg(&run_name);
+
+    cmd.assert().success();
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, _) = find_first_run(&vault_dir);
+    let capsula_dir = run_dir.join("_capsula");
+    assert!(
+        capsula_dir.join("post-run.json").exists(),
+        "post-run.json should exist after run-end"
+    );
+}
+
+#[test]
+fn test_run_end_nonexistent_name_fails() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config(&temp_dir, "test-vault");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-end")
+        .arg("nonexistent-run");
+
+    cmd.assert().failure();
+}
+
+#[test]
+fn test_run_end_already_finalized_fails() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config_with_post_run(&temp_dir, "test-vault");
+
+    // Start a run
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-start");
+
+    let output = cmd.assert().success();
+    let run_name = String::from_utf8(output.get_output().stdout.clone())
+        .unwrap()
+        .trim()
+        .to_string();
+
+    // End the run (first time - should succeed)
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-end")
+        .arg(&run_name);
+
+    cmd.assert().success();
+
+    // End the run again (should fail)
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-end")
+        .arg(&run_name);
+
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("already been finalized"));
 }
