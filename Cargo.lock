@@ -485,11 +485,11 @@ dependencies = [
  "capsula-client",
  "capsula-config",
  "capsula-core",
+ "capsula-orchestration",
  "capsula-registry",
  "chrono",
  "clap",
  "dotenvy",
- "names",
  "predicates",
  "reqwest",
  "serde",
@@ -639,6 +639,20 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "wiremock",
+]
+
+[[package]]
+name = "capsula-orchestration"
+version = "0.11.1"
+dependencies = [
+ "anyhow",
+ "capsula-config",
+ "capsula-core",
+ "capsula-registry",
+ "names",
+ "serde_json",
+ "tracing",
+ "ulid",
 ]
 
 [[package]]

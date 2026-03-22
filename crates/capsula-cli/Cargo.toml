@@ -19,11 +19,11 @@ anyhow = { workspace = true }
 capsula-client = { workspace = true }
 capsula-config = { workspace = true }
 capsula-core = { workspace = true }
+capsula-orchestration = { workspace = true }
 capsula-registry = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 dotenvy = { workspace = true }
-names = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -1,0 +1,24 @@
+[package]
+name = "capsula-orchestration"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Orchestration logic for Capsula runs (shared by CLI, PyO3, etc.)."
+keywords = ["capsula", "orchestration"]
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+categories = ["development-tools"]
+
+[dependencies]
+anyhow = { workspace = true }
+capsula-config = { workspace = true }
+capsula-core = { workspace = true }
+capsula-registry = { workspace = true }
+names = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+ulid = { workspace = true }
+
+[lints]
+workspace = true
