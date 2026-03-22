@@ -24,18 +24,16 @@ capsula-registry = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 dotenvy = { workspace = true }
-reqwest = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 shlex = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-ulid = { workspace = true }
 walkdir = "2"
 
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"
+serde = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

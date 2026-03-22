@@ -491,14 +491,12 @@ dependencies = [
  "clap",
  "dotenvy",
  "predicates",
- "reqwest",
  "serde",
  "serde_json",
  "shlex",
  "tempfile",
  "tracing",
  "tracing-subscriber",
- "ulid",
  "walkdir",
 ]
 
@@ -646,13 +644,18 @@ name = "capsula-orchestration"
 version = "0.11.1"
 dependencies = [
  "anyhow",
+ "capsula-client",
  "capsula-config",
  "capsula-core",
  "capsula-registry",
+ "chrono",
  "names",
+ "reqwest",
+ "serde",
  "serde_json",
  "tracing",
  "ulid",
+ "walkdir",
 ]
 
 [[package]]
