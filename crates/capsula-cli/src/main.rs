@@ -49,6 +49,20 @@ enum Commands {
         #[arg(trailing_var_arg = true)]
         cmd: Vec<String>,
     },
+    /// Start a manual run: create run directory and execute pre-run hooks
+    ///
+    /// Use this when you want to capture context before and after an external
+    /// process (e.g., a GUI-triggered analysis) that capsula does not manage.
+    /// The auto-generated run name is printed to stdout so callers can capture it
+    /// (e.g., `name=$(capsula run-start)`), then later finalize with `run-end`.
+    RunStart,
+    /// End a manual run: execute post-run hooks for an existing run
+    ///
+    /// Finalizes a run previously started with `run-start`.
+    RunEnd {
+        /// Name of the run to finalize (as printed by `run-start`)
+        run_name: String,
+    },
     /// Print the run directory for a given run name
     RunDir {
         /// Run name to locate (e.g., happy-river)
@@ -241,6 +255,7 @@ fn build_and_run_hooks<P: PhaseMarker>(
 
 #[derive(Debug, Deserialize)]
 struct RunMetadata {
+    id: Ulid,
     name: String,
     command: Vec<String>,
     timestamp: String,
@@ -779,6 +794,123 @@ path = \".\"
                         post_json_path.display()
                     )
                 })?;
+        }
+        Commands::RunStart => {
+            debug!("Creating run-start metadata");
+            let run = Run::<()> {
+                id: Ulid::new(),
+                name: Generator::default()
+                    .next()
+                    .with_context(|| "Failed to generate a random name for the run")?,
+                command: vec![],
+                run_dir: (),
+                project_root: project_root.clone(),
+            };
+
+            info!("Run ID: {}, Name: {}", run.id, run.name);
+            debug!("Setting up run directory in vault: {}", vault_dir.display());
+            let run = run.setup_run_dir(&vault_dir, 5)?;
+            info!("Run directory: {}", run.run_dir.to_string_lossy());
+
+            let capsula_dir = run.run_dir.join("_capsula");
+            std::fs::create_dir(&capsula_dir).with_context(|| {
+                format!(
+                    "Failed to create _capsula directory in run directory {}",
+                    run.run_dir.display()
+                )
+            })?;
+
+            let run_metadata_path = capsula_dir.join("metadata.json");
+            std::fs::write(&run_metadata_path, serde_json::to_string_pretty(&run)?).with_context(
+                || {
+                    format!(
+                        "Failed to write metadata to {}",
+                        run_metadata_path.display()
+                    )
+                },
+            )?;
+
+            debug!("Executing pre-run hooks");
+            let pre_params = RuntimeParams::<PreRun>::default();
+            let (pre_json, should_abort) = build_and_run_hooks(
+                &run,
+                &pre_params,
+                &config.pre_run,
+                &pre_run_hook_registry,
+                &project_root,
+            )
+            .context("Failed to execute pre-run hooks")?;
+            debug!("Pre-run hooks completed");
+
+            let pre_json_path = capsula_dir.join("pre-run.json");
+            std::fs::write(&pre_json_path, serde_json::to_string_pretty(&pre_json)?).with_context(
+                || {
+                    format!(
+                        "Failed to write pre-run hook results to {}",
+                        pre_json_path.display()
+                    )
+                },
+            )?;
+
+            if should_abort {
+                warn!("A pre-run hook requested abort.");
+            }
+
+            // Print run name to stdout for callers to capture
+            println!("{}", run.name);
+        }
+        Commands::RunEnd { run_name } => {
+            let run_dir = find_run_dir_by_name(&vault_dir, &run_name)?;
+            let capsula_dir = run_dir.join("_capsula");
+
+            let post_run_path = capsula_dir.join("post-run.json");
+            if post_run_path.exists() {
+                anyhow::bail!(
+                    "Run '{run_name}' has already been finalized (post-run.json already exists)"
+                );
+            }
+
+            let metadata_path = capsula_dir.join("metadata.json");
+            let metadata_content = std::fs::read_to_string(&metadata_path).with_context(|| {
+                format!("Failed to read metadata from {}", metadata_path.display())
+            })?;
+            let metadata: RunMetadata =
+                serde_json::from_str(&metadata_content).with_context(|| {
+                    format!("Failed to parse metadata from {}", metadata_path.display())
+                })?;
+
+            let run = Run {
+                id: metadata.id,
+                name: metadata.name,
+                command: metadata.command,
+                run_dir,
+                project_root: project_root.clone(),
+            };
+
+            info!("Finalizing run: {} (ID: {})", run.name, run.id);
+
+            debug!("Executing post-run hooks");
+            let post_params = RuntimeParams::<PostRun>::default();
+            let (post_json, _should_abort) = build_and_run_hooks::<PostRun>(
+                &run,
+                &post_params,
+                &config.post_run,
+                &post_run_hook_registry,
+                &project_root,
+            )
+            .context("Failed to execute post-run hooks")?;
+            debug!("Post-run hooks completed");
+
+            let post_json_path = capsula_dir.join("post-run.json");
+            std::fs::write(&post_json_path, serde_json::to_string_pretty(&post_json)?)
+                .with_context(|| {
+                    format!(
+                        "Failed to write post-run hook results to {}",
+                        post_json_path.display()
+                    )
+                })?;
+
+            info!("Run '{}' finalized successfully", run_name);
         }
         Commands::Push {
             run_id,
