@@ -1046,7 +1046,7 @@ async fn upload_files(
 
                 let mut hasher = Sha256::new();
                 hasher.update(&data);
-                let hash = format!("{:x}", hasher.finalize());
+                let hash = hex_encode(hasher.finalize().as_ref());
 
                 info!("File hash: {}, size: {} bytes", hash, size);
 
@@ -1305,5 +1305,16 @@ async fn download_file(
         .map_err(|e| {
             error!("Failed to build response: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
+        })
+}
+
+// NOTE: An identical function exists in capsula-capture-file/src/hash.rs.
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut output, b| {
+            std::fmt::Write::write_fmt(&mut output, format_args!("{b:02x}"))
+                .expect("writing to a String should never fail");
+            output
         })
 }
