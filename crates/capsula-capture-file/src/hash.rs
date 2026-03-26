@@ -18,5 +18,16 @@ pub fn file_digest_sha256(path: impl AsRef<Path>) -> std::io::Result<String> {
         hasher.update(&buffer[..bytes_read]);
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex_encode(hasher.finalize().as_ref()))
+}
+
+// NOTE: An identical function exists in capsula-server/src/lib.rs.
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut output, b| {
+            std::fmt::Write::write_fmt(&mut output, format_args!("{b:02x}"))
+                .expect("writing to a String should never fail");
+            output
+        })
 }
