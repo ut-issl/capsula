@@ -6,6 +6,7 @@ use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -13,11 +14,13 @@ pub struct CommandHookConfig {
     command: Vec<String>,
     #[serde(default)]
     abort_on_failure: bool,
+    cwd: Option<PathBuf>,
 }
 
 #[derive(Debug)]
 pub struct CommandHook {
     config: CommandHookConfig,
+    working_dir: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
@@ -40,10 +43,20 @@ where
 
     fn from_config(
         config: &serde_json::Value,
-        _project_root: &std::path::Path,
+        project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: CommandHookConfig = serde_json::from_value(config.clone())?;
-        Ok(Self { config })
+
+        let working_dir = match &config.cwd {
+            Some(cwd) if cwd.is_absolute() => cwd.clone(),
+            Some(cwd) => project_root.join(cwd).canonicalize()?,
+            None => project_root.to_path_buf(),
+        };
+
+        Ok(Self {
+            config,
+            working_dir,
+        })
     }
 
     fn config(&self) -> &Self::Config {
@@ -61,8 +74,13 @@ where
             return Err(CommandHookError::EmptyCommand.into());
         }
 
-        debug!("CommandHook: Executing command: {:?}", self.config.command);
+        debug!(
+            "CommandHook: Executing command: {:?} in {}",
+            self.config.command,
+            self.working_dir.display()
+        );
         let mut cmd = Command::new(&self.config.command[0]);
+        cmd.current_dir(&self.working_dir);
         if self.config.command.len() > 1 {
             cmd.args(&self.config.command[1..]);
         }
