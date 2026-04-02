@@ -244,6 +244,54 @@ fn test_capsula_show_displays_run_details() {
 }
 
 #[test]
+fn test_capsula_show_json_output() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config(&temp_dir, "test-vault");
+
+    // Create a run
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("echo")
+        .arg("hello-json");
+
+    cmd.assert().success();
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (_, run_name) = find_first_run(&vault_dir);
+
+    // Show the run with --json
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("show")
+        .arg(&run_name)
+        .arg("--json");
+
+    let output = cmd.assert().success();
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+
+    // Verify it's valid JSON with expected structure
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert!(parsed.get("metadata").is_some(), "should have metadata key");
+    assert!(parsed.get("pre_run").is_some(), "should have pre_run key");
+    assert!(parsed.get("command").is_some(), "should have command key");
+    assert_eq!(
+        parsed["metadata"]["name"].as_str().unwrap(),
+        run_name,
+        "metadata.name should match run name"
+    );
+    assert_eq!(
+        parsed["command"]["exit_code"].as_i64().unwrap(),
+        0,
+        "exit code should be 0"
+    );
+}
+
+#[test]
 fn test_capsula_push_requires_server_url() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = create_test_config(&temp_dir, "test-vault");
