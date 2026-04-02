@@ -260,47 +260,47 @@ path = \".\"
                     serde_json::to_string_pretty(&serde_json::Value::Object(output))?
                 );
             } else {
-                println!("=== Run: {run_name} ===");
-                println!();
-
                 // Metadata
-                println!("--- Metadata ---");
-                if let Some(id) = metadata.get("id").and_then(|v| v.as_str()) {
-                    println!("  ID:        {id}");
-                }
-                if let Some(name) = metadata.get("name").and_then(|v| v.as_str()) {
-                    println!("  Name:      {name}");
-                }
-                if let Some(ts) = metadata.get("timestamp").and_then(|v| v.as_str()) {
-                    let display = DateTime::parse_from_rfc3339(ts).map_or_else(
-                        |_| ts.to_string(),
-                        |dt| dt.format("%Y-%m-%d %H:%M:%S %Z").to_string(),
+                let id = metadata.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+                let name = metadata.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+                let timestamp = metadata
+                    .get("timestamp")
+                    .and_then(|v| v.as_str())
+                    .map_or_else(
+                        || "?".to_string(),
+                        |ts| {
+                            DateTime::parse_from_rfc3339(ts).map_or_else(
+                                |_| ts.to_string(),
+                                |dt| dt.format("%Y-%m-%d %H:%M:%S %Z").to_string(),
+                            )
+                        },
                     );
-                    println!("  Timestamp: {display}");
-                }
-                if let Some(cmd) = metadata.get("command").and_then(|v| v.as_array()) {
-                    let parts: Vec<&str> = cmd.iter().filter_map(|v| v.as_str()).collect();
-                    let display =
-                        shlex::try_join(parts.iter().copied()).unwrap_or_else(|_| parts.join(" "));
-                    println!("  Command:   {display}");
+                let cmd_display = metadata
+                    .get("command")
+                    .and_then(|v| v.as_array())
+                    .map(|cmd| {
+                        let parts: Vec<&str> = cmd.iter().filter_map(|v| v.as_str()).collect();
+                        shlex::try_join(parts.iter().copied()).unwrap_or_else(|_| parts.join(" "))
+                    })
+                    .unwrap_or_default();
+
+                println!("Run:       {name}");
+                println!("ID:        {id}");
+                println!("Timestamp: {timestamp}");
+                if !cmd_display.is_empty() {
+                    println!("Command:   {cmd_display}");
                 }
                 if let Some(dir) = metadata.get("run_dir").and_then(|v| v.as_str()) {
-                    println!("  Run Dir:   {dir}");
-                }
-                println!();
-
-                if let Some(ref pre_run) = pre_run {
-                    println!("--- Pre-run Hooks ---");
-                    print_hook_outputs(pre_run);
-                    println!();
+                    println!("Directory: {dir}");
                 }
 
+                // Command result (single line summary)
                 if let Some(ref command) = command {
-                    println!("--- Command Output ---");
-                    if let Some(exit_code) = command.get("exit_code") {
-                        println!("  Exit Code: {exit_code}");
-                    }
-                    if let Some(duration) = command.get("duration") {
+                    let exit_code = command
+                        .get("exit_code")
+                        .and_then(serde_json::Value::as_i64)
+                        .map_or_else(|| "?".to_string(), |c| c.to_string());
+                    let duration_display = command.get("duration").map(|duration| {
                         let secs = duration
                             .get("secs")
                             .and_then(serde_json::Value::as_u64)
@@ -309,32 +309,23 @@ path = \".\"
                             .get("nanos")
                             .and_then(serde_json::Value::as_u64)
                             .unwrap_or(0);
-                        let total_ms = secs * 1000 + nanos / 1_000_000;
-                        println!("  Duration:  {total_ms}ms");
+                        format_duration(secs, nanos)
+                    });
+                    match duration_display {
+                        Some(d) => println!("Result:    exit {exit_code} ({d})"),
+                        None => println!("Result:    exit {exit_code}"),
                     }
-                    if let Some(stdout) = command.get("stdout").and_then(|v| v.as_str())
-                        && !stdout.is_empty()
-                    {
-                        println!("  Stdout:");
-                        for line in stdout.lines() {
-                            println!("    {line}");
-                        }
-                    }
-                    if let Some(stderr) = command.get("stderr").and_then(|v| v.as_str())
-                        && !stderr.is_empty()
-                    {
-                        println!("  Stderr:");
-                        for line in stderr.lines() {
-                            println!("    {line}");
-                        }
-                    }
-                    println!();
                 }
+                println!();
 
+                // Hooks summary
+                if let Some(ref pre_run) = pre_run {
+                    println!("Pre-run hooks:");
+                    print_hook_summary(pre_run);
+                }
                 if let Some(ref post_run) = post_run {
-                    println!("--- Post-run Hooks ---");
-                    print_hook_outputs(post_run);
-                    println!();
+                    println!("Post-run hooks:");
+                    print_hook_summary(post_run);
                 }
             }
         }
@@ -581,48 +572,42 @@ fn read_json_if_exists(path: &std::path::Path) -> Result<Option<serde_json::Valu
     Ok(Some(value))
 }
 
-fn print_hook_outputs(hooks: &serde_json::Value) {
+fn format_duration(secs: u64, nanos: u64) -> String {
+    let total_ms = secs * 1000 + nanos / 1_000_000;
+    if total_ms < 1000 {
+        format!("{total_ms}ms")
+    } else if secs < 60 {
+        format!("{secs}.{:02}s", (nanos / 10_000_000) % 100)
+    } else {
+        let mins = secs / 60;
+        let rem_secs = secs % 60;
+        format!("{mins}m {rem_secs}s")
+    }
+}
+
+fn print_hook_summary(hooks: &serde_json::Value) {
     let Some(hooks) = hooks.as_array() else {
         return;
     };
     for hook in hooks {
-        let id = hook
-            .get("__meta")
+        let meta = hook.get("__meta");
+        let id = meta
             .and_then(|m| m.get("id"))
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
-        let success = hook
-            .get("__meta")
+        let success = meta
             .and_then(|m| m.get("success"))
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
-        let status = if success { "ok" } else { "FAILED" };
-        println!("  [{status}] {id}");
-
-        if !success
-            && let Some(error) = hook
-                .get("__meta")
+        if success {
+            println!("  [ok]     {id}");
+        } else {
+            let error = meta
                 .and_then(|m| m.get("error"))
                 .and_then(|v| v.as_str())
-        {
-            println!("    Error: {error}");
-        }
-
-        // Print hook-specific fields (skip __meta)
-        if let Some(obj) = hook.as_object() {
-            for (key, value) in obj {
-                if key == "__meta" {
-                    continue;
-                }
-                let display = serde_json::to_string(value).unwrap_or_default();
-                // Truncate long values
-                if display.len() > 120 {
-                    println!("    {key}: {}...", &display[..117]);
-                } else {
-                    println!("    {key}: {display}");
-                }
-            }
+                .unwrap_or("unknown error");
+            println!("  [FAILED] {id}: {error}");
         }
     }
 }

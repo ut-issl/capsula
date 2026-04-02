@@ -233,14 +233,12 @@ fn test_capsula_show_displays_run_details() {
 
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("=== Run:"))
-        .stdout(predicate::str::contains("--- Metadata ---"))
-        .stdout(predicate::str::contains(&run_name))
-        .stdout(predicate::str::contains("--- Pre-run Hooks ---"))
-        .stdout(predicate::str::contains("[ok] capture-cwd"))
-        .stdout(predicate::str::contains("--- Command Output ---"))
-        .stdout(predicate::str::contains("Exit Code: 0"))
-        .stdout(predicate::str::contains("hello-show"));
+        .stdout(predicate::str::contains(format!("Run:       {run_name}")))
+        .stdout(predicate::str::contains("ID:"))
+        .stdout(predicate::str::contains("Timestamp:"))
+        .stdout(predicate::str::contains("Result:    exit 0"))
+        .stdout(predicate::str::contains("Pre-run hooks:"))
+        .stdout(predicate::str::contains("[ok]     capture-cwd"));
 }
 
 #[test]
