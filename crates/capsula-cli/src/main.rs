@@ -69,6 +69,11 @@ enum Commands {
         run_name: String,
     },
     List,
+    /// Show detailed information about a specific run
+    Show {
+        /// Run name to display (e.g., happy-river)
+        run_name: String,
+    },
     Push {
         /// Run ID or name to push (e.g., 01HQXYZ... or chubby-back)
         run_id: Option<String>,
@@ -216,6 +221,106 @@ path = \".\"
                     "{:<19}  {:<20}  {}",
                     timestamp_display, run.name, command_truncated
                 );
+            }
+        }
+        Commands::Show { run_name } => {
+            let run_dir = find_run_dir_by_name(&vault_dir, &run_name)?;
+            let capsula_dir = run_dir.join("_capsula");
+
+            // Read and display metadata
+            let metadata_path = capsula_dir.join("metadata.json");
+            let metadata: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(&metadata_path)
+                    .with_context(|| format!("Failed to read {}", metadata_path.display()))?,
+            )?;
+
+            println!("=== Run: {run_name} ===");
+            println!();
+
+            // Metadata
+            println!("--- Metadata ---");
+            if let Some(id) = metadata.get("id").and_then(|v| v.as_str()) {
+                println!("  ID:        {id}");
+            }
+            if let Some(name) = metadata.get("name").and_then(|v| v.as_str()) {
+                println!("  Name:      {name}");
+            }
+            if let Some(ts) = metadata.get("timestamp").and_then(|v| v.as_str()) {
+                let display = DateTime::parse_from_rfc3339(ts).map_or_else(
+                    |_| ts.to_string(),
+                    |dt| dt.format("%Y-%m-%d %H:%M:%S %Z").to_string(),
+                );
+                println!("  Timestamp: {display}");
+            }
+            if let Some(cmd) = metadata.get("command").and_then(|v| v.as_array()) {
+                let parts: Vec<&str> = cmd.iter().filter_map(|v| v.as_str()).collect();
+                let display =
+                    shlex::try_join(parts.iter().copied()).unwrap_or_else(|_| parts.join(" "));
+                println!("  Command:   {display}");
+            }
+            if let Some(dir) = metadata.get("run_dir").and_then(|v| v.as_str()) {
+                println!("  Run Dir:   {dir}");
+            }
+            println!();
+
+            // Pre-run hooks
+            let pre_run_path = capsula_dir.join("pre-run.json");
+            if pre_run_path.exists() {
+                let pre_run: serde_json::Value =
+                    serde_json::from_str(&std::fs::read_to_string(&pre_run_path)?)?;
+                println!("--- Pre-run Hooks ---");
+                print_hook_outputs(&pre_run);
+                println!();
+            }
+
+            // Command output
+            let command_path = capsula_dir.join("command.json");
+            if command_path.exists() {
+                let command: serde_json::Value =
+                    serde_json::from_str(&std::fs::read_to_string(&command_path)?)?;
+                println!("--- Command Output ---");
+                if let Some(exit_code) = command.get("exit_code") {
+                    println!("  Exit Code: {exit_code}");
+                }
+                if let Some(duration) = command.get("duration") {
+                    let secs = duration
+                        .get("secs")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(0);
+                    let nanos = duration
+                        .get("nanos")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(0);
+                    let total_ms = secs * 1000 + nanos / 1_000_000;
+                    println!("  Duration:  {total_ms}ms");
+                }
+                if let Some(stdout) = command.get("stdout").and_then(|v| v.as_str())
+                    && !stdout.is_empty()
+                {
+                    println!("  Stdout:");
+                    for line in stdout.lines() {
+                        println!("    {line}");
+                    }
+                }
+                if let Some(stderr) = command.get("stderr").and_then(|v| v.as_str())
+                    && !stderr.is_empty()
+                {
+                    println!("  Stderr:");
+                    for line in stderr.lines() {
+                        println!("    {line}");
+                    }
+                }
+                println!();
+            }
+
+            // Post-run hooks
+            let post_run_path = capsula_dir.join("post-run.json");
+            if post_run_path.exists() {
+                let post_run: serde_json::Value =
+                    serde_json::from_str(&std::fs::read_to_string(&post_run_path)?)?;
+                println!("--- Post-run Hooks ---");
+                print_hook_outputs(&post_run);
+                println!();
             }
         }
         Commands::RunDir { run_name } => {
@@ -448,6 +553,52 @@ path = \".\"
         },
     }
     Ok(())
+}
+
+fn print_hook_outputs(hooks: &serde_json::Value) {
+    let Some(hooks) = hooks.as_array() else {
+        return;
+    };
+    for hook in hooks {
+        let id = hook
+            .get("__meta")
+            .and_then(|m| m.get("id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let success = hook
+            .get("__meta")
+            .and_then(|m| m.get("success"))
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+
+        let status = if success { "ok" } else { "FAILED" };
+        println!("  [{status}] {id}");
+
+        if !success
+            && let Some(error) = hook
+                .get("__meta")
+                .and_then(|m| m.get("error"))
+                .and_then(|v| v.as_str())
+        {
+            println!("    Error: {error}");
+        }
+
+        // Print hook-specific fields (skip __meta)
+        if let Some(obj) = hook.as_object() {
+            for (key, value) in obj {
+                if key == "__meta" {
+                    continue;
+                }
+                let display = serde_json::to_string(value).unwrap_or_default();
+                // Truncate long values
+                if display.len() > 120 {
+                    println!("    {key}: {}...", &display[..117]);
+                } else {
+                    println!("    {key}: {display}");
+                }
+            }
+        }
+    }
 }
 
 fn main() {

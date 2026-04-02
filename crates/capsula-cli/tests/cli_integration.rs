@@ -204,6 +204,46 @@ fn test_capsula_list_shows_runs() {
 }
 
 #[test]
+fn test_capsula_show_displays_run_details() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config(&temp_dir, "test-vault");
+
+    // Create a run
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("echo")
+        .arg("hello-show");
+
+    cmd.assert().success();
+
+    // Find the run name
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (_, run_name) = find_first_run(&vault_dir);
+
+    // Show the run
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("show")
+        .arg(&run_name);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("=== Run:"))
+        .stdout(predicate::str::contains("--- Metadata ---"))
+        .stdout(predicate::str::contains(&run_name))
+        .stdout(predicate::str::contains("--- Pre-run Hooks ---"))
+        .stdout(predicate::str::contains("[ok] capture-cwd"))
+        .stdout(predicate::str::contains("--- Command Output ---"))
+        .stdout(predicate::str::contains("Exit Code: 0"))
+        .stdout(predicate::str::contains("hello-show"));
+}
+
+#[test]
 fn test_capsula_push_requires_server_url() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = create_test_config(&temp_dir, "test-vault");
