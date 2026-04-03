@@ -16,11 +16,11 @@ jobs:
       # Test against latest dependency versions, not just MSRV-compatible ones
       CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: allow
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - run: cargo clippy --workspace --all-targets --all-features
       - run: cargo clippy --workspace --all-targets --no-default-features
       - run: cargo fmt --check --all
@@ -35,7 +35,7 @@ jobs:
       DATABASE_URL: postgresql://capsula:capsula@localhost:5432/capsula
     services:
       postgres:
-        image: postgres:18
+        image: postgres:18@sha256:a9abf4275f9e99bff8e6aed712b3b7dfec9cac1341bba01c1ffdfce9ff9fc34a
         env:
           POSTGRES_USER: capsula
           POSTGRES_PASSWORD: capsula
@@ -48,16 +48,16 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           components: llvm-tools-preview
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+        uses: taiki-e/install-action@39b03b784b1fb8d2e38e4d6dcf888b991e3c5898 # cargo-llvm-cov
 
       - name: Install sqlx-cli
         run: cargo install sqlx-cli --no-default-features --features postgres
@@ -72,7 +72,7 @@ jobs:
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
         with:
           files: lcov.info
           fail_ci_if_error: true
@@ -85,7 +85,7 @@ jobs:
       DATABASE_URL: postgresql://capsula:capsula@localhost:5432/capsula
     services:
       postgres:
-        image: postgres:18
+        image: postgres:18@sha256:a9abf4275f9e99bff8e6aed712b3b7dfec9cac1341bba01c1ffdfce9ff9fc34a
         env:
           POSTGRES_USER: capsula
           POSTGRES_PASSWORD: capsula
@@ -98,9 +98,9 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Install sqlx-cli
         run: cargo install sqlx-cli --no-default-features --features postgres
       - name: Run migrations
@@ -117,8 +117,8 @@ jobs:
     name: Verify MSRV
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: taiki-e/install-action@cargo-hack
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: taiki-e/install-action@3832b65b6b2cff92f32da68a8d0955ef55df05f8 # cargo-hack
       # --rust-version: automatically reads MSRV from Cargo.toml and installs that toolchain
       # --workspace: check all crates in the workspace
       # --all-targets: check bins, libs, tests, examples, benches
@@ -129,9 +129,9 @@ jobs:
     name: Spell check with Typos
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Spell check with typos
-        uses: crate-ci/typos@v1.45.0
+        uses: crate-ci/typos@02ea592e44b3a53c302f697cddca7641cd051c3d # v1.45.0
 
   collect:
     needs: [checks, coverage, sqlx-check, msrv, typos]
