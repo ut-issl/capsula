@@ -17,6 +17,7 @@ capsula-config = { workspace = true }
 capsula-core = { workspace = true }
 capsula-registry = { workspace = true }
 chrono = { workspace = true }
+dotenvy = { workspace = true }
 names = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }

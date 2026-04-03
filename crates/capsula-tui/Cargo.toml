@@ -1,39 +1,26 @@
 [package]
-name = "capsula"
+name = "capsula-tui"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "The command line interface for Capsula."
+description = "Terminal user interface for Capsula."
+keywords = ["capsula", "tui"]
 readme.workspace = true
 repository.workspace = true
 license.workspace = true
-keywords = ["capsula", "cli"]
 categories = ["command-line-utilities", "development-tools"]
-
-[[bin]]
-name = "capsula"
-path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-capsula-client = { workspace = true }
-capsula-tui = { workspace = true }
+capsula-config = { workspace = true }
 capsula-core = { workspace = true }
 capsula-orchestration = { workspace = true }
 capsula-registry = { workspace = true }
 chrono = { workspace = true }
-clap = { workspace = true }
+crossterm = { workspace = true }
+ratatui = { workspace = true }
 serde_json = { workspace = true }
-shlex = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-walkdir = "2"
-
-[dev-dependencies]
-assert_cmd = "2"
-predicates = "3"
-serde = { workspace = true }
-tempfile = { workspace = true }
 
 [lints]
 workspace = true
