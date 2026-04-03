@@ -5,15 +5,16 @@
 )]
 
 use anyhow::{Context, Result};
-use capsula_config::CapsulaConfig;
 use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::Run;
 use capsula_orchestration::push::push_single_run;
-use capsula_orchestration::resolve::{resolve_server_url, resolve_vault_path};
+use capsula_orchestration::resolve::resolve_server_url;
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
+use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::{find_run_dir, find_run_dir_by_name, list_runs};
 use chrono::DateTime;
 use clap::{Parser, Subcommand};
+use std::io;
 use std::path::PathBuf;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt};
@@ -90,6 +91,8 @@ enum Commands {
         #[arg(long)]
         server: Option<String>,
     },
+    /// Launch interactive terminal UI for starting and ending runs
+    Tui,
     Vaults {
         #[command(subcommand)]
         command: VaultsCommands,
@@ -141,56 +144,16 @@ path = \".\"
         );
     }
 
-    let config_file_path = config_file_path.canonicalize().with_context(|| {
-        format!(
-            "Failed to resolve configuration file path: {}",
-            config_file_path.display()
-        )
-    })?;
-
-    let project_root = config_file_path
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("Failed to determine project root from config file"))?
-        .to_path_buf();
-
-    debug!("Loading configuration from: {}", config_file_path.display());
-    let config = CapsulaConfig::from_file(&config_file_path).with_context(|| {
-        format!(
-            "Failed to load configuration from {}",
-            config_file_path.display()
-        )
-    })?;
-    debug!("Configuration loaded successfully");
-
-    // Load dotenv file if specified
-    if let Some(dotenv_path) = &config.dotenv {
-        let dotenv_full_path = if dotenv_path.is_absolute() {
-            dotenv_path.clone()
-        } else {
-            project_root.join(dotenv_path)
-        };
-
-        debug!("Loading dotenv file from: {}", dotenv_full_path.display());
-
-        match dotenvy::from_path(&dotenv_full_path) {
-            Ok(()) => {
-                info!(
-                    "Loaded environment variables from: {}",
-                    dotenv_full_path.display()
-                );
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to load dotenv file from {}: {}",
-                    dotenv_full_path.display(),
-                    e
-                );
-            }
-        }
+    // TUI handles its own config loading and rendering
+    if matches!(cli.command, Commands::Tui) {
+        return capsula_tui::run(&config_file_path, cli.vault_path);
     }
 
-    // Resolve vault path with priority: CLI > env var (after dotenv) > config
-    let vault_dir = resolve_vault_path(cli.vault_path, &config.vault.path, &project_root);
+    let LoadedConfig {
+        config,
+        project_root,
+        vault_dir,
+    } = capsula_orchestration::setup::load_config(&config_file_path, cli.vault_path)?;
 
     match cli.command {
         Commands::List => {
@@ -529,6 +492,7 @@ path = \".\"
                 info!("Push completed successfully");
             }
         }
+        Commands::Tui => unreachable!("Handled above"),
         Commands::Vaults { command } => match command {
             VaultsCommands::List { server } => {
                 let server_url =
@@ -613,19 +577,32 @@ fn print_hook_summary(hooks: &serde_json::Value) {
 }
 
 fn main() {
-    fmt()
-        // Formatting
-        .with_target(false)
-        .without_time()
-        .with_level(true)
-        .compact()
-        // Output
-        .with_writer(std::io::stderr)
-        // Filtering
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
-        .init();
+    // Check if the TUI subcommand is being invoked so we can suppress tracing
+    // output that would corrupt the terminal UI.
+    let is_tui = std::env::args().any(|arg| arg == "tui");
+
+    if is_tui {
+        // TUI owns the terminal; discard tracing output to avoid display corruption.
+        fmt()
+            .with_target(false)
+            .without_time()
+            .with_level(true)
+            .compact()
+            .with_writer(io::sink)
+            .with_env_filter(EnvFilter::new("off"))
+            .init();
+    } else {
+        fmt()
+            .with_target(false)
+            .without_time()
+            .with_level(true)
+            .compact()
+            .with_writer(std::io::stderr)
+            .with_env_filter(
+                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+            )
+            .init();
+    }
 
     if let Err(err) = run() {
         // Check for verbose mode via environment variable
