@@ -716,6 +716,125 @@ fn git_hook_ignores_git_ignored_files() {
 }
 
 #[test]
+fn git_hook_tag_head_creates_lightweight_tag() {
+    // Arrange
+    let temp_dir = init_git_repo();
+    let run_dir = temp_dir.join("run");
+    fs::create_dir_all(&run_dir).unwrap();
+
+    let config = json!({
+        "name": "test-repo",
+        "path": ".",
+        "allow_dirty": false,
+        "tag_head": true
+    });
+    let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
+
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "chubby-back".to_string(),
+        command: vec![],
+        run_dir,
+        project_root: temp_dir.clone(),
+    };
+    let params = RuntimeParams::<PreRun>::default();
+
+    // Act
+    let captured = hook.run(&run_metadata, &params).expect("run ok");
+    let json = captured
+        .serialize_json()
+        .expect("serialization should succeed");
+
+    // Assert - tag field in output
+    assert_eq!(
+        json.get("tag").and_then(serde_json::Value::as_str),
+        Some("capsula/chubby-back"),
+        "Output should contain the tag name"
+    );
+
+    // Assert - tag exists in the repository
+    let tag_output = Command::new("git")
+        .args(["tag", "-l", "capsula/chubby-back"])
+        .current_dir(&temp_dir)
+        .output()
+        .expect("git tag failed");
+    let tag_str = String::from_utf8_lossy(&tag_output.stdout);
+    assert!(
+        tag_str.trim() == "capsula/chubby-back",
+        "Lightweight tag 'capsula/chubby-back' should exist in the repository. Got: {tag_str}"
+    );
+
+    // Assert - tag points to the correct commit
+    let sha = json.get("sha").and_then(serde_json::Value::as_str).unwrap();
+    let tag_rev_output = Command::new("git")
+        .args(["rev-parse", "capsula/chubby-back"])
+        .current_dir(&temp_dir)
+        .output()
+        .expect("git rev-parse failed");
+    let tag_sha = String::from_utf8_lossy(&tag_rev_output.stdout);
+    assert_eq!(
+        tag_sha.trim(),
+        sha,
+        "Tag should point to the captured HEAD commit"
+    );
+
+    // Cleanup
+    fs::remove_dir_all(&temp_dir).ok();
+}
+
+#[test]
+fn git_hook_no_tag_when_tag_head_is_false() {
+    // Arrange
+    let temp_dir = init_git_repo();
+    let run_dir = temp_dir.join("run");
+    fs::create_dir_all(&run_dir).unwrap();
+
+    let config = json!({
+        "name": "test-repo",
+        "path": ".",
+        "allow_dirty": false,
+        "tag_head": false
+    });
+    let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
+
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "quiet-hill".to_string(),
+        command: vec![],
+        run_dir,
+        project_root: temp_dir.clone(),
+    };
+    let params = RuntimeParams::<PreRun>::default();
+
+    // Act
+    let captured = hook.run(&run_metadata, &params).expect("run ok");
+    let json = captured
+        .serialize_json()
+        .expect("serialization should succeed");
+
+    // Assert - tag field is null in output
+    assert!(
+        json.get("tag").unwrap().is_null(),
+        "Tag field should be null when tag_head is false"
+    );
+
+    // Assert - no tag in the repository
+    let tag_output = Command::new("git")
+        .args(["tag", "-l", "capsula/*"])
+        .current_dir(&temp_dir)
+        .output()
+        .expect("git tag failed");
+    let tag_str = String::from_utf8_lossy(&tag_output.stdout);
+    assert!(
+        tag_str.trim().is_empty(),
+        "No capsula tags should exist when tag_head is false. Got: {tag_str}"
+    );
+
+    // Cleanup
+    fs::remove_dir_all(&temp_dir).ok();
+}
+
+#[test]
 fn git_hook_detects_untracked_files_as_dirty() {
     // Arrange - create a git repository with untracked (non-ignored) files
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
