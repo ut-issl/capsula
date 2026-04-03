@@ -812,10 +812,10 @@ fn git_hook_no_tag_when_tag_head_is_false() {
         .serialize_json()
         .expect("serialization should succeed");
 
-    // Assert - no tag field in output
+    // Assert - tag field is null in output
     assert!(
-        json.get("tag").is_none(),
-        "Output should not contain a tag field when tag_head is false"
+        json.get("tag").unwrap().is_null(),
+        "Tag field should be null when tag_head is false"
     );
 
     // Assert - no tag in the repository

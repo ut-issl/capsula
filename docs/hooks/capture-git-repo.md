@@ -89,7 +89,8 @@ tag_head = true
   "working_dir": "/Users/username/projects/experiment",
   "sha": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
   "is_dirty": true,
-  "is_pushed": true
+  "is_pushed": true,
+  "tag": null
 }
 ```
 

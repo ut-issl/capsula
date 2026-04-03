@@ -44,7 +44,6 @@ pub struct GitCaptured {
     sha: String, // TODO: Use more suitable type
     is_dirty: bool,
     is_pushed: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
     tag: Option<String>,
     #[serde(skip)]
     abort_requested: bool,
