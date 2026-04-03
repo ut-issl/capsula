@@ -26,6 +26,10 @@ pub struct GitHookConfig {
     require_pushed: bool,
     #[serde(default = "default_remote")]
     remote: String,
+    /// If true, create a lightweight tag `capsula/<run-name>` at the current HEAD
+    /// to prevent Git from garbage-collecting the commit.
+    #[serde(default)]
+    tag_head: bool,
 }
 
 #[derive(Debug)]
@@ -40,6 +44,8 @@ pub struct GitCaptured {
     sha: String, // TODO: Use more suitable type
     is_dirty: bool,
     is_pushed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tag: Option<String>,
     #[serde(skip)]
     abort_requested: bool,
 }
@@ -162,11 +168,27 @@ where
             );
         }
 
+        // Tag the HEAD commit to prevent garbage collection
+        let tag = if self.config.tag_head {
+            let tag_name = format!("capsula/{}", metadata.name);
+            debug!("GitHook: Creating lightweight tag '{}'", tag_name);
+            let commit = repo
+                .find_object(oid, Some(git2::ObjectType::Commit))
+                .map_err(GitHookError::from)?;
+            repo.tag_lightweight(&tag_name, &commit, false)
+                .map_err(GitHookError::from)?;
+            debug!("GitHook: Tag '{}' created successfully", tag_name);
+            Some(tag_name)
+        } else {
+            None
+        };
+
         Ok(GitCaptured {
             working_dir: repo_path,
             sha: oid.to_string(),
             is_dirty,
             is_pushed,
+            tag,
             abort_requested: (is_dirty && !self.config.allow_dirty)
                 || (self.config.require_pushed && !is_pushed),
         })
