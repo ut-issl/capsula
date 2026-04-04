@@ -4,7 +4,7 @@ members = ["crates/*"]
 default-members = ["crates/capsula-cli"]
 
 [workspace.package]
-version = "0.11.3"
+version = "0.11.4"
 edition = "2024"
 rust-version = "1.91"
 readme = "README.md"
@@ -16,20 +16,20 @@ anyhow = "1"
 askama = "0.15"
 askama_web = { version = "0.15", features = ["axum-0.8"] }
 axum = { version = "0.8", features = ["multipart"] }
-capsula-api-types = { path = "crates/capsula-api-types", version = "0.11.3" }
-capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.11.3" }
-capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.11.3" }
-capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.11.3" }
-capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.11.3" }
-capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.11.3" }
-capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.11.3" }
-capsula-client = { path = "crates/capsula-client", version = "0.11.3" }
-capsula-config = { path = "crates/capsula-config", version = "0.11.3" }
-capsula-core = { path = "crates/capsula-core", version = "0.11.3" }
-capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.11.3" }
-capsula-orchestration = { path = "crates/capsula-orchestration", version = "0.11.3" }
-capsula-registry = { path = "crates/capsula-registry", version = "0.11.3" }
-capsula-tui = { path = "crates/capsula-tui", version = "0.11.3" }
+capsula-api-types = { path = "crates/capsula-api-types", version = "0.11.4" }
+capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.11.4" }
+capsula-capture-cwd = { path = "crates/capsula-capture-cwd", version = "0.11.4" }
+capsula-capture-env = { path = "crates/capsula-capture-env", version = "0.11.4" }
+capsula-capture-file = { path = "crates/capsula-capture-file", version = "0.11.4" }
+capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version = "0.11.4" }
+capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.11.4" }
+capsula-client = { path = "crates/capsula-client", version = "0.11.4" }
+capsula-config = { path = "crates/capsula-config", version = "0.11.4" }
+capsula-core = { path = "crates/capsula-core", version = "0.11.4" }
+capsula-notify-slack = { path = "crates/capsula-notify-slack", version = "0.11.4" }
+capsula-orchestration = { path = "crates/capsula-orchestration", version = "0.11.4" }
+capsula-registry = { path = "crates/capsula-registry", version = "0.11.4" }
+capsula-tui = { path = "crates/capsula-tui", version = "0.11.4" }
 chrono = { version = "0.4", features = ["serde"] }
 crossterm = "0.29"
 clap = { version = "4", features = ["derive", "env"] }
