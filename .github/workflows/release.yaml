@@ -1,21 +1,70 @@
 name: Publish to crates.io
 
 on:
-  push:
-    tags: ["v*"] # Triggers when pushing tags starting with 'v'
+  workflow_dispatch:
 
 jobs:
-  publish:
+  create-tag:
+    name: Create a Git tag
     runs-on: ubuntu-latest
-
-    environment: release # Optional: for enhanced security
     permissions:
-      id-token: write # Required for OIDC token exchange
+      contents: write
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Get the version
+        id: get-version
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "capsula") | .version')
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Create a Git tag
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions"
+          git fetch --tags
+          git tag --annotate "v${{ steps.get-version.outputs.version }}" --message="v${{ steps.get-version.outputs.version }}"
+          git push origin "v${{ steps.get-version.outputs.version }}"
+
+  publish:
+    name: Publish to crates.io
+    needs:
+      - create-tag
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://crates.io/crates/capsula
+    permissions:
+      id-token: write # IMPORTANT: mandatory for trusted publishing
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
       - run: cargo publish --workspace
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  github-release:
+    name: Create GitHub Release
+    needs:
+      - publish
+      - create-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # IMPORTANT: mandatory for making GitHub Releases
+
+    steps:
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create
+          v${{ needs.create-tag.outputs.version }}
+          --draft
+          --verify-tag
+          --generate-notes
+          --repo ${{ github.repository }}
+          --target ${{ github.sha }}
