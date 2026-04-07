@@ -94,6 +94,10 @@ where
         &self.config
     }
 
+    fn needs_artifact_dir(&self) -> bool {
+        true
+    }
+
     #[tracing::instrument]
     fn run(
         &self,
@@ -144,10 +148,13 @@ where
         // Output diff content if dirty
         if is_dirty {
             debug!("GitHook: Generating diff patch for dirty repository");
-            let run_dir = &metadata.run_dir;
+            let artifact_dir = params
+                .artifact_dir
+                .as_deref()
+                .expect("capture-git-repo hook requires an artifact directory");
             let diff_content = Self::diff_content(&repo)?;
-            // Output to a patch file in the run directory
-            let patch_file_path = run_dir.join(format!("{}.patch", self.config.name));
+            // Output to a patch file in the artifact directory
+            let patch_file_path = artifact_dir.join(format!("{}.patch", self.config.name));
             debug!("GitHook: Writing patch to: {}", patch_file_path.display());
             std::fs::write(&patch_file_path, diff_content).map_err(GitHookError::IoError)?;
         }
