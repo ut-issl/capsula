@@ -120,11 +120,11 @@ fn file_hook_captures_files_in_subdirectories() {
     );
     assert!(file_info.get("hash").is_some(), "Should have hash");
 
-    // Verify file was copied with preserved directory structure
-    let copied_path = artifact_dir.join("data").join("input.txt");
+    // Verify file was copied (by filename, flat)
+    let copied_path = artifact_dir.join("input.txt");
     assert!(
         copied_path.exists(),
-        "File should be copied preserving relative path structure"
+        "File should be copied to artifact dir"
     );
 
     // Verify original file still exists
@@ -181,15 +181,11 @@ fn file_hook_captures_files_in_nested_subdirectories() {
         "Should capture the file in deeply nested subdirectory"
     );
 
-    // Verify file was copied preserving directory structure
-    let copied_path = artifact_dir
-        .join("data")
-        .join("deep")
-        .join("nested")
-        .join("config.json");
+    // Verify file was copied (by filename, flat)
+    let copied_path = artifact_dir.join("config.json");
     assert!(
         copied_path.exists(),
-        "File should be copied preserving relative path structure"
+        "File should be copied to artifact dir"
     );
 
     // Cleanup
@@ -393,57 +389,6 @@ fn file_hook_matches_glob_pattern() {
     // Assert
     let files = json.get("files").and_then(|v| v.as_array()).unwrap();
     assert_eq!(files.len(), 2, "Should capture only .log files");
-
-    // Cleanup
-    fs::remove_dir_all(&temp_dir).ok();
-}
-
-#[test]
-fn file_hook_rejects_file_outside_project_root() {
-    // Arrange - create two separate directories: project root and an external dir
-    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
-    let project_root = temp_dir.join("project");
-    let external_dir = temp_dir.join("external");
-    let run_dir = temp_dir.join("run");
-    let artifact_dir = run_dir.join("pre-0-capture-file");
-    fs::create_dir_all(&project_root).unwrap();
-    fs::create_dir_all(&external_dir).unwrap();
-    fs::create_dir_all(&artifact_dir).unwrap();
-
-    // Create a file outside the project root
-    fs::write(external_dir.join("secret.txt"), b"external content").unwrap();
-
-    // Use a glob that escapes the project root via ../
-    let config = json!({
-        "glob": "../external/secret.txt",
-        "mode": "copy",
-        "hash": "none"
-    });
-    let hook =
-        <FileHook as Hook<PreRun>>::from_config(&config, &project_root).expect("from_config ok");
-
-    let run_metadata = PreparedRun {
-        id: Ulid::new(),
-        name: "test-run".to_string(),
-        command: vec![],
-        run_dir,
-        project_root,
-    };
-    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
-
-    // Act
-    let result = hook.run(&run_metadata, &params);
-
-    // Assert - should fail because the file is outside the project root
-    assert!(result.is_err(), "Should reject files outside project root");
-    // The error is wrapped in CapsulaError::HookFailed; check the source chain
-    let err = result.unwrap_err();
-    let source = std::error::Error::source(&err).expect("should have a source error");
-    let source_msg = source.to_string();
-    assert!(
-        source_msg.contains("outside the project root"),
-        "Error source should mention 'outside the project root', got: {source_msg}"
-    );
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();

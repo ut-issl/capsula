@@ -27,13 +27,6 @@ pub enum FileHookError {
     #[error("Invalid run directory: {path}")]
     InvalidRunDir { path: PathBuf },
 
-    /// File is outside the project root
-    #[error("File is outside the project root: {path} (project root: {project_root})")]
-    OutsideProjectRoot {
-        path: PathBuf,
-        project_root: PathBuf,
-    },
-
     /// Failed to read file
     #[error("Failed to read file {path}: {source}")]
     ReadError {

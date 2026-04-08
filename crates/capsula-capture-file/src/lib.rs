@@ -123,7 +123,7 @@ impl FileHook {
             .filter(|path| path.is_file()) // Only files, not directories
             .map(|path| {
                 debug!("FileHook: Processing file: {}", path.display());
-                self.capture_file(&path, &metadata.project_root, artifact_dir)
+                self.capture_file(&path, artifact_dir)
             })
             .collect::<Result<Vec<_>, FileHookError>>()?;
 
@@ -134,7 +134,6 @@ impl FileHook {
     fn capture_file(
         &self,
         path: &Path,
-        project_root: &Path,
         artifact_dir: &Path,
     ) -> Result<FileCapturedPerFile, FileHookError> {
         // Compute hash if needed
@@ -153,29 +152,13 @@ impl FileHook {
                     "FileHook: {:?} file to artifact directory",
                     self.config.mode
                 );
-                // Preserve relative path structure within the artifact directory.
-                // Reject files outside the project root: strip_prefix succeeds
-                // even with `..` components, so also check for path traversal.
-                let relative_path = path.strip_prefix(project_root).map_err(|_| {
-                    FileHookError::OutsideProjectRoot {
+                let file_name = path
+                    .file_name()
+                    .ok_or_else(|| FileHookError::InvalidRunDir {
                         path: path.to_path_buf(),
-                        project_root: project_root.to_path_buf(),
-                    }
-                })?;
-                if relative_path
-                    .components()
-                    .any(|c| matches!(c, std::path::Component::ParentDir))
-                {
-                    return Err(FileHookError::OutsideProjectRoot {
-                        path: path.to_path_buf(),
-                        project_root: project_root.to_path_buf(),
-                    });
-                }
-                let dest_path = artifact_dir.join(relative_path);
-                // Create parent directories as needed
-                if let Some(parent) = dest_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
+                    })?
+                    .to_os_string();
+                let dest_path = artifact_dir.join(file_name);
                 match self.config.mode {
                     CaptureMode::Copy => std::fs::copy(path, &dest_path).map(|_| ())?,
                     CaptureMode::Move => {
