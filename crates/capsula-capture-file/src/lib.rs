@@ -153,8 +153,24 @@ impl FileHook {
                     "FileHook: {:?} file to artifact directory",
                     self.config.mode
                 );
-                // Preserve relative path structure within the artifact directory
-                let relative_path = path.strip_prefix(project_root).unwrap_or(path);
+                // Preserve relative path structure within the artifact directory.
+                // Reject files outside the project root: strip_prefix succeeds
+                // even with `..` components, so also check for path traversal.
+                let relative_path = path.strip_prefix(project_root).map_err(|_| {
+                    FileHookError::OutsideProjectRoot {
+                        path: path.to_path_buf(),
+                        project_root: project_root.to_path_buf(),
+                    }
+                })?;
+                if relative_path
+                    .components()
+                    .any(|c| matches!(c, std::path::Component::ParentDir))
+                {
+                    return Err(FileHookError::OutsideProjectRoot {
+                        path: path.to_path_buf(),
+                        project_root: project_root.to_path_buf(),
+                    });
+                }
                 let dest_path = artifact_dir.join(relative_path);
                 // Create parent directories as needed
                 if let Some(parent) = dest_path.parent() {

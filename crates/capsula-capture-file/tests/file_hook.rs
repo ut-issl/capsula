@@ -397,3 +397,54 @@ fn file_hook_matches_glob_pattern() {
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
 }
+
+#[test]
+fn file_hook_rejects_file_outside_project_root() {
+    // Arrange - create two separate directories: project root and an external dir
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let project_root = temp_dir.join("project");
+    let external_dir = temp_dir.join("external");
+    let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
+    fs::create_dir_all(&project_root).unwrap();
+    fs::create_dir_all(&external_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
+
+    // Create a file outside the project root
+    fs::write(external_dir.join("secret.txt"), b"external content").unwrap();
+
+    // Use a glob that escapes the project root via ../
+    let config = json!({
+        "glob": "../external/secret.txt",
+        "mode": "copy",
+        "hash": "none"
+    });
+    let hook =
+        <FileHook as Hook<PreRun>>::from_config(&config, &project_root).expect("from_config ok");
+
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir,
+        project_root,
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
+
+    // Act
+    let result = hook.run(&run_metadata, &params);
+
+    // Assert - should fail because the file is outside the project root
+    assert!(result.is_err(), "Should reject files outside project root");
+    // The error is wrapped in CapsulaError::HookFailed; check the source chain
+    let err = result.unwrap_err();
+    let source = std::error::Error::source(&err).expect("should have a source error");
+    let source_msg = source.to_string();
+    assert!(
+        source_msg.contains("outside the project root"),
+        "Error source should mention 'outside the project root', got: {source_msg}"
+    );
+
+    // Cleanup
+    fs::remove_dir_all(&temp_dir).ok();
+}
