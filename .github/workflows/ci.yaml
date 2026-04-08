@@ -57,7 +57,7 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@39b03b784b1fb8d2e38e4d6dcf888b991e3c5898 # cargo-llvm-cov
+        uses: taiki-e/install-action@ddc7029b5ba1e37640598eb3580cdbefa9662f46 # cargo-llvm-cov
 
       - name: Install sqlx-cli
         run: cargo install sqlx-cli --no-default-features --features postgres
@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: taiki-e/install-action@3832b65b6b2cff92f32da68a8d0955ef55df05f8 # cargo-hack
+      - uses: taiki-e/install-action@dffee21ba64c128096855f01c56682d6f8a2bd29 # cargo-hack
       # --rust-version: automatically reads MSRV from Cargo.toml and installs that toolchain
       # --workspace: check all crates in the workspace
       # --all-targets: check bins, libs, tests, examples, benches
