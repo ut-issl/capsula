@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1@sha256:f2a0f2b3529c9bbbf5479d131611451a3cc3956d9a11374d6d4ba96f059c1dce AS builder
+FROM rust:1.94.1@sha256:f2a0f2b3529c9bbbf5479d131611451a3cc3956d9a11374d6d4ba96f059c1dce AS builder
 
 WORKDIR /usr/src/capsula-workspace
 
@@ -14,7 +14,7 @@ ENV SQLX_OFFLINE=true
 RUN cargo build --release -p capsula-server
 
 # Runtime stage
-FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
+FROM debian:bookworm-20260316-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 
 # Install runtime dependencies
 RUN apt-get update && \
