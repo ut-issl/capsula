@@ -1,3 +1,4 @@
+//! Tests for the `FileHook` capturing functionality.
 #![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
 
 use capsula_capture_file::FileHook;
@@ -13,8 +14,9 @@ fn file_hook_captures_files_with_copy_mode() {
     // Arrange - create a temporary directory and file
     let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let test_file = temp_dir.join("test.txt");
     fs::write(&test_file, b"test content").unwrap();
@@ -30,10 +32,10 @@ fn file_hook_captures_files_with_copy_mode() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -53,9 +55,12 @@ fn file_hook_captures_files_with_copy_mode() {
     );
     assert!(file_info.get("hash").is_some(), "Should have hash");
 
-    // Verify file was actually copied
-    let copied_path = run_dir.join("test.txt");
-    assert!(copied_path.exists(), "File should be copied to run_dir");
+    // Verify file was actually copied (preserving relative path)
+    let copied_path = artifact_dir.join("test.txt");
+    assert!(
+        copied_path.exists(),
+        "File should be copied to artifact dir"
+    );
 
     // Verify original file still exists
     assert!(
@@ -72,9 +77,10 @@ fn file_hook_captures_files_in_subdirectories() {
     // Arrange - create a subdirectory structure
     let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
     let data_dir = temp_dir.join("data");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
     fs::create_dir_all(&data_dir).unwrap();
 
     let test_file = data_dir.join("input.txt");
@@ -91,10 +97,10 @@ fn file_hook_captures_files_in_subdirectories() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -114,9 +120,12 @@ fn file_hook_captures_files_in_subdirectories() {
     );
     assert!(file_info.get("hash").is_some(), "Should have hash");
 
-    // Verify file was copied
-    let copied_path = run_dir.join("input.txt");
-    assert!(copied_path.exists(), "File should be copied to run_dir");
+    // Verify file was copied (by filename, flat)
+    let copied_path = artifact_dir.join("input.txt");
+    assert!(
+        copied_path.exists(),
+        "File should be copied to artifact dir"
+    );
 
     // Verify original file still exists
     assert!(
@@ -133,9 +142,10 @@ fn file_hook_captures_files_in_nested_subdirectories() {
     // Arrange - create a deeply nested directory structure
     let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
     let nested_dir = temp_dir.join("data").join("deep").join("nested");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
     fs::create_dir_all(&nested_dir).unwrap();
 
     let test_file = nested_dir.join("config.json");
@@ -152,10 +162,10 @@ fn file_hook_captures_files_in_nested_subdirectories() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -171,11 +181,11 @@ fn file_hook_captures_files_in_nested_subdirectories() {
         "Should capture the file in deeply nested subdirectory"
     );
 
-    // Verify file was copied
-    let copied_path = run_dir.join("config.json");
+    // Verify file was copied (by filename, flat)
+    let copied_path = artifact_dir.join("config.json");
     assert!(
         copied_path.exists(),
-        "File should be copied to run_dir with just the filename"
+        "File should be copied to artifact dir"
     );
 
     // Cleanup
@@ -187,9 +197,10 @@ fn file_hook_wildcard_in_subdirectory() {
     // Arrange - create subdirectory with multiple files
     let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
     let data_dir = temp_dir.join("data");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
     fs::create_dir_all(&data_dir).unwrap();
 
     fs::write(data_dir.join("file1.txt"), b"content1").unwrap();
@@ -210,7 +221,7 @@ fn file_hook_wildcard_in_subdirectory() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -235,8 +246,9 @@ fn file_hook_captures_files_with_move_mode() {
     // Arrange
     let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let test_file = temp_dir.join("moveme.txt");
     fs::write(&test_file, b"move test").unwrap();
@@ -252,10 +264,10 @@ fn file_hook_captures_files_with_move_mode() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -268,8 +280,8 @@ fn file_hook_captures_files_with_move_mode() {
     assert_eq!(files.len(), 1, "Should capture one file");
 
     // Verify file was moved
-    let moved_path = run_dir.join("moveme.txt");
-    assert!(moved_path.exists(), "File should exist in run_dir");
+    let moved_path = artifact_dir.join("moveme.txt");
+    assert!(moved_path.exists(), "File should exist in artifact dir");
     assert!(
         !test_file.exists(),
         "Original file should not exist in move mode"
@@ -284,8 +296,9 @@ fn file_hook_captures_files_with_none_mode() {
     // Arrange
     let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let test_file = temp_dir.join("metadata.txt");
     fs::write(&test_file, b"just metadata").unwrap();
@@ -301,10 +314,10 @@ fn file_hook_captures_files_with_none_mode() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -325,7 +338,7 @@ fn file_hook_captures_files_with_none_mode() {
     assert!(file_info.get("hash").is_some(), "Should have hash");
 
     // Verify file was not copied
-    let would_be_copied = run_dir.join("metadata.txt");
+    let would_be_copied = artifact_dir.join("metadata.txt");
     assert!(
         !would_be_copied.exists(),
         "File should not be copied in none mode"
@@ -343,8 +356,9 @@ fn file_hook_matches_glob_pattern() {
     // Arrange - create multiple files
     let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     fs::write(temp_dir.join("file1.log"), b"log1").unwrap();
     fs::write(temp_dir.join("file2.log"), b"log2").unwrap();
@@ -364,7 +378,7 @@ fn file_hook_matches_glob_pattern() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");

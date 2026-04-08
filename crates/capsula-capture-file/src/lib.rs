@@ -85,9 +85,17 @@ where
     fn run(
         &self,
         metadata: &PreparedRun,
-        _params: &RuntimeParams<P>,
+        params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
-        self.run(metadata).map_err(CapsulaError::from)
+        let artifact_dir = params
+            .artifact_dir
+            .as_deref()
+            .expect("capture-file hook requires an artifact directory");
+        self.run(metadata, artifact_dir).map_err(CapsulaError::from)
+    }
+
+    fn needs_artifact_dir(&self) -> bool {
+        true
     }
 }
 
@@ -99,7 +107,11 @@ impl FileHook {
         base.join(pattern).to_string_lossy().replace('\\', "/")
     }
 
-    fn run(&self, metadata: &PreparedRun) -> Result<FileCaptured, FileHookError> {
+    fn run(
+        &self,
+        metadata: &PreparedRun,
+        artifact_dir: &Path,
+    ) -> Result<FileCaptured, FileHookError> {
         let pattern = Self::build_glob_pattern(&metadata.project_root, &self.config.glob);
         debug!(
             "FileHook: Searching for files matching pattern: {}",
@@ -111,7 +123,7 @@ impl FileHook {
             .filter(|path| path.is_file()) // Only files, not directories
             .map(|path| {
                 debug!("FileHook: Processing file: {}", path.display());
-                self.capture_file(&path, &metadata.run_dir)
+                self.capture_file(&path, artifact_dir)
             })
             .collect::<Result<Vec<_>, FileHookError>>()?;
 
@@ -122,7 +134,7 @@ impl FileHook {
     fn capture_file(
         &self,
         path: &Path,
-        run_dir: &Path,
+        artifact_dir: &Path,
     ) -> Result<FileCapturedPerFile, FileHookError> {
         // Compute hash if needed
         let hash = match self.config.hash {
@@ -136,14 +148,17 @@ impl FileHook {
         // Copy or move file if needed
         let copied_path = match self.config.mode {
             CaptureMode::Copy | CaptureMode::Move => {
-                debug!("FileHook: {:?} file to run directory", self.config.mode);
+                debug!(
+                    "FileHook: {:?} file to artifact directory",
+                    self.config.mode
+                );
                 let file_name = path
                     .file_name()
                     .ok_or_else(|| FileHookError::InvalidRunDir {
                         path: path.to_path_buf(),
                     })?
                     .to_os_string();
-                let dest_path = run_dir.join(file_name);
+                let dest_path = artifact_dir.join(file_name);
                 match self.config.mode {
                     CaptureMode::Copy => std::fs::copy(path, &dest_path).map(|_| ())?,
                     CaptureMode::Move => {

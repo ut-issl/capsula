@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use capsula_config::HookPhaseConfig;
-use capsula_core::hook::{PostRun, PreRun, RuntimeParams};
+use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::{PreparedRun, Run};
 use names::Generator;
 use std::path::{Path, PathBuf};
@@ -63,9 +63,8 @@ pub fn run_pre_hooks(
     project_root: &Path,
 ) -> Result<bool> {
     debug!("Executing pre-run hooks");
-    let pre_params = RuntimeParams::<PreRun>::default();
     let (pre_json, should_abort) =
-        build_and_run_hooks(run, &pre_params, config, registry, project_root)
+        build_and_run_hooks::<PreRun>(run, config, registry, project_root)
             .context("Failed to execute pre-run hooks")?;
     debug!("Pre-run hooks completed");
 
@@ -91,9 +90,8 @@ pub fn run_post_hooks(
     project_root: &Path,
 ) -> Result<()> {
     debug!("Executing post-run hooks");
-    let post_params = RuntimeParams::<PostRun>::default();
     let (post_json, _should_abort) =
-        build_and_run_hooks::<PostRun>(run, &post_params, config, registry, project_root)
+        build_and_run_hooks::<PostRun>(run, config, registry, project_root)
             .context("Failed to execute post-run hooks")?;
     debug!("Post-run hooks completed");
 

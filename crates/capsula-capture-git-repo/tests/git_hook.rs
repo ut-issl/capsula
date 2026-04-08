@@ -15,8 +15,9 @@ fn git_hook_captures_clean_repo() {
     // Arrange - create a temporary git repository
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     // Initialize git repo
     Command::new("git")
@@ -64,7 +65,7 @@ fn git_hook_captures_clean_repo() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -183,7 +184,8 @@ fn git_hook_detects_pushed_commit() {
     push_to_remote(&temp_dir, "origin");
 
     let run_dir = temp_dir.join("run");
-    fs::create_dir_all(&run_dir).unwrap();
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let config = json!({
         "name": "test-repo",
@@ -200,7 +202,7 @@ fn git_hook_detects_pushed_commit() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -232,7 +234,8 @@ fn git_hook_detects_unpushed_commit() {
     // Do NOT push
 
     let run_dir = temp_dir.join("run");
-    fs::create_dir_all(&run_dir).unwrap();
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let config = json!({
         "name": "test-repo",
@@ -247,7 +250,7 @@ fn git_hook_detects_unpushed_commit() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -279,7 +282,8 @@ fn git_hook_aborts_on_unpushed_when_required() {
     // Do NOT push
 
     let run_dir = temp_dir.join("run");
-    fs::create_dir_all(&run_dir).unwrap();
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let config = json!({
         "name": "test-repo",
@@ -296,7 +300,7 @@ fn git_hook_aborts_on_unpushed_when_required() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -341,7 +345,8 @@ fn git_hook_pushed_commit_behind_remote() {
         .unwrap();
 
     let run_dir = temp_dir.join("run");
-    fs::create_dir_all(&run_dir).unwrap();
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let config = json!({
         "name": "test-repo",
@@ -358,7 +363,7 @@ fn git_hook_pushed_commit_behind_remote() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -390,7 +395,8 @@ fn git_hook_custom_remote() {
     push_to_remote(&temp_dir, "upstream");
 
     let run_dir = temp_dir.join("run");
-    fs::create_dir_all(&run_dir).unwrap();
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     // Check against "upstream" remote
     let config = json!({
@@ -408,7 +414,7 @@ fn git_hook_custom_remote() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -434,7 +440,8 @@ fn git_hook_custom_remote() {
         <GitHook as Hook<PreRun>>::from_config(&config_origin, &temp_dir).expect("from_config ok");
 
     let run_dir2 = temp_dir.join("run2");
-    fs::create_dir_all(&run_dir2).unwrap();
+    let artifact_dir2 = run_dir2.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir2).unwrap();
     let run_metadata2 = PreparedRun {
         id: Ulid::new(),
         name: "test-run-2".to_string(),
@@ -442,8 +449,9 @@ fn git_hook_custom_remote() {
         run_dir: run_dir2,
         project_root: temp_dir.clone(),
     };
+    let params2 = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir2);
 
-    let captured_origin = hook_origin.run(&run_metadata2, &params).expect("run ok");
+    let captured_origin = hook_origin.run(&run_metadata2, &params2).expect("run ok");
     let json_origin = captured_origin
         .serialize_json()
         .expect("serialization should succeed");
@@ -466,8 +474,9 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
     // Arrange - create a git repository with uncommitted changes
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     // Initialize git repo
     Command::new("git")
@@ -514,10 +523,10 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
-        run_dir: run_dir.clone(),
+        run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -536,8 +545,8 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
         "Should not abort when allow_dirty is true"
     );
 
-    // Verify patch file was created
-    let patch_file = run_dir.join("test-repo.patch");
+    // Verify patch file was created in artifact directory
+    let patch_file = artifact_dir.join("test-repo.patch");
     assert!(
         patch_file.exists(),
         "Patch file should be created for dirty repo"
@@ -552,8 +561,9 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
     // Arrange
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     // Initialize git repo
     Command::new("git")
@@ -603,7 +613,7 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -623,8 +633,9 @@ fn git_hook_ignores_git_ignored_files() {
     // Arrange - create a git repository with ignored files (like .capsula directory)
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     // Initialize git repo
     Command::new("git")
@@ -692,7 +703,7 @@ fn git_hook_ignores_git_ignored_files() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -720,7 +731,8 @@ fn git_hook_tag_head_creates_lightweight_tag() {
     // Arrange
     let temp_dir = init_git_repo();
     let run_dir = temp_dir.join("run");
-    fs::create_dir_all(&run_dir).unwrap();
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let config = json!({
         "name": "test-repo",
@@ -737,7 +749,7 @@ fn git_hook_tag_head_creates_lightweight_tag() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -787,7 +799,8 @@ fn git_hook_no_tag_when_tag_head_is_false() {
     // Arrange
     let temp_dir = init_git_repo();
     let run_dir = temp_dir.join("run");
-    fs::create_dir_all(&run_dir).unwrap();
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     let config = json!({
         "name": "test-repo",
@@ -804,7 +817,7 @@ fn git_hook_no_tag_when_tag_head_is_false() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
@@ -839,8 +852,9 @@ fn git_hook_detects_untracked_files_as_dirty() {
     // Arrange - create a git repository with untracked (non-ignored) files
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
     let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
-    fs::create_dir_all(&run_dir).unwrap();
+    fs::create_dir_all(&artifact_dir).unwrap();
 
     // Initialize git repo
     Command::new("git")
@@ -902,7 +916,7 @@ fn git_hook_detects_untracked_files_as_dirty() {
         run_dir,
         project_root: temp_dir.clone(),
     };
-    let params = RuntimeParams::<PreRun>::default();
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
     let captured = hook.run(&run_metadata, &params).expect("run ok");
