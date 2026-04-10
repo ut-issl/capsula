@@ -16,15 +16,6 @@ struct TestContext {
 
 impl TestContext {
     async fn new() -> Self {
-        // Set CAPSULA_STATIC_DIR for tests (content doesn't need to exist for API tests)
-        let static_dir = std::env::temp_dir().join("capsula-test-static");
-        // SAFETY: We set this before spawning any threads, and never modify it again.
-        // Each test runs in a separate process, so no cross-test interference.
-        #[expect(unsafe_code, reason = "Required for test setup; see safety comment")]
-        unsafe {
-            std::env::set_var("CAPSULA_STATIC_DIR", &static_dir);
-        }
-
         let container = Postgres::default()
             .with_tag("18")
             .with_env_var("POSTGRES_USER", "capsula")
