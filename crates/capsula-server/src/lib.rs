@@ -134,7 +134,7 @@ pub fn build_app(pool: PgPool, storage_path: PathBuf, max_body_size: usize) -> R
 
 async fn serve_style_css() -> impl IntoResponse {
     (
-        [(header::CONTENT_TYPE, "text/css")],
+        [(header::CONTENT_TYPE, mime_guess::mime::TEXT_CSS.as_ref())],
         include_str!("../static/style.css"),
     )
 }
