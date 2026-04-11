@@ -53,7 +53,6 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use tower_http::services::ServeDir;
 use tracing::{error, info, warn};
 
 #[derive(Clone)]
@@ -110,10 +109,6 @@ pub async fn create_pool(database_url: &str, max_connections: u32) -> Result<PgP
 }
 
 pub fn build_app(pool: PgPool, storage_path: PathBuf, max_body_size: usize) -> Router {
-    let static_dir: PathBuf = std::env::var("CAPSULA_STATIC_DIR")
-        .expect("CAPSULA_STATIC_DIR environment variable must be set")
-        .into();
-
     let state = AppState { pool, storage_path };
 
     Router::new()
@@ -132,9 +127,16 @@ pub fn build_app(pool: PgPool, storage_path: PathBuf, max_body_size: usize) -> R
             "/api/v1/upload",
             post(upload_files).layer(DefaultBodyLimit::max(max_body_size)),
         )
-        .nest_service("/static", ServeDir::new(static_dir))
+        .route("/static/style.css", get(serve_style_css))
         .fallback(not_found)
         .with_state(state)
+}
+
+async fn serve_style_css() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, mime_guess::mime::TEXT_CSS.as_ref())],
+        include_str!("../static/style.css"),
+    )
 }
 
 async fn index() -> impl IntoResponse {

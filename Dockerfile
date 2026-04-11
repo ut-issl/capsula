@@ -29,8 +29,7 @@ RUN useradd --create-home --uid 1000 capsula
 # Copy binary from builder
 COPY --from=builder /usr/src/capsula-workspace/target/release/capsula-server /usr/local/bin/capsula-server
 
-# Copy static files for web UI
-COPY --from=builder /usr/src/capsula-workspace/crates/capsula-server/static /app/static
+# Copy templates for web UI
 COPY --from=builder /usr/src/capsula-workspace/crates/capsula-server/templates /app/templates
 
 # Copy migrations
@@ -45,8 +44,6 @@ WORKDIR /app
 # Switch to non-root user
 USER capsula
 
-# Set static files directory for runtime
-ENV CAPSULA_STATIC_DIR=/app/static
 ENV CAPSULA_STORAGE_PATH=/app/storage
 
 # Run the server
