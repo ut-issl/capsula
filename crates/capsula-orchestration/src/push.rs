@@ -73,9 +73,10 @@ pub fn push_single_run(
 
     if !response.status().is_success() {
         if response.status().as_u16() == 409 {
-            anyhow::bail!("Run already exists: {run_name}");
+            info!("Run already registered on server, re-uploading files: {run_name}");
+        } else {
+            anyhow::bail!("Failed to create run on server: {}", response.status());
         }
-        anyhow::bail!("Failed to create run on server: {}", response.status());
     }
 
     // Collect files to upload

@@ -1163,6 +1163,11 @@ async fn upload_files(
                     r#"
                     INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)
                     VALUES ($1, 'pre', $2, $3, $4, $5, $6)
+                    ON CONFLICT (run_id, phase, hook_id) DO UPDATE
+                    SET config = EXCLUDED.config,
+                        output = EXCLUDED.output,
+                        success = EXCLUDED.success,
+                        error = EXCLUDED.error
                     "#,
                     rid,
                     hook.meta.id,
@@ -1196,6 +1201,11 @@ async fn upload_files(
                     r#"
                     INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)
                     VALUES ($1, 'post', $2, $3, $4, $5, $6)
+                    ON CONFLICT (run_id, phase, hook_id) DO UPDATE
+                    SET config = EXCLUDED.config,
+                        output = EXCLUDED.output,
+                        success = EXCLUDED.success,
+                        error = EXCLUDED.error
                     "#,
                     rid,
                     hook.meta.id,
