@@ -172,44 +172,49 @@ where
     }
 }
 
+/// Create a standard registry with all built-in hook types.
+///
+/// Each built-in hook type implements both `Hook<PreRun>` and `Hook<PostRun>`,
+/// so a single generic builder covers both phases and the pre/post fns below
+/// simply delegate. The inner `.expect(...)` calls are unreachable — the only
+/// registration error is `AlreadyRegistered`, and every type is registered
+/// exactly once.
+fn standard_hook_registry<P: PhaseMarker>() -> HookRegistry<P>
+where
+    capsula_capture_cwd::CwdHook: capsula_core::hook::Hook<P>,
+    capsula_capture_git_repo::GitHook: capsula_core::hook::Hook<P>,
+    capsula_capture_file::FileHook: capsula_core::hook::Hook<P>,
+    capsula_capture_env::EnvVarHook: capsula_core::hook::Hook<P>,
+    capsula_capture_command::CommandHook: capsula_core::hook::Hook<P>,
+    capsula_capture_machine::MachineHook: capsula_core::hook::Hook<P>,
+    capsula_notify_slack::SlackNotifyHook: capsula_core::hook::Hook<P>,
+{
+    RegistryBuilder::new()
+        .with_hook::<capsula_capture_cwd::CwdHook>()
+        .expect("capture-cwd registered exactly once")
+        .with_hook::<capsula_capture_git_repo::GitHook>()
+        .expect("capture-git-repo registered exactly once")
+        .with_hook::<capsula_capture_file::FileHook>()
+        .expect("capture-file registered exactly once")
+        .with_hook::<capsula_capture_env::EnvVarHook>()
+        .expect("capture-env registered exactly once")
+        .with_hook::<capsula_capture_command::CommandHook>()
+        .expect("capture-command registered exactly once")
+        .with_hook::<capsula_capture_machine::MachineHook>()
+        .expect("capture-machine registered exactly once")
+        .with_hook::<capsula_notify_slack::SlackNotifyHook>()
+        .expect("notify-slack registered exactly once")
+        .build()
+}
+
 /// Create a standard registry with all built-in hook types for pre-run phase
 #[must_use]
 pub fn standard_pre_run_hook_registry() -> HookRegistry<PreRun> {
-    RegistryBuilder::new()
-        .with_hook::<capsula_capture_cwd::CwdHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {e}"))
-        .with_hook::<capsula_capture_git_repo::GitHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {e}"))
-        .with_hook::<capsula_capture_file::FileHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {e}"))
-        .with_hook::<capsula_capture_env::EnvVarHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {e}"))
-        .with_hook::<capsula_capture_command::CommandHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {e}"))
-        .with_hook::<capsula_capture_machine::MachineHook>()
-        .unwrap_or_else(|e| panic!("Failed to register Machine hook: {e}"))
-        .with_hook::<capsula_notify_slack::SlackNotifyHook>()
-        .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {e}"))
-        .build()
+    standard_hook_registry::<PreRun>()
 }
 
 /// Create a standard registry with all built-in hook types for post-run phase
 #[must_use]
 pub fn standard_post_run_hook_registry() -> HookRegistry<PostRun> {
-    RegistryBuilder::new()
-        .with_hook::<capsula_capture_cwd::CwdHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-cwd hook: {e}"))
-        .with_hook::<capsula_capture_git_repo::GitHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-git-repo hook: {e}"))
-        .with_hook::<capsula_capture_file::FileHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-file hook: {e}"))
-        .with_hook::<capsula_capture_env::EnvVarHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-env hook: {e}"))
-        .with_hook::<capsula_capture_command::CommandHook>()
-        .unwrap_or_else(|e| panic!("Failed to register capture-command hook: {e}"))
-        .with_hook::<capsula_capture_machine::MachineHook>()
-        .unwrap_or_else(|e| panic!("Failed to register Machine hook: {e}"))
-        .with_hook::<capsula_notify_slack::SlackNotifyHook>()
-        .unwrap_or_else(|e| panic!("Failed to register notify-slack hook: {e}"))
-        .build()
+    standard_hook_registry::<PostRun>()
 }
