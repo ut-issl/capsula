@@ -1083,7 +1083,7 @@ async fn upload_files(
                 }
 
                 if let Some(ref rid) = run_id {
-                    let relative_path = pending_paths
+                    let candidate_path = pending_paths
                         .pop_front()
                         .or_else(|| {
                             if file_name == "unknown" {
@@ -1099,6 +1099,20 @@ async fn upload_files(
                                 format!("file-{}", files_processed + 1)
                             }
                         });
+
+                    let relative_path = match sanitize_relative_path(&candidate_path) {
+                        Ok(p) => p,
+                        Err(reason) => {
+                            warn!(
+                                "Rejected captured-file path '{}': {}",
+                                candidate_path, reason
+                            );
+                            return Json(json!({
+                                "status": "error",
+                                "error": format!("Invalid file path '{}': {}", candidate_path, reason)
+                            }));
+                        }
+                    };
 
                     let result = sqlx::query!(
                         r#"
@@ -1311,13 +1325,88 @@ async fn download_file(
         .header(header::CONTENT_TYPE, content_type)
         .header(
             header::CONTENT_DISPOSITION,
-            format!("inline; filename=\"{filename}\""),
+            content_disposition_inline(filename),
         )
         .body(Body::from(file_data))
         .map_err(|e| {
             error!("Failed to build response: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })
+}
+
+// Build an RFC 6266 / RFC 5987 Content-Disposition header value for the given
+// filename. Emits both a safe ASCII `filename=` fallback and a percent-encoded
+// `filename*=UTF-8''...` parameter so arbitrary bytes (including quotes, CR/LF,
+// and control characters) in the filename cannot inject additional headers.
+fn content_disposition_inline(filename: &str) -> String {
+    let ascii_fallback: String = filename
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let ascii_fallback = if ascii_fallback.is_empty() {
+        "download".to_owned()
+    } else {
+        ascii_fallback
+    };
+    let encoded = percent_encode_rfc5987(filename);
+    format!("inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}")
+}
+
+fn percent_encode_rfc5987(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        // RFC 5987 `attr-char` set: unreserved plus `!#$&+-.^_`|~`.
+        let safe = b.is_ascii_alphanumeric()
+            || matches!(
+                b,
+                b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_' | b'`' | b'|' | b'~'
+            );
+        if safe {
+            out.push(char::from(b));
+        } else {
+            use std::fmt::Write;
+            let _ = write!(out, "%{b:02X}");
+        }
+    }
+    out
+}
+
+// Validate a user-supplied relative path for the `captured_files.path` column.
+// Rejects absolute paths, path-traversal segments, Windows drive prefixes, NUL
+// bytes, and empty values so downstream callers (download URLs, local
+// reconstruction) cannot be tricked into escaping the run's virtual root.
+fn sanitize_relative_path(candidate: &str) -> Result<String, &'static str> {
+    if candidate.is_empty() {
+        return Err("path is empty");
+    }
+    if candidate.contains('\0') {
+        return Err("path contains NUL byte");
+    }
+    if candidate.starts_with('/') || candidate.starts_with('\\') {
+        return Err("path must be relative");
+    }
+    // Windows drive prefix like `C:\...` or `C:/...`.
+    if candidate.len() >= 2 {
+        let mut chars = candidate.chars();
+        let drive = chars.next();
+        let colon = chars.next();
+        if matches!(drive, Some(c) if c.is_ascii_alphabetic()) && colon == Some(':') {
+            return Err("path must be relative");
+        }
+    }
+    let normalized = candidate.replace('\\', "/");
+    for segment in normalized.split('/') {
+        if segment == ".." {
+            return Err("path contains '..' segment");
+        }
+    }
+    Ok(normalized)
 }
 
 // NOTE: An identical function exists in capsula-capture-file/src/hash.rs.
@@ -1329,4 +1418,69 @@ fn hex_encode(bytes: &[u8]) -> String {
                 .expect("writing to a String should never fail");
             output
         })
+}
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "tests may use unwrap for brevity")]
+mod tests {
+    use super::{content_disposition_inline, percent_encode_rfc5987, sanitize_relative_path};
+
+    #[test]
+    fn sanitize_rejects_absolute_paths() {
+        assert!(sanitize_relative_path("/etc/passwd").is_err());
+        assert!(sanitize_relative_path("\\windows\\system32").is_err());
+    }
+
+    #[test]
+    fn sanitize_rejects_parent_traversal() {
+        assert!(sanitize_relative_path("../etc/passwd").is_err());
+        assert!(sanitize_relative_path("a/../b").is_err());
+        assert!(sanitize_relative_path("a\\..\\b").is_err());
+    }
+
+    #[test]
+    fn sanitize_rejects_drive_prefix_and_nul() {
+        assert!(sanitize_relative_path("C:\\Users").is_err());
+        assert!(sanitize_relative_path("d:/foo").is_err());
+        assert!(sanitize_relative_path("foo\0bar").is_err());
+        assert!(sanitize_relative_path("").is_err());
+    }
+
+    #[test]
+    fn sanitize_accepts_normal_paths() {
+        assert_eq!(sanitize_relative_path("foo.txt").unwrap(), "foo.txt");
+        assert_eq!(
+            sanitize_relative_path("dir/sub/file.log").unwrap(),
+            "dir/sub/file.log"
+        );
+        // Backslashes are normalized to forward slashes.
+        assert_eq!(
+            sanitize_relative_path("dir\\sub\\file.log").unwrap(),
+            "dir/sub/file.log"
+        );
+    }
+
+    #[test]
+    fn content_disposition_strips_dangerous_chars_in_fallback() {
+        let header = content_disposition_inline("a\"b\r\nc.txt");
+        assert!(header.starts_with("inline; filename=\"a_b__c.txt\";"));
+        // Must not contain a bare CR or LF in the header.
+        assert!(!header.contains('\r'));
+        assert!(!header.contains('\n'));
+    }
+
+    #[test]
+    fn content_disposition_encodes_unicode_in_filename_star() {
+        let header = content_disposition_inline("日本語.txt");
+        assert!(header.contains("filename*=UTF-8''"));
+        // UTF-8 for '日' starts with 0xE6 0x97 0xA5.
+        assert!(header.contains("%E6%97%A5"));
+    }
+
+    #[test]
+    fn percent_encode_is_ascii_safe() {
+        assert_eq!(percent_encode_rfc5987("abc.txt"), "abc.txt");
+        assert_eq!(percent_encode_rfc5987("a b"), "a%20b");
+        assert_eq!(percent_encode_rfc5987("a\"b"), "a%22b");
+    }
 }

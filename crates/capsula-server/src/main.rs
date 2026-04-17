@@ -64,7 +64,6 @@ async fn main() {
         }
         Err(e) => {
             error!("Failed to connect to database: {}", e);
-            error!("Database URL: {}", args.database_url);
             error!(
                 "\nPlease ensure:\n\
                  1. PostgreSQL is running\n\
