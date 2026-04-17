@@ -488,6 +488,78 @@ impl Captured for SlackNotifyCaptured {
     }
 }
 
+impl SlackNotifyHook {
+    /// Shared deserializer used by both `Hook<PreRun>` and `Hook<PostRun>`
+    /// impls below. Validates that a token is present after applying the
+    /// `SLACK_BOT_TOKEN` env fallback.
+    fn build(config: &serde_json::Value, project_root: &Path) -> CapsulaResult<Self> {
+        let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
+        if config.token.is_empty() {
+            return Err(SlackNotifyError::MissingToken.into());
+        }
+        Ok(Self {
+            config,
+            project_root: project_root.to_path_buf(),
+        })
+    }
+
+    /// Send the notification. `header_text` decorates the Block Kit header
+    /// (e.g. "🚀 Capsula Run Starting") and `status_phrase` is embedded in
+    /// the plain-text fallback (e.g. "is starting" vs "has completed").
+    fn send(
+        &self,
+        metadata: &PreparedRun,
+        phase_label: &'static str,
+        header_text: &str,
+        status_phrase: &str,
+    ) -> CapsulaResult<SlackNotifyCaptured> {
+        debug!(
+            "SlackNotifyHook ({phase_label}): Sending notification for run '{}' (ID: {})",
+            metadata.name, metadata.id
+        );
+
+        let fallback_text = format!(
+            "Run `{}` (ID: `{}`) {status_phrase}.",
+            metadata.name, metadata.id
+        );
+
+        let command_display = shlex::try_join(metadata.command.iter().map(String::as_str))
+            .unwrap_or_else(|_| metadata.command.join(" "));
+
+        let blocks = build_slack_blocks(
+            header_text,
+            &metadata.name,
+            metadata.id,
+            metadata.timestamp().timestamp(),
+            &metadata.timestamp().to_rfc3339(),
+            &command_display,
+        );
+
+        let attachment_paths =
+            resolve_attachment_globs(&self.config.attachment_globs, &self.project_root)?;
+
+        let (response, attached_files) = send_slack_message(
+            self.config.token.expose(),
+            &self.config.channel,
+            &fallback_text,
+            &blocks,
+            &attachment_paths,
+            &metadata.name,
+        )?;
+
+        debug!(
+            "SlackNotifyHook ({phase_label}): Notification sent successfully with {} attachments",
+            attached_files.len()
+        );
+
+        Ok(SlackNotifyCaptured {
+            message: "Slack notification sent successfully".to_string(),
+            response: Some(response),
+            attached_files,
+        })
+    }
+}
+
 impl Hook<PreRun> for SlackNotifyHook {
     const ID: &'static str = "notify-slack";
 
@@ -498,14 +570,7 @@ impl Hook<PreRun> for SlackNotifyHook {
         config: &serde_json::Value,
         project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
-        let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
-        if config.token.is_empty() {
-            return Err(SlackNotifyError::MissingToken.into());
-        }
-        Ok(Self {
-            config,
-            project_root: project_root.to_path_buf(),
-        })
+        Self::build(config, project_root)
     }
 
     fn config(&self) -> &Self::Config {
@@ -517,55 +582,7 @@ impl Hook<PreRun> for SlackNotifyHook {
         metadata: &PreparedRun,
         _params: &RuntimeParams<PreRun>,
     ) -> CapsulaResult<Self::Output> {
-        debug!(
-            "SlackNotifyHook (PreRun): Sending notification for run '{}' (ID: {})",
-            metadata.name, metadata.id
-        );
-
-        // Create fallback text for notifications
-        let fallback_text = format!(
-            "Run `{}` (ID: `{}`) is starting.",
-            metadata.name, metadata.id
-        );
-
-        // Format command for display
-        let command_display = shlex::try_join(metadata.command.iter().map(String::as_str))
-            .unwrap_or_else(|_| metadata.command.join(" "));
-
-        // Build Block Kit message
-        let blocks = build_slack_blocks(
-            "🚀 Capsula Run Starting",
-            &metadata.name,
-            metadata.id,
-            metadata.timestamp().timestamp(),
-            &metadata.timestamp().to_rfc3339(),
-            &command_display,
-        );
-
-        // Resolve attachment globs relative to project root
-        let attachment_paths =
-            resolve_attachment_globs(&self.config.attachment_globs, &self.project_root)?;
-
-        // Send message with attachments
-        let (response, attached_files) = send_slack_message(
-            self.config.token.expose(),
-            &self.config.channel,
-            &fallback_text,
-            &blocks,
-            &attachment_paths,
-            &metadata.name,
-        )?;
-
-        debug!(
-            "SlackNotifyHook (PreRun): Notification sent successfully with {} attachments",
-            attached_files.len()
-        );
-
-        Ok(SlackNotifyCaptured {
-            message: "Slack notification sent successfully".to_string(),
-            response: Some(response),
-            attached_files,
-        })
+        self.send(metadata, "PreRun", "🚀 Capsula Run Starting", "is starting")
     }
 }
 
@@ -579,14 +596,7 @@ impl Hook<PostRun> for SlackNotifyHook {
         config: &serde_json::Value,
         project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
-        let config = serde_json::from_value::<SlackNotifyHookConfig>(config.clone())?;
-        if config.token.is_empty() {
-            return Err(SlackNotifyError::MissingToken.into());
-        }
-        Ok(Self {
-            config,
-            project_root: project_root.to_path_buf(),
-        })
+        Self::build(config, project_root)
     }
 
     fn config(&self) -> &Self::Config {
@@ -598,54 +608,11 @@ impl Hook<PostRun> for SlackNotifyHook {
         metadata: &PreparedRun,
         _params: &RuntimeParams<PostRun>,
     ) -> CapsulaResult<Self::Output> {
-        debug!(
-            "SlackNotifyHook (PostRun): Sending notification for run '{}' (ID: {})",
-            metadata.name, metadata.id
-        );
-
-        // Create fallback text for notifications
-        let fallback_text = format!(
-            "Run `{}` (ID: `{}`) has completed.",
-            metadata.name, metadata.id
-        );
-
-        // Format command for display
-        let command_display = shlex::try_join(metadata.command.iter().map(String::as_str))
-            .unwrap_or_else(|_| metadata.command.join(" "));
-
-        // Build Block Kit message
-        let blocks = build_slack_blocks(
+        self.send(
+            metadata,
+            "PostRun",
             "✅ Capsula Run Completed",
-            &metadata.name,
-            metadata.id,
-            metadata.timestamp().timestamp(),
-            &metadata.timestamp().to_rfc3339(),
-            &command_display,
-        );
-
-        // Resolve attachment globs relative to project root
-        let attachment_paths =
-            resolve_attachment_globs(&self.config.attachment_globs, &self.project_root)?;
-
-        // Send message with attachments
-        let (response, attached_files) = send_slack_message(
-            self.config.token.expose(),
-            &self.config.channel,
-            &fallback_text,
-            &blocks,
-            &attachment_paths,
-            &metadata.name,
-        )?;
-
-        debug!(
-            "SlackNotifyHook (PostRun): Notification sent successfully with {} attachments",
-            attached_files.len()
-        );
-
-        Ok(SlackNotifyCaptured {
-            message: "Slack notification sent successfully".to_string(),
-            response: Some(response),
-            attached_files,
-        })
+            "has completed",
+        )
     }
 }
