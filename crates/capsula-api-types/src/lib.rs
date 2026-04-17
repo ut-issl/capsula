@@ -20,7 +20,7 @@ pub struct VaultsResponse {
 }
 
 /// Response from the vault exists endpoint
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VaultExistsResponse {
     pub status: String,
     pub exists: bool,

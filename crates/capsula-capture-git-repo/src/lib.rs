@@ -72,11 +72,7 @@ where
         config: &serde_json::Value,
         project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
-        let config: GitHookConfig = serde_json::from_value(config.clone()).map_err(|e| {
-            capsula_core::error::CapsulaError::Configuration {
-                message: format!("Invalid git hook configuration: {e}"),
-            }
-        })?;
+        let config: GitHookConfig = serde_json::from_value(config.clone())?;
 
         let working_dir = capsula_core::util::resolve_relative(&config.path, project_root)?;
 
@@ -229,7 +225,9 @@ impl GitHook {
 
         let mut diff_content = String::new();
         diff.print(git2::DiffFormat::Patch, |_, _, line| {
-            diff_content.push_str(std::str::from_utf8(line.content()).unwrap_or(""));
+            // Non-UTF-8 bytes (e.g. binary blobs in a diff) become
+            // replacement characters rather than being silently dropped.
+            diff_content.push_str(&String::from_utf8_lossy(line.content()));
             true
         })
         .map_err(GitHookError::from)?;
