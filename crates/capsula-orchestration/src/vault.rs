@@ -103,6 +103,26 @@ pub fn list_runs(vault_dir: &Path) -> Result<Vec<RunMetadata>> {
     Ok(runs)
 }
 
+/// Assert that `run_dir` is a descendant of `vault_dir` once both have been
+/// resolved through symlinks. Defends against a metadata file that names a
+/// run outside of its parent vault.
+fn ensure_within_vault(run_dir: &Path, vault_dir: &Path) -> Result<PathBuf> {
+    let canonical_vault = vault_dir
+        .canonicalize()
+        .with_context(|| format!("Failed to canonicalize vault {}", vault_dir.display()))?;
+    let canonical_run = run_dir
+        .canonicalize()
+        .with_context(|| format!("Failed to canonicalize run dir {}", run_dir.display()))?;
+    if !canonical_run.starts_with(&canonical_vault) {
+        anyhow::bail!(
+            "Run directory {} is outside vault {}",
+            canonical_run.display(),
+            canonical_vault.display()
+        );
+    }
+    Ok(run_dir.to_path_buf())
+}
+
 /// Find a run directory by ID or name.
 pub fn find_run_dir(vault_dir: &Path, run_id: &str) -> Result<PathBuf> {
     for entry in walkdir::WalkDir::new(vault_dir)
@@ -128,13 +148,13 @@ pub fn find_run_dir(vault_dir: &Path, run_id: &str) -> Result<PathBuf> {
         if let Some(id) = metadata.get("id").and_then(|v| v.as_str())
             && id == run_id
         {
-            return Ok(entry.path().to_path_buf());
+            return ensure_within_vault(entry.path(), vault_dir);
         }
 
         if let Some(name) = metadata.get("name").and_then(|v| v.as_str())
             && name == run_id
         {
-            return Ok(entry.path().to_path_buf());
+            return ensure_within_vault(entry.path(), vault_dir);
         }
     }
 
@@ -200,7 +220,7 @@ pub fn find_run_dir_by_name(vault_dir: &Path, run_name: &str) -> Result<PathBuf>
                 match_count, run_name
             );
         }
-        return Ok(path);
+        return ensure_within_vault(&path, vault_dir);
     }
 
     anyhow::bail!(
