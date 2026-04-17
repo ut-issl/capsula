@@ -23,6 +23,9 @@ pub enum GitHookError {
     #[error("Run directory not specified and current directory could not be determined: {message}")]
     RunDirNotSpecified { message: String },
 
+    #[error("capture-git-repo hook requires an artifact directory but none was provided")]
+    ArtifactDirMissing,
+
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
 }

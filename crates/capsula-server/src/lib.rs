@@ -157,6 +157,23 @@ async fn serve_style_css() -> impl IntoResponse {
     )
 }
 
+/// Serialize a handler's response body into a `Json<Value>`, falling back to an
+/// error envelope if `serde_json::to_value` fails instead of panicking.
+///
+/// In practice `to_value` does not fail for any of our `#[derive(Serialize)]`
+/// API response structs, but axum handlers should not abort the task on a
+/// should-be-impossible error — they should return a 500 body the client can
+/// parse.
+fn json_response<T: serde::Serialize>(value: T) -> Json<serde_json::Value> {
+    Json(serde_json::to_value(value).unwrap_or_else(|e| {
+        error!("Failed to serialize response body: {e}");
+        json!({
+            "status": "error",
+            "error": "response serialization failed"
+        })
+    }))
+}
+
 async fn index() -> impl IntoResponse {
     IndexTemplate
 }
@@ -451,7 +468,7 @@ async fn list_vaults(State(state): State<AppState>) -> impl IntoResponse {
                 status: "ok".to_string(),
                 vaults,
             };
-            Json(serde_json::to_value(response).expect("Failed to serialize VaultsResponse"))
+            json_response(response)
         }
         Err(e) => {
             error!("Failed to list vaults: {}", e);
@@ -459,7 +476,7 @@ async fn list_vaults(State(state): State<AppState>) -> impl IntoResponse {
                 status: "error".to_string(),
                 error: e.to_string(),
             };
-            Json(serde_json::to_value(response).expect("Failed to serialize ErrorResponse"))
+            json_response(response)
         }
     }
 }
@@ -494,7 +511,7 @@ async fn get_vault_info(
                 exists: true,
                 vault: Some(vault),
             };
-            Json(serde_json::to_value(response).expect("Failed to serialize VaultExistsResponse"))
+            json_response(response)
         }
         Ok(None) => {
             info!("Vault not found: {}", name);
@@ -503,7 +520,7 @@ async fn get_vault_info(
                 exists: false,
                 vault: None,
             };
-            Json(serde_json::to_value(response).expect("Failed to serialize VaultExistsResponse"))
+            json_response(response)
         }
         Err(e) => {
             error!("Failed to get vault info: {}", e);
@@ -511,7 +528,7 @@ async fn get_vault_info(
                 status: "error".to_string(),
                 error: e.to_string(),
             };
-            Json(serde_json::to_value(response).expect("Failed to serialize ErrorResponse"))
+            json_response(response)
         }
     }
 }
@@ -770,7 +787,7 @@ async fn search_runs(
         runs: results,
     };
 
-    Json(serde_json::to_value(response).expect("Failed to serialize SearchRunsResponse"))
+    json_response(response)
 }
 
 async fn create_run(
@@ -1278,7 +1295,7 @@ async fn upload_files(
         pre_run_hooks: pre_run_count,
         post_run_hooks: post_run_count,
     };
-    Json(serde_json::to_value(response).expect("Failed to serialize UploadResponse"))
+    json_response(response)
 }
 
 async fn download_file(
