@@ -17,6 +17,18 @@ pub enum FocusTarget {
     EndButton,
 }
 
+/// Cache of the rectangles that `ui::draw` laid out during the most recent
+/// render. The event handler uses these for mouse hit-testing. `draw` returns
+/// a fresh `HitAreas` each frame instead of mutating [`App`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HitAreas {
+    pub start_button: Option<Rect>,
+    pub end_button: Option<Rect>,
+    pub checkbox: Option<Rect>,
+    pub confirm_yes: Option<Rect>,
+    pub confirm_no: Option<Rect>,
+}
+
 /// Active run information displayed in the TUI.
 pub struct ActiveRun {
     pub run_name: String,
@@ -50,12 +62,9 @@ pub struct App {
     pre_run_registry: capsula_registry::HookRegistry<PreRun>,
     post_run_registry: capsula_registry::HookRegistry<PostRun>,
 
-    // Clickable areas for mouse support (set during rendering)
-    pub start_button_area: Option<Rect>,
-    pub end_button_area: Option<Rect>,
-    pub checkbox_area: Option<Rect>,
-    pub confirm_yes_area: Option<Rect>,
-    pub confirm_no_area: Option<Rect>,
+    /// Clickable areas from the most recent render. Updated by the main loop
+    /// after `ui::draw` returns; read by the mouse event handler for hit-testing.
+    pub hit_areas: HitAreas,
 }
 
 impl App {
@@ -73,11 +82,7 @@ impl App {
             last_completed_run: None,
             pre_run_registry: capsula_registry::standard_pre_run_hook_registry(),
             post_run_registry: capsula_registry::standard_post_run_hook_registry(),
-            start_button_area: None,
-            end_button_area: None,
-            checkbox_area: None,
-            confirm_yes_area: None,
-            confirm_no_area: None,
+            hit_areas: HitAreas::default(),
         }
     }
 

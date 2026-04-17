@@ -60,9 +60,11 @@ pub fn run(config_path: &Path, vault_path_override: Option<PathBuf>) -> Result<(
 
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
     loop {
+        let mut hit_areas = app.hit_areas;
         terminal
-            .draw(|frame| ui::draw(frame, app))
+            .draw(|frame| hit_areas = ui::draw(frame, app))
             .context("Failed to draw frame")?;
+        app.hit_areas = hit_areas;
 
         // Execute pending actions after the redraw so the status message is visible
         if app.pending_action.is_some() {
@@ -113,13 +115,13 @@ fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
 
     // In confirm-quit mode, only handle yes/no clicks
     if app.confirm_quit {
-        if let Some(area) = app.confirm_yes_area
+        if let Some(area) = app.hit_areas.confirm_yes
             && hit_test(x, y, area)
         {
             app.confirm_quit();
             return;
         }
-        if let Some(area) = app.confirm_no_area
+        if let Some(area) = app.hit_areas.confirm_no
             && hit_test(x, y, area)
         {
             app.cancel_quit();
@@ -129,19 +131,19 @@ fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
 
     // Check interactive widgets
     if app.is_running() {
-        if let Some(area) = app.end_button_area
+        if let Some(area) = app.hit_areas.end_button
             && hit_test(x, y, area)
         {
             app.request_end_run();
         }
     } else {
-        if let Some(area) = app.start_button_area
+        if let Some(area) = app.hit_areas.start_button
             && hit_test(x, y, area)
         {
             app.request_start_run();
             return;
         }
-        if let Some(area) = app.checkbox_area
+        if let Some(area) = app.hit_areas.checkbox
             && hit_test(x, y, area)
         {
             app.toggle_instant_run();
