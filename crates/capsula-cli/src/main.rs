@@ -195,11 +195,7 @@ path = \".\"
             let capsula_dir = run_dir.join("_capsula");
 
             // Read metadata (always required)
-            let metadata_path = capsula_dir.join("metadata.json");
-            let metadata: serde_json::Value = serde_json::from_str(
-                &std::fs::read_to_string(&metadata_path)
-                    .with_context(|| format!("Failed to read {}", metadata_path.display()))?,
-            )?;
+            let metadata = capsula_orchestration::vault::read_run_metadata_json(&run_dir)?;
 
             // Read optional files
             let pre_run = read_json_if_exists(&capsula_dir.join("pre-run.json"))?;
@@ -364,14 +360,7 @@ path = \".\"
                 );
             }
 
-            let metadata_path = capsula_dir.join("metadata.json");
-            let metadata_content = std::fs::read_to_string(&metadata_path).with_context(|| {
-                format!("Failed to read metadata from {}", metadata_path.display())
-            })?;
-            let metadata: capsula_orchestration::vault::RunMetadata =
-                serde_json::from_str(&metadata_content).with_context(|| {
-                    format!("Failed to parse metadata from {}", metadata_path.display())
-                })?;
+            let metadata = capsula_orchestration::vault::read_run_metadata(&run_dir)?;
 
             let run = Run {
                 id: metadata.id,

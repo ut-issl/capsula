@@ -48,6 +48,7 @@ use axum::{
     routing::{get, post},
 };
 use capsula_api_types::VaultInfo;
+use capsula_core::util::hex_encode;
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -1420,17 +1421,6 @@ fn sanitize_relative_path(candidate: &str) -> Result<String, &'static str> {
         return Err("path is empty");
     }
     Ok(out)
-}
-
-// NOTE: An identical function exists in capsula-capture-file/src/hash.rs.
-fn hex_encode(bytes: &[u8]) -> String {
-    bytes
-        .iter()
-        .fold(String::with_capacity(bytes.len() * 2), |mut output, b| {
-            std::fmt::Write::write_fmt(&mut output, format_args!("{b:02x}"))
-                .expect("writing to a String should never fail");
-            output
-        })
 }
 
 #[cfg(test)]

@@ -14,6 +14,27 @@ pub struct RunMetadata {
     pub timestamp: String,
 }
 
+/// Read and parse `{run_dir}/_capsula/metadata.json`.
+pub fn read_run_metadata(run_dir: &Path) -> Result<RunMetadata> {
+    let metadata_path = run_dir.join("_capsula").join("metadata.json");
+    let content = std::fs::read_to_string(&metadata_path)
+        .with_context(|| format!("Failed to read metadata from {}", metadata_path.display()))?;
+    serde_json::from_str::<RunMetadata>(&content)
+        .with_context(|| format!("Failed to parse metadata from {}", metadata_path.display()))
+}
+
+/// Read and parse `{run_dir}/_capsula/metadata.json` as raw JSON.
+///
+/// Used by callers (e.g. the CLI `show` command) that consume metadata
+/// fields beyond the structured [`RunMetadata`] struct.
+pub fn read_run_metadata_json(run_dir: &Path) -> Result<serde_json::Value> {
+    let metadata_path = run_dir.join("_capsula").join("metadata.json");
+    let content = std::fs::read_to_string(&metadata_path)
+        .with_context(|| format!("Failed to read metadata from {}", metadata_path.display()))?;
+    serde_json::from_str::<serde_json::Value>(&content)
+        .with_context(|| format!("Failed to parse metadata from {}", metadata_path.display()))
+}
+
 /// List all runs in a vault directory, sorted by timestamp (newest first).
 pub fn list_runs(vault_dir: &Path) -> Result<Vec<RunMetadata>> {
     let mut runs = Vec::new();

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::path::Path;
 use tracing::{debug, info};
 
@@ -12,10 +12,7 @@ pub fn push_single_run(
     let capsula_dir = run_dir.join("_capsula");
 
     // Read metadata
-    let metadata_path = capsula_dir.join("metadata.json");
-    let metadata_content = std::fs::read_to_string(&metadata_path)
-        .with_context(|| format!("Failed to read metadata from {}", metadata_path.display()))?;
-    let metadata: serde_json::Value = serde_json::from_str(&metadata_content)?;
+    let metadata = crate::vault::read_run_metadata_json(run_dir)?;
 
     let run_name = metadata["name"].as_str().unwrap_or("unknown");
     info!("Pushing run: {}", run_name);

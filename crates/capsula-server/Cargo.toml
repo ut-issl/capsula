@@ -15,6 +15,7 @@ askama = { workspace = true }
 askama_web = { workspace = true }
 axum = { workspace = true }
 capsula-api-types = { workspace = true }
+capsula-core = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 mime_guess = { workspace = true }

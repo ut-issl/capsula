@@ -78,11 +78,7 @@ where
             }
         })?;
 
-        let working_dir = if config.path.is_absolute() {
-            config.path.clone()
-        } else {
-            project_root.join(&config.path).canonicalize()?
-        };
+        let working_dir = capsula_core::util::resolve_relative(&config.path, project_root)?;
 
         Ok(Self {
             config,
