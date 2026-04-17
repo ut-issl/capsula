@@ -90,7 +90,7 @@ where
         let artifact_dir = params
             .artifact_dir
             .as_deref()
-            .expect("capture-file hook requires an artifact directory");
+            .ok_or(FileHookError::ArtifactDirMissing)?;
         self.run(metadata, artifact_dir).map_err(CapsulaError::from)
     }
 

@@ -147,7 +147,7 @@ where
             let artifact_dir = params
                 .artifact_dir
                 .as_deref()
-                .expect("capture-git-repo hook requires an artifact directory");
+                .ok_or(GitHookError::ArtifactDirMissing)?;
             let diff_content = Self::diff_content(&repo)?;
             // Output to a patch file in the artifact directory
             let patch_file_path = artifact_dir.join(format!("{}.patch", self.config.name));

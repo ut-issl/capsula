@@ -27,6 +27,9 @@ pub enum FileHookError {
     #[error("Invalid run directory: {path}")]
     InvalidRunDir { path: PathBuf },
 
+    #[error("capture-file hook requires an artifact directory but none was provided")]
+    ArtifactDirMissing,
+
     /// Failed to read file
     #[error("Failed to read file {path}: {source}")]
     ReadError {
