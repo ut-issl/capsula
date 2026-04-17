@@ -27,12 +27,15 @@ fn slack_hook_parses_config() {
             .and_then(|v| v.as_str()),
         Some("#test-channel")
     );
+    // The token is a secret and must be redacted when the config is serialized
+    // (e.g. into the `__meta.config` block of pre-run.json / post-run.json and
+    // into the server's `run_outputs.config` column).
     assert_eq!(
         serde_json::to_value(hook_config)
             .unwrap()
             .get("token")
             .and_then(|v| v.as_str()),
-        Some("xoxb-test-token")
+        Some("***")
     );
 }
 
