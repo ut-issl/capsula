@@ -732,6 +732,7 @@ dependencies = [
  "chrono",
  "clap",
  "mime_guess",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",

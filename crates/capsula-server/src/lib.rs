@@ -48,12 +48,29 @@ use axum::{
     routing::{get, post},
 };
 use capsula_api_types::VaultInfo;
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::path::{Component, Path as StdPath, PathBuf};
 use tracing::{error, info, warn};
+
+// RFC 5987 `attr-char` set: ALPHA / DIGIT plus `!#$&+-.^_`|~`. Everything else
+// must be percent-encoded when used in a `filename*=UTF-8''...` parameter.
+const RFC5987_ATTR_CHAR: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'!')
+    .remove(b'#')
+    .remove(b'$')
+    .remove(b'&')
+    .remove(b'+')
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'^')
+    .remove(b'_')
+    .remove(b'`')
+    .remove(b'|')
+    .remove(b'~');
 
 #[derive(Clone)]
 pub struct AppState {
@@ -1354,27 +1371,8 @@ fn content_disposition_inline(filename: &str) -> String {
     } else {
         ascii_fallback
     };
-    let encoded = percent_encode_rfc5987(filename);
+    let encoded = utf8_percent_encode(filename, RFC5987_ATTR_CHAR);
     format!("inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}")
-}
-
-fn percent_encode_rfc5987(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        // RFC 5987 `attr-char` set: unreserved plus `!#$&+-.^_`|~`.
-        let safe = b.is_ascii_alphanumeric()
-            || matches!(
-                b,
-                b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_' | b'`' | b'|' | b'~'
-            );
-        if safe {
-            out.push(char::from(b));
-        } else {
-            use std::fmt::Write;
-            let _ = write!(out, "%{b:02X}");
-        }
-    }
-    out
 }
 
 // Validate a user-supplied relative path for the `captured_files.path` column.
@@ -1388,25 +1386,40 @@ fn sanitize_relative_path(candidate: &str) -> Result<String, &'static str> {
     if candidate.contains('\0') {
         return Err("path contains NUL byte");
     }
-    if candidate.starts_with('/') || candidate.starts_with('\\') {
+
+    // Normalize backslashes to forward slashes so Windows-style separators are
+    // parsed consistently on all platforms. `Component::Prefix` is only emitted
+    // when `std::path` parses on Windows, so drive letters are detected
+    // explicitly below rather than relying on the path parser alone.
+    let normalized = candidate.replace('\\', "/");
+    let first_segment = normalized.split('/').next().unwrap_or("");
+    let mut first_chars = first_segment.chars();
+    if first_chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+        && first_chars.next() == Some(':')
+    {
         return Err("path must be relative");
     }
-    // Windows drive prefix like `C:\...` or `C:/...`.
-    if candidate.len() >= 2 {
-        let mut chars = candidate.chars();
-        let drive = chars.next();
-        let colon = chars.next();
-        if matches!(drive, Some(c) if c.is_ascii_alphabetic()) && colon == Some(':') {
-            return Err("path must be relative");
+
+    let mut out = String::with_capacity(normalized.len());
+    for component in StdPath::new(&normalized).components() {
+        match component {
+            Component::Normal(seg) => {
+                let seg = seg.to_str().ok_or("path contains invalid UTF-8")?;
+                if !out.is_empty() {
+                    out.push('/');
+                }
+                out.push_str(seg);
+            }
+            Component::CurDir => {}
+            Component::ParentDir => return Err("path contains '..' segment"),
+            Component::RootDir | Component::Prefix(_) => return Err("path must be relative"),
         }
     }
-    let normalized = candidate.replace('\\', "/");
-    for segment in normalized.split('/') {
-        if segment == ".." {
-            return Err("path contains '..' segment");
-        }
+
+    if out.is_empty() {
+        return Err("path is empty");
     }
-    Ok(normalized)
+    Ok(out)
 }
 
 // NOTE: An identical function exists in capsula-capture-file/src/hash.rs.
@@ -1423,7 +1436,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "tests may use unwrap for brevity")]
 mod tests {
-    use super::{content_disposition_inline, percent_encode_rfc5987, sanitize_relative_path};
+    use super::{content_disposition_inline, sanitize_relative_path};
 
     #[test]
     fn sanitize_rejects_absolute_paths() {
@@ -1461,6 +1474,15 @@ mod tests {
     }
 
     #[test]
+    fn sanitize_normalizes_redundant_segments() {
+        // `Path::components()` collapses empty segments and drops `.` segments.
+        assert_eq!(sanitize_relative_path("a//b").unwrap(), "a/b");
+        assert_eq!(sanitize_relative_path("./a/b").unwrap(), "a/b");
+        assert_eq!(sanitize_relative_path("a/./b").unwrap(), "a/b");
+        assert_eq!(sanitize_relative_path("a/b/").unwrap(), "a/b");
+    }
+
+    #[test]
     fn content_disposition_strips_dangerous_chars_in_fallback() {
         let header = content_disposition_inline("a\"b\r\nc.txt");
         assert!(header.starts_with("inline; filename=\"a_b__c.txt\";"));
@@ -1478,9 +1500,11 @@ mod tests {
     }
 
     #[test]
-    fn percent_encode_is_ascii_safe() {
-        assert_eq!(percent_encode_rfc5987("abc.txt"), "abc.txt");
-        assert_eq!(percent_encode_rfc5987("a b"), "a%20b");
-        assert_eq!(percent_encode_rfc5987("a\"b"), "a%22b");
+    fn content_disposition_percent_encodes_attr_char_boundary() {
+        // Unreserved ASCII round-trips; spaces and quotes are percent-encoded.
+        let header = content_disposition_inline("abc.txt");
+        assert!(header.contains("filename*=UTF-8''abc.txt"));
+        let header = content_disposition_inline("a b\"c");
+        assert!(header.contains("filename*=UTF-8''a%20b%22c"));
     }
 }
