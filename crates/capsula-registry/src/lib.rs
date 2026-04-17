@@ -95,7 +95,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
         let creator = self.creators.get(hook_id).ok_or_else(|| {
             let available = self.registered_types().join(", ");
             CapsulaError::Configuration {
-                message: format!("Unknown hook id '{hook_id}'. Available types: {available}",),
+                message: format!("Unknown hook id '{hook_id}'. Available types: {available}"),
             }
         })?;
 
