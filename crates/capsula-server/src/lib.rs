@@ -174,6 +174,122 @@ fn json_response<T: serde::Serialize>(value: T) -> Json<serde_json::Value> {
     }))
 }
 
+/// Fetch the list of vaults with run counts, sorted by name.
+///
+/// Shared by the `/vaults` HTML page and the `/api/v1/vaults` JSON endpoint.
+async fn fetch_vault_list(pool: &PgPool) -> Result<Vec<VaultInfo>, sqlx::Error> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT vault as name, COUNT(*) as "run_count!"
+        FROM runs
+        GROUP BY vault
+        ORDER BY vault
+        "#
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| VaultInfo {
+            name: row.name,
+            run_count: row.run_count,
+        })
+        .collect())
+}
+
+/// Fetch a page of runs, optionally filtered by vault, newest first.
+///
+/// Shared by the `/runs` HTML page and the `/api/v1/runs` JSON endpoint.
+async fn fetch_runs(
+    pool: &PgPool,
+    vault: Option<&str>,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<models::Run>, sqlx::Error> {
+    if let Some(vault) = vault {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            WHERE vault = $1
+            ORDER BY timestamp DESC
+            LIMIT $2 OFFSET $3
+            "#,
+            vault,
+            limit,
+            offset
+        )
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_as!(
+            models::Run,
+            r#"
+            SELECT id, name, timestamp, command, vault, project_root,
+                   exit_code, duration_ms, stdout, stderr,
+                   created_at, updated_at
+            FROM runs
+            ORDER BY timestamp DESC
+            LIMIT $1 OFFSET $2
+            "#,
+            limit,
+            offset
+        )
+        .fetch_all(pool)
+        .await
+    }
+}
+
+/// Count the total number of runs, optionally filtered by vault.
+async fn count_runs(pool: &PgPool, vault: Option<&str>) -> Result<i64, sqlx::Error> {
+    if let Some(vault) = vault {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)::bigint
+            FROM runs
+            WHERE vault = $1
+            "#,
+            vault
+        )
+        .fetch_one(pool)
+        .await
+        .map(|v| v.unwrap_or(0))
+    } else {
+        sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)::bigint
+            FROM runs
+            "#
+        )
+        .fetch_one(pool)
+        .await
+        .map(|v| v.unwrap_or(0))
+    }
+}
+
+/// Fetch a single run by its id.
+///
+/// Shared by the run-detail HTML page and the `/api/v1/runs/{id}` JSON endpoint.
+async fn fetch_run_by_id(pool: &PgPool, id: &str) -> Result<Option<models::Run>, sqlx::Error> {
+    sqlx::query_as!(
+        models::Run,
+        r#"
+        SELECT id, name, timestamp, command, vault, project_root,
+               exit_code, duration_ms, stdout, stderr,
+               created_at, updated_at
+        FROM runs
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(pool)
+    .await
+}
+
 async fn index() -> impl IntoResponse {
     IndexTemplate
 }
@@ -192,34 +308,11 @@ async fn not_found() -> impl IntoResponse {
 async fn vaults_page(State(state): State<AppState>) -> impl IntoResponse {
     info!("Rendering vaults page");
 
-    let result = sqlx::query!(
-        r#"
-        SELECT vault as name, COUNT(*) as "run_count!"
-        FROM runs
-        GROUP BY vault
-        ORDER BY vault
-        "#
-    )
-    .fetch_all(&state.pool)
-    .await;
-
-    match result {
-        Ok(rows) => {
-            let vaults: Vec<VaultInfo> = rows
-                .into_iter()
-                .map(|row| VaultInfo {
-                    name: row.name,
-                    run_count: row.run_count,
-                })
-                .collect();
-            VaultsTemplate { vaults }
-        }
-        Err(e) => {
-            error!("Failed to fetch vaults: {}", e);
-            // Return empty vaults on error
-            VaultsTemplate { vaults: Vec::new() }
-        }
-    }
+    let vaults = fetch_vault_list(&state.pool).await.unwrap_or_else(|e| {
+        error!("Failed to fetch vaults: {}", e);
+        Vec::new()
+    });
+    VaultsTemplate { vaults }
 }
 
 async fn runs_page(
@@ -235,71 +328,13 @@ async fn runs_page(
         page, params.vault
     );
 
-    // Get total count for pagination
-    let total_count = if let Some(ref vault) = params.vault {
-        sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)::bigint
-            FROM runs
-            WHERE vault = $1
-            "#,
-            vault
-        )
-        .fetch_one(&state.pool)
+    let total_count = count_runs(&state.pool, params.vault.as_deref())
         .await
-        .unwrap_or(Some(0))
-        .unwrap_or(0)
-    } else {
-        sqlx::query_scalar!(
-            r#"
-            SELECT COUNT(*)::bigint
-            FROM runs
-            "#
-        )
-        .fetch_one(&state.pool)
-        .await
-        .unwrap_or(Some(0))
-        .unwrap_or(0)
-    };
+        .unwrap_or(0);
 
     let total_pages = (total_count + limit - 1) / limit;
 
-    // Fetch runs
-    let runs_result = if let Some(ref vault) = params.vault {
-        sqlx::query_as!(
-            models::Run,
-            r#"
-            SELECT id, name, timestamp, command, vault, project_root,
-                   exit_code, duration_ms, stdout, stderr,
-                   created_at, updated_at
-            FROM runs
-            WHERE vault = $1
-            ORDER BY timestamp DESC
-            LIMIT $2 OFFSET $3
-            "#,
-            vault,
-            limit,
-            offset
-        )
-        .fetch_all(&state.pool)
-        .await
-    } else {
-        sqlx::query_as!(
-            models::Run,
-            r#"
-            SELECT id, name, timestamp, command, vault, project_root,
-                   exit_code, duration_ms, stdout, stderr,
-                   created_at, updated_at
-            FROM runs
-            ORDER BY timestamp DESC
-            LIMIT $1 OFFSET $2
-            "#,
-            limit,
-            offset
-        )
-        .fetch_all(&state.pool)
-        .await
-    };
+    let runs_result = fetch_runs(&state.pool, params.vault.as_deref(), limit, offset).await;
 
     match runs_result {
         Ok(runs) => RunsTemplate {
@@ -326,28 +361,16 @@ async fn run_detail_page(
 ) -> Result<RunDetailTemplate, StatusCode> {
     info!("Rendering run detail page for: {}", id);
 
-    // Fetch run metadata
-    let run = sqlx::query_as!(
-        models::Run,
-        r#"
-        SELECT id, name, timestamp, command, vault, project_root,
-               exit_code, duration_ms, stdout, stderr,
-               created_at, updated_at
-        FROM runs
-        WHERE id = $1
-        "#,
-        id
-    )
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        error!("Database error while fetching run: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or_else(|| {
-        info!("Run not found: {}", id);
-        StatusCode::NOT_FOUND
-    })?;
+    let run = fetch_run_by_id(&state.pool, &id)
+        .await
+        .map_err(|e| {
+            error!("Database error while fetching run: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or_else(|| {
+            info!("Run not found: {}", id);
+            StatusCode::NOT_FOUND
+        })?;
 
     // Fetch hook outputs
     let hook_outputs_result = sqlx::query_as!(
@@ -443,40 +466,20 @@ async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
 async fn list_vaults(State(state): State<AppState>) -> impl IntoResponse {
     info!("Listing all vaults");
 
-    let result = sqlx::query!(
-        r#"
-        SELECT vault as name, COUNT(*) as "run_count!"
-        FROM runs
-        GROUP BY vault
-        ORDER BY vault
-        "#
-    )
-    .fetch_all(&state.pool)
-    .await;
-
-    match result {
-        Ok(rows) => {
-            let vaults: Vec<VaultInfo> = rows
-                .into_iter()
-                .map(|row| VaultInfo {
-                    name: row.name,
-                    run_count: row.run_count,
-                })
-                .collect();
+    match fetch_vault_list(&state.pool).await {
+        Ok(vaults) => {
             info!("Found {} vaults", vaults.len());
-            let response = capsula_api_types::VaultsResponse {
+            json_response(capsula_api_types::VaultsResponse {
                 status: "ok".to_string(),
                 vaults,
-            };
-            json_response(response)
+            })
         }
         Err(e) => {
             error!("Failed to list vaults: {}", e);
-            let response = capsula_api_types::ErrorResponse {
+            json_response(capsula_api_types::ErrorResponse {
                 status: "error".to_string(),
                 error: e.to_string(),
-            };
-            json_response(response)
+            })
         }
     }
 }
@@ -549,41 +552,7 @@ async fn list_runs(
         info!("Listing all runs (limit={}, offset={})", limit, offset);
     }
 
-    let result = if let Some(vault) = params.vault {
-        sqlx::query_as!(
-            models::Run,
-            r#"
-            SELECT id, name, timestamp, command, vault, project_root,
-                   exit_code, duration_ms, stdout, stderr,
-                   created_at, updated_at
-            FROM runs
-            WHERE vault = $1
-            ORDER BY timestamp DESC
-            LIMIT $2 OFFSET $3
-            "#,
-            vault,
-            limit,
-            offset
-        )
-        .fetch_all(&state.pool)
-        .await
-    } else {
-        sqlx::query_as!(
-            models::Run,
-            r#"
-            SELECT id, name, timestamp, command, vault, project_root,
-                   exit_code, duration_ms, stdout, stderr,
-                   created_at, updated_at
-            FROM runs
-            ORDER BY timestamp DESC
-            LIMIT $1 OFFSET $2
-            "#,
-            limit,
-            offset
-        )
-        .fetch_all(&state.pool)
-        .await
-    };
+    let result = fetch_runs(&state.pool, params.vault.as_deref(), limit, offset).await;
 
     match result {
         Ok(runs) => {
@@ -852,19 +821,7 @@ async fn create_run(
 async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     info!("Getting run: {}", id);
 
-    let result = sqlx::query_as!(
-        models::Run,
-        r#"
-        SELECT id, name, timestamp, command, vault, project_root,
-               exit_code, duration_ms, stdout, stderr,
-               created_at, updated_at
-        FROM runs
-        WHERE id = $1
-        "#,
-        id
-    )
-    .fetch_optional(&state.pool)
-    .await;
+    let result = fetch_run_by_id(&state.pool, &id).await;
 
     match result {
         Ok(Some(run)) => {

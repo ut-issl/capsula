@@ -11,6 +11,13 @@ use std::fmt::Write;
 /// Maximum length for `JSONPath` expressions (prevents denial-of-service)
 const MAX_JSONPATH_LENGTH: usize = 500;
 
+/// Maximum LIMIT value: callers asking for more than this are clamped.
+const MAX_LIMIT: i64 = 1_000;
+
+/// Maximum OFFSET value: callers asking for more than this are clamped.
+/// Prevents slow-query `DoS` from a large `OFFSET` forcing a sequential scan.
+const MAX_OFFSET: i64 = 100_000;
+
 /// Error types for query building
 #[derive(Debug, thiserror::Error)]
 pub enum QueryError {
@@ -237,12 +244,12 @@ impl RunQueryBuilder {
             SortOrder::OldestFirst => query.push_str(" ORDER BY r.timestamp ASC"),
         }
 
-        // Add LIMIT and OFFSET
+        // Add LIMIT and OFFSET (clamped to avoid DoS from large scans)
         let _ = write!(
             query,
             " LIMIT {} OFFSET {}",
-            self.limit.min(1000),
-            self.offset
+            self.limit.clamp(0, MAX_LIMIT),
+            self.offset.clamp(0, MAX_OFFSET),
         );
 
         query
