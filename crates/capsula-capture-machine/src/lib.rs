@@ -32,9 +32,7 @@ pub struct MachineCaptured {
     kernel_version: String,
     architecture: String,
     cpus: Vec<CpuInfo>,
-    // pub cpu_cores: usize,
     total_memory: u64,
-    // pub user: String,
     hostname: String,
 }
 
