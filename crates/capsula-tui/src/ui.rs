@@ -4,11 +4,12 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
-use crate::app::{App, FocusTarget};
+use crate::app::{App, FocusTarget, HitAreas};
 use crate::widgets::{render_button, render_checkbox};
 
-pub fn draw(frame: &mut Frame, app: &mut App) {
+pub fn draw(frame: &mut Frame, app: &App) -> HitAreas {
     let area = frame.area();
+    let mut hit = HitAreas::default();
 
     // Outer frame
     let outer_block = Block::default()
@@ -21,9 +22,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let inner = area.inner(Margin::new(2, 1));
 
     if app.is_running() {
-        draw_active_state(frame, inner, app);
+        draw_active_state(frame, inner, app, &mut hit);
     } else {
-        draw_idle_state(frame, inner, app);
+        draw_idle_state(frame, inner, app, &mut hit);
     }
 
     // Status message (shown during hook execution)
@@ -46,11 +47,13 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 
     // Confirm quit overlay
     if app.confirm_quit {
-        draw_confirm_quit(frame, area, app);
+        draw_confirm_quit(frame, area, &mut hit);
     }
+
+    hit
 }
 
-fn draw_idle_state(frame: &mut Frame, area: Rect, app: &mut App) {
+fn draw_idle_state(frame: &mut Frame, area: Rect, app: &App, hit: &mut HitAreas) {
     let chunks = Layout::vertical([
         Constraint::Length(3), // Vault info
         Constraint::Length(1), // Spacing
@@ -65,7 +68,7 @@ fn draw_idle_state(frame: &mut Frame, area: Rect, app: &mut App) {
 
     // Instant run checkbox
     let checkbox_area = Rect::new(chunks[2].x, chunks[2].y, chunks[2].width.min(30), 1);
-    app.checkbox_area = Some(render_checkbox(
+    hit.checkbox = Some(render_checkbox(
         frame,
         checkbox_area,
         "Instant run",
@@ -77,7 +80,7 @@ fn draw_idle_state(frame: &mut Frame, area: Rect, app: &mut App) {
     let button_width = area.width.min(30);
     let button_x = area.x + (area.width.saturating_sub(button_width)) / 2;
     let button_area = Rect::new(button_x, chunks[4].y, button_width, 3);
-    app.start_button_area = Some(render_button(
+    hit.start_button = Some(render_button(
         frame,
         button_area,
         "Start Run",
@@ -86,7 +89,7 @@ fn draw_idle_state(frame: &mut Frame, area: Rect, app: &mut App) {
     ));
 }
 
-fn draw_active_state(frame: &mut Frame, area: Rect, app: &mut App) {
+fn draw_active_state(frame: &mut Frame, area: Rect, app: &App, hit: &mut HitAreas) {
     let chunks = Layout::vertical([
         Constraint::Length(3), // Vault info
         Constraint::Length(1), // Spacing
@@ -136,7 +139,7 @@ fn draw_active_state(frame: &mut Frame, area: Rect, app: &mut App) {
     let button_width = area.width.min(30);
     let button_x = area.x + (area.width.saturating_sub(button_width)) / 2;
     let button_area = Rect::new(button_x, chunks[4].y, button_width, 3);
-    app.end_button_area = Some(render_button(
+    hit.end_button = Some(render_button(
         frame,
         button_area,
         "End Run",
@@ -260,7 +263,7 @@ fn draw_footer(frame: &mut Frame, area: Rect) {
     frame.render_widget(footer, footer_area);
 }
 
-fn draw_confirm_quit(frame: &mut Frame, area: Rect, app: &mut App) {
+fn draw_confirm_quit(frame: &mut Frame, area: Rect, hit: &mut HitAreas) {
     let popup_width = 46_u16;
     let popup_height = 7_u16;
     let popup_x = area.x + (area.width.saturating_sub(popup_width)) / 2;
@@ -323,6 +326,6 @@ fn draw_confirm_quit(frame: &mut Frame, area: Rect, app: &mut App) {
         no_area,
     );
 
-    app.confirm_yes_area = Some(yes_area);
-    app.confirm_no_area = Some(no_area);
+    hit.confirm_yes = Some(yes_area);
+    hit.confirm_no = Some(no_area);
 }
