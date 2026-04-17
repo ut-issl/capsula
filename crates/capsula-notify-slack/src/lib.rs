@@ -1,5 +1,7 @@
 mod error;
+mod secret;
 use crate::error::SlackNotifyError;
+use crate::secret::SecretString;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, PostRun, PreRun, RuntimeParams};
@@ -30,13 +32,13 @@ const MAX_SLACK_ATTACHMENTS: usize = 10;
 pub struct SlackNotifyHookConfig {
     channel: String,
     #[serde(default = "token_from_env")]
-    token: String,
+    token: SecretString,
     #[serde(default)]
     attachment_globs: Vec<String>,
 }
 
-fn token_from_env() -> String {
-    std::env::var("SLACK_BOT_TOKEN").unwrap_or_default()
+fn token_from_env() -> SecretString {
+    SecretString::new(std::env::var("SLACK_BOT_TOKEN").unwrap_or_default())
 }
 
 /// Build Slack Block Kit blocks for a run notification
@@ -546,7 +548,7 @@ impl Hook<PreRun> for SlackNotifyHook {
 
         // Send message with attachments
         let (response, attached_files) = send_slack_message(
-            &self.config.token,
+            self.config.token.expose(),
             &self.config.channel,
             &fallback_text,
             &blocks,
@@ -627,7 +629,7 @@ impl Hook<PostRun> for SlackNotifyHook {
 
         // Send message with attachments
         let (response, attached_files) = send_slack_message(
-            &self.config.token,
+            self.config.token.expose(),
             &self.config.channel,
             &fallback_text,
             &blocks,
