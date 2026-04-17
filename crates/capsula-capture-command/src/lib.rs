@@ -48,8 +48,7 @@ where
         let config: CommandHookConfig = serde_json::from_value(config.clone())?;
 
         let working_dir = match &config.cwd {
-            Some(cwd) if cwd.is_absolute() => cwd.clone(),
-            Some(cwd) => project_root.join(cwd).canonicalize()?,
+            Some(cwd) => capsula_core::util::resolve_relative(cwd, project_root)?,
             None => project_root.to_path_buf(),
         };
 

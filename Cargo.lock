@@ -729,6 +729,7 @@ dependencies = [
  "askama_web",
  "axum",
  "capsula-api-types",
+ "capsula-core",
  "chrono",
  "clap",
  "mime_guess",

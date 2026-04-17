@@ -5,7 +5,7 @@ use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::Run;
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
 use capsula_orchestration::setup::LoadedConfig;
-use capsula_orchestration::vault::{RunMetadata, find_run_dir_by_name};
+use capsula_orchestration::vault::find_run_dir_by_name;
 use ratatui::layout::Rect;
 use tracing::info;
 
@@ -195,9 +195,7 @@ impl App {
         let run_dir = find_run_dir_by_name(&self.config.vault_dir, &active.run_name)?;
         let capsula_dir = run_dir.join("_capsula");
 
-        let metadata_path = capsula_dir.join("metadata.json");
-        let metadata_content = std::fs::read_to_string(&metadata_path)?;
-        let metadata: RunMetadata = serde_json::from_str(&metadata_content)?;
+        let metadata = capsula_orchestration::vault::read_run_metadata(&run_dir)?;
 
         let run = Run {
             id: metadata.id,
