@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.95.0@sha256:7f17fb1ec8e54dabd31c76bd2cfed1ac6695413ebe41ba1561d52720cc3da658 AS builder
+FROM rust:1.95.0@sha256:1ce09eadf1bac22d7fdf5e80eeb84437785cfa666ce4e9b3d36db367d1adf225 AS builder
 
 WORKDIR /usr/src/capsula-workspace
 
