@@ -49,12 +49,18 @@ Capsula creates an organized directory:
 ```
 .capsula/my-project/2025-01-09/143022-happy-river/
 ├── _capsula/
-│   ├── metadata.json      # What ran, when, and where
-│   ├── pre-run.json       # Environment before
-│   ├── command.json       # Command output
-│   └── post-run.json      # Results after
-└── output.txt             # Your output file
+│   ├── metadata.json           # What ran, when, and where
+│   ├── pre-run.json            # Environment before
+│   ├── command.json            # Command output
+│   └── post-run.json           # Results after
+├── pre-0-capture-git-repo/     # Per-hook artifact directory
+└── post-0-capture-file/        # Per-hook artifact directory
+    └── output.txt              # Your output file
 ```
+
+Hooks that produce file artifacts (e.g., `capture-file`, `capture-git-repo`) each
+get a dedicated subdirectory named `{phase}-{index}-{hook_id}/`, which prevents
+filename collisions between hooks.
 
 ## Why Use Capsula?
 

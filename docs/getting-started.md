@@ -70,13 +70,19 @@ Capsula stores everything in `.capsula/`:
 
 ```
 .capsula/my-project/2025-01-09/143022-happy-river/
-├── _capsula/              # Metadata directory
-│   ├── metadata.json      # Run info (ID, name, command, timestamp)
-│   ├── pre-run.json       # Pre-run hook outputs
-│   ├── command.json       # Command execution results
-│   └── post-run.json      # Post-run hook outputs
-└── output.txt             # Your captured file
+├── _capsula/                   # Metadata directory
+│   ├── metadata.json           # Run info (ID, name, command, timestamp)
+│   ├── pre-run.json            # Pre-run hook outputs
+│   ├── command.json            # Command execution results
+│   └── post-run.json           # Post-run hook outputs
+├── pre-0-capture-git-repo/     # Artifacts from the capture-git-repo hook
+└── post-0-capture-file/        # Artifacts from the capture-file hook
+    └── output.txt              # Your captured file
 ```
+
+Hooks that produce file artifacts (e.g., `capture-file`, `capture-git-repo`) each
+get a dedicated subdirectory named `{phase}-{index}-{hook_id}/`. This prevents
+filename collisions between hooks and keeps each hook's outputs isolated.
 
 View what the pre-run hooks recorded:
 
