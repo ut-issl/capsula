@@ -20,7 +20,7 @@ Captures git repository state including commit hash, branch, and whether there a
 
 | Option | Type | Description |
 | -------- | ------ | ------------- |
-| `name` | string | Name used for the patch file when the repository has uncommitted changes |
+| `name` | string | Base name used for the patch file (`<name>.patch`) when the repository has uncommitted changes |
 | `path` | string | Path to the git repository (`.` for current directory) |
 
 ### Optional Options
@@ -93,6 +93,12 @@ tag_head = true
   "tag": null
 }
 ```
+
+!!! note "Patch file location"
+    When the repository is dirty (and the hook is allowed to proceed), Capsula
+    writes the diff to `<name>.patch` inside the hook's artifact directory,
+    located at `{phase}-{index}-capture-git-repo/` under the run directory
+    (e.g., `pre-0-capture-git-repo/my-project.patch`).
 
 !!! warning "Abort Behavior"
     When `allow_dirty = false` and the repository is dirty, Capsula saves the hook output showing the dirty state, then aborts before running your command.

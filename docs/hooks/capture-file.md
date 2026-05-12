@@ -30,9 +30,15 @@ Captures files by copying them, moving them, or computing their hash.
 
 ### Mode Options
 
-- `"copy"` - Copies files to run directory, leaves originals
-- `"move"` - Moves files to run directory, removes originals
+- `"copy"` - Copies files to the hook's artifact directory, leaves originals
+- `"move"` - Moves files to the hook's artifact directory, removes originals
 - `"none"` - Only computes hash, doesn't copy or move
+
+!!! note "Per-hook artifact directory"
+    When `mode` is `"copy"` or `"move"`, files are placed in a per-hook
+    artifact directory named `{phase}-{index}-capture-file/` under the run
+    directory (e.g., `post-0-capture-file/`). This prevents filename
+    collisions between different `capture-file` hooks.
 
 ### Example
 
@@ -60,13 +66,13 @@ hash = "sha256"
   "files": [
     {
       "src": "results/data.csv",
-      "dst": ".capsula/my-vault/2025-01-09/143022-happy-river/results/data.csv",
+      "dst": ".capsula/my-vault/2025-01-09/143022-happy-river/post-0-capture-file/data.csv",
       "hash": "a1b2c3d4e5f6...",
       "copied": true
     },
     {
       "src": "results/summary.csv",
-      "dst": ".capsula/my-vault/2025-01-09/143022-happy-river/results/summary.csv",
+      "dst": ".capsula/my-vault/2025-01-09/143022-happy-river/post-0-capture-file/summary.csv",
       "hash": "b2c3d4e5f6g7...",
       "copied": true
     }
