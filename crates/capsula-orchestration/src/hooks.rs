@@ -13,7 +13,7 @@ use tracing::{debug, error};
 /// Failed hooks are recorded with `success: false` and an `error` field but do not stop
 /// other hooks from running.
 ///
-/// Hooks that request an artifact directory (via [`Hook::needs_artifact_dir`]) get a
+/// Hooks that request an artifact directory get a
 /// dedicated subdirectory under `run_dir` named `{phase}-{index}-{hook_id}/`.
 pub fn build_and_run_hooks<P: PhaseMarker>(
     run_metadata: &PreparedRun,
