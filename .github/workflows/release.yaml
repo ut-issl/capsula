@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Get the version
         id: get-version
@@ -26,11 +26,10 @@ jobs:
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions"
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${GITHUB_TOKEN}" fetch --tags
+          git fetch --tags
           git tag --annotate "v${STEPS_GET_VERSION_OUTPUTS_VERSION}" --message="v${STEPS_GET_VERSION_OUTPUTS_VERSION}"
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${GITHUB_TOKEN}" push origin "v${STEPS_GET_VERSION_OUTPUTS_VERSION}"
+          git push origin "v${STEPS_GET_VERSION_OUTPUTS_VERSION}"
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           STEPS_GET_VERSION_OUTPUTS_VERSION: ${{ steps.get-version.outputs.version }}
 
   publish:
