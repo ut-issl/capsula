@@ -6,7 +6,7 @@ default-members = ["crates/capsula-cli"]
 [workspace.package]
 version = "0.12.1"
 edition = "2024"
-rust-version = "1.91"
+rust-version = "1.95"
 readme = "README.md"
 repository = "https://github.com/shunichironomura/capsula"
 license = "MIT OR Apache-2.0"
