@@ -68,8 +68,8 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: LoadedConfig) -> Self {
-        Self {
+    pub fn new(config: LoadedConfig) -> Result<Self> {
+        Ok(Self {
             config,
             instant_run: false,
             error: None,
@@ -80,10 +80,10 @@ impl App {
             active_run: None,
             pending_action: None,
             last_completed_run: None,
-            pre_run_registry: capsula_registry::standard_pre_run_hook_registry(),
-            post_run_registry: capsula_registry::standard_post_run_hook_registry(),
+            pre_run_registry: capsula_registry::standard_pre_run_hook_registry()?,
+            post_run_registry: capsula_registry::standard_post_run_hook_registry()?,
             hit_areas: HitAreas::default(),
-        }
+        })
     }
 
     pub const fn is_running(&self) -> bool {

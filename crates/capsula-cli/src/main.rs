@@ -115,9 +115,9 @@ enum VaultsCommands {
 fn run() -> Result<()> {
     debug!("Creating hook registries");
     let pre_run_hook_registry: capsula_registry::HookRegistry<PreRun> =
-        capsula_registry::standard_pre_run_hook_registry();
+        capsula_registry::standard_pre_run_hook_registry()?;
     let post_run_hook_registry: capsula_registry::HookRegistry<PostRun> =
-        capsula_registry::standard_post_run_hook_registry();
+        capsula_registry::standard_post_run_hook_registry()?;
 
     let cli = Cli::parse();
     let config_file_path = cli.config.unwrap_or_else(|| PathBuf::from("capsula.toml"));
@@ -387,10 +387,6 @@ path = \".\"
             all,
             server,
         } => {
-            if !all && run_id.is_none() {
-                anyhow::bail!("Either provide a run ID/name or use --all flag");
-            }
-
             let server_url =
                 resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
                     anyhow::anyhow!(
@@ -416,69 +412,70 @@ path = \".\"
                 }
             }
 
-            if all {
-                info!(
-                    "Pushing all runs from vault '{}' to server {}",
-                    vault_name, server_url
-                );
+            match (all, run_id) {
+                (true, _) => {
+                    info!(
+                        "Pushing all runs from vault '{}' to server {}",
+                        vault_name, server_url
+                    );
 
-                let mut success_count = 0;
-                let mut skip_count = 0;
-                let mut error_count = 0;
+                    let mut success_count = 0;
+                    let mut skip_count = 0;
+                    let mut error_count = 0;
 
-                for entry in walkdir::WalkDir::new(&vault_dir)
-                    .min_depth(2)
-                    .max_depth(2)
-                    .into_iter()
-                    .filter_entry(|e| e.file_type().is_dir())
-                {
-                    let entry = match entry {
-                        Ok(e) => e,
-                        Err(e) => {
-                            error!("Failed to read directory: {}", e);
-                            error_count += 1;
+                    for entry in walkdir::WalkDir::new(&vault_dir)
+                        .min_depth(2)
+                        .max_depth(2)
+                        .into_iter()
+                        .filter_entry(|e| e.file_type().is_dir())
+                    {
+                        let entry = match entry {
+                            Ok(e) => e,
+                            Err(e) => {
+                                error!("Failed to read directory: {}", e);
+                                error_count += 1;
+                                continue;
+                            }
+                        };
+
+                        let run_dir = entry.path();
+                        let capsula_dir = run_dir.join("_capsula");
+
+                        if !capsula_dir.exists() {
                             continue;
                         }
-                    };
 
-                    let run_dir = entry.path();
-                    let capsula_dir = run_dir.join("_capsula");
-
-                    if !capsula_dir.exists() {
-                        continue;
-                    }
-
-                    match push_single_run(run_dir, vault_name, &server_url, &client) {
-                        Ok(()) => success_count += 1,
-                        Err(e) => {
-                            if e.to_string().contains("already exists") {
-                                skip_count += 1;
-                            } else {
-                                error!("Failed to push run: {}", e);
-                                error_count += 1;
+                        match push_single_run(run_dir, vault_name, &server_url, &client) {
+                            Ok(()) => success_count += 1,
+                            Err(e) => {
+                                if e.to_string().contains("already exists") {
+                                    skip_count += 1;
+                                } else {
+                                    error!("Failed to push run: {}", e);
+                                    error_count += 1;
+                                }
                             }
                         }
                     }
+
+                    info!(
+                        "Push all completed: {} succeeded, {} skipped (already exist), {} failed",
+                        success_count, skip_count, error_count
+                    );
+
+                    if error_count > 0 {
+                        anyhow::bail!("{error_count} runs failed to push");
+                    }
                 }
+                (false, Some(run_id)) => {
+                    info!("Pushing run {} to server {}", run_id, server_url);
 
-                info!(
-                    "Push all completed: {} succeeded, {} skipped (already exist), {} failed",
-                    success_count, skip_count, error_count
-                );
+                    let run_dir = find_run_dir(&vault_dir, &run_id)?;
+                    push_single_run(&run_dir, vault_name, &server_url, &client)?;
 
-                if error_count > 0 {
-                    anyhow::bail!("{error_count} runs failed to push");
+                    info!("Push completed successfully");
                 }
-            } else {
-                let run_id = run_id
-                    .as_ref()
-                    .expect("run_id must be Some when all is false");
-                info!("Pushing run {} to server {}", run_id, server_url);
-
-                let run_dir = find_run_dir(&vault_dir, run_id)?;
-                push_single_run(&run_dir, vault_name, &server_url, &client)?;
-
-                info!("Push completed successfully");
+                (false, None) => anyhow::bail!("Either provide a run ID/name or use --all flag"),
             }
         }
         Commands::Tui => unreachable!("Handled above"),

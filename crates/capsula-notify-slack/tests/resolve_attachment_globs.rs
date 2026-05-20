@@ -1,5 +1,5 @@
 //! Tests for the `resolve_attachment_globs` function.
-#![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
+#![cfg(test)]
 
 use capsula_notify_slack::resolve_attachment_globs;
 use std::fs;

@@ -27,7 +27,6 @@ pub fn resolve_relative(path: &Path, project_root: &Path) -> std::io::Result<Pat
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests may use unwrap for brevity")]
 mod tests {
     use super::{hex_encode, resolve_relative};
     use std::path::Path;

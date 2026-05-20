@@ -40,7 +40,6 @@ impl Serialize for SecretString {
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests may use unwrap for brevity")]
 mod tests {
     use super::SecretString;
 

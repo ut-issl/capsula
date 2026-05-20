@@ -25,6 +25,7 @@ use event::AppEvent;
 /// `vault_path_override` is an optional CLI override for the vault path.
 pub fn run(config_path: &Path, vault_path_override: Option<PathBuf>) -> Result<()> {
     let loaded = capsula_orchestration::setup::load_config(config_path, vault_path_override)?;
+    let mut app = App::new(loaded).context("Failed to create hook registries")?;
 
     // Install panic hook that restores the terminal before printing the panic message
     let original_hook = std::panic::take_hook();
@@ -40,8 +41,6 @@ pub fn run(config_path: &Path, vault_path_override: Option<PathBuf>) -> Result<(
         .context("Failed to set up terminal")?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;
-
-    let mut app = App::new(loaded);
 
     let result = run_loop(&mut terminal, &mut app);
 

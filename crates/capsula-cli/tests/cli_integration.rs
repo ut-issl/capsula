@@ -1,8 +1,5 @@
 //! Integration tests for the capsula CLI tool.
-#![expect(
-    clippy::unwrap_used,
-    reason = "Test code doesn't need production-level error handling"
-)]
+#![cfg(test)]
 
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
