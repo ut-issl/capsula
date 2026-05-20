@@ -21,7 +21,7 @@ fn git_hook_captures_clean_repo() {
 
     // Initialize git repo
     Command::new("git")
-        .args(["init"])
+        .args(["init", "-b", "main"])
         .current_dir(&temp_dir)
         .output()
         .expect("git init failed");
@@ -34,6 +34,11 @@ fn git_hook_captures_clean_repo() {
         .unwrap();
     Command::new("git")
         .args(["config", "user.name", "Test User"])
+        .current_dir(&temp_dir)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "commit.gpgSign", "false"])
         .current_dir(&temp_dir)
         .output()
         .unwrap();
@@ -101,7 +106,7 @@ fn init_git_repo() -> std::path::PathBuf {
     fs::create_dir_all(&temp_dir).unwrap();
 
     Command::new("git")
-        .args(["init"])
+        .args(["init", "-b", "main"])
         .current_dir(&temp_dir)
         .output()
         .expect("git init failed");
@@ -480,7 +485,7 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
 
     // Initialize git repo
     Command::new("git")
-        .args(["init"])
+        .args(["init", "-b", "main"])
         .current_dir(&temp_dir)
         .output()
         .expect("git init failed");
@@ -492,6 +497,11 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
         .unwrap();
     Command::new("git")
         .args(["config", "user.name", "Test User"])
+        .current_dir(&temp_dir)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "commit.gpgSign", "false"])
         .current_dir(&temp_dir)
         .output()
         .unwrap();
@@ -567,7 +577,7 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
 
     // Initialize git repo
     Command::new("git")
-        .args(["init"])
+        .args(["init", "-b", "main"])
         .current_dir(&temp_dir)
         .output()
         .expect("git init failed");
@@ -579,6 +589,11 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
         .unwrap();
     Command::new("git")
         .args(["config", "user.name", "Test User"])
+        .current_dir(&temp_dir)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "commit.gpgSign", "false"])
         .current_dir(&temp_dir)
         .output()
         .unwrap();
@@ -639,7 +654,7 @@ fn git_hook_ignores_git_ignored_files() {
 
     // Initialize git repo
     Command::new("git")
-        .args(["init"])
+        .args(["init", "-b", "main"])
         .current_dir(&temp_dir)
         .output()
         .expect("git init failed");
@@ -651,6 +666,11 @@ fn git_hook_ignores_git_ignored_files() {
         .unwrap();
     Command::new("git")
         .args(["config", "user.name", "Test User"])
+        .current_dir(&temp_dir)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "commit.gpgSign", "false"])
         .current_dir(&temp_dir)
         .output()
         .unwrap();
@@ -858,7 +878,7 @@ fn git_hook_detects_untracked_files_as_dirty() {
 
     // Initialize git repo
     Command::new("git")
-        .args(["init"])
+        .args(["init", "-b", "main"])
         .current_dir(&temp_dir)
         .output()
         .expect("git init failed");
@@ -870,6 +890,11 @@ fn git_hook_detects_untracked_files_as_dirty() {
         .unwrap();
     Command::new("git")
         .args(["config", "user.name", "Test User"])
+        .current_dir(&temp_dir)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["config", "commit.gpgSign", "false"])
         .current_dir(&temp_dir)
         .output()
         .unwrap();

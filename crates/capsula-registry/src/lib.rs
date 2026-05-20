@@ -176,10 +176,8 @@ where
 ///
 /// Each built-in hook type implements both `Hook<PreRun>` and `Hook<PostRun>`,
 /// so a single generic builder covers both phases and the pre/post fns below
-/// simply delegate. The inner `.expect(...)` calls are unreachable — the only
-/// registration error is `AlreadyRegistered`, and every type is registered
-/// exactly once.
-fn standard_hook_registry<P: PhaseMarker>() -> HookRegistry<P>
+/// simply delegate.
+fn standard_hook_registry<P: PhaseMarker>() -> Result<HookRegistry<P>, RegistryError>
 where
     capsula_capture_cwd::CwdHook: capsula_core::hook::Hook<P>,
     capsula_capture_git_repo::GitHook: capsula_core::hook::Hook<P>,
@@ -189,32 +187,23 @@ where
     capsula_capture_machine::MachineHook: capsula_core::hook::Hook<P>,
     capsula_notify_slack::SlackNotifyHook: capsula_core::hook::Hook<P>,
 {
-    RegistryBuilder::new()
-        .with_hook::<capsula_capture_cwd::CwdHook>()
-        .expect("capture-cwd registered exactly once")
-        .with_hook::<capsula_capture_git_repo::GitHook>()
-        .expect("capture-git-repo registered exactly once")
-        .with_hook::<capsula_capture_file::FileHook>()
-        .expect("capture-file registered exactly once")
-        .with_hook::<capsula_capture_env::EnvVarHook>()
-        .expect("capture-env registered exactly once")
-        .with_hook::<capsula_capture_command::CommandHook>()
-        .expect("capture-command registered exactly once")
-        .with_hook::<capsula_capture_machine::MachineHook>()
-        .expect("capture-machine registered exactly once")
-        .with_hook::<capsula_notify_slack::SlackNotifyHook>()
-        .expect("notify-slack registered exactly once")
-        .build()
+    Ok(RegistryBuilder::new()
+        .with_hook::<capsula_capture_cwd::CwdHook>()?
+        .with_hook::<capsula_capture_git_repo::GitHook>()?
+        .with_hook::<capsula_capture_file::FileHook>()?
+        .with_hook::<capsula_capture_env::EnvVarHook>()?
+        .with_hook::<capsula_capture_command::CommandHook>()?
+        .with_hook::<capsula_capture_machine::MachineHook>()?
+        .with_hook::<capsula_notify_slack::SlackNotifyHook>()?
+        .build())
 }
 
 /// Create a standard registry with all built-in hook types for pre-run phase
-#[must_use]
-pub fn standard_pre_run_hook_registry() -> HookRegistry<PreRun> {
+pub fn standard_pre_run_hook_registry() -> Result<HookRegistry<PreRun>, RegistryError> {
     standard_hook_registry::<PreRun>()
 }
 
 /// Create a standard registry with all built-in hook types for post-run phase
-#[must_use]
-pub fn standard_post_run_hook_registry() -> HookRegistry<PostRun> {
+pub fn standard_post_run_hook_registry() -> Result<HookRegistry<PostRun>, RegistryError> {
     standard_hook_registry::<PostRun>()
 }
