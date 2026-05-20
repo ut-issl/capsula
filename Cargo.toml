@@ -74,7 +74,7 @@ dbg_macro = { level = "warn", priority = 1 }
 decimal_literal_representation = { level = "warn", priority = 1 }
 derive_partial_eq_without_eq = { level = "allow", priority = 1 }  # We implement `Eq` only when necessary
 else_if_without_else = { level = "warn", priority = 1 }
-expect_used = { level = "allow", priority = 1 }  # TODO: change to "warn" later
+expect_used = { level = "warn", priority = 1 }
 indexing_slicing = { level = "allow", priority = 1 }  # TODO: change to "warn" later
 missing_errors_doc = { level = "allow", priority = 1 }  # TODO: change to "warn" later
 missing_panics_doc = { level = "allow", priority = 1 }  # TODO: change to "warn" later

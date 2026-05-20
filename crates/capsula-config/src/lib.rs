@@ -147,7 +147,6 @@ pub fn build_hooks<P: PhaseMarker>(
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "Tests can use unwrap")]
 mod tests {
     use super::*;
 

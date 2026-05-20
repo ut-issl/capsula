@@ -1,4 +1,5 @@
-#![expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code")]
+// This integration test crate is only compiled for test targets.
+#![cfg(test)]
 
 use capsula_capture_env::EnvVarHook;
 use capsula_core::captured::Captured;

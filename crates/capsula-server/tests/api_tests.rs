@@ -1,5 +1,6 @@
 //! Integration tests for Capsula server API endpoints.
-#![allow(clippy::unwrap_used, reason = "Test code")]
+#![cfg(test)]
+
 use capsula_server::{build_app, create_pool};
 use serde_json::json;
 use testcontainers_modules::{

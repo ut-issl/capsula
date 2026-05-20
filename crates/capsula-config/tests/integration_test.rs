@@ -1,5 +1,5 @@
-#![allow(clippy::print_stdout, reason = "Printing is acceptable in test code")]
-#![allow(clippy::print_stderr, reason = "Printing is acceptable in test code")]
+// This integration test crate is only compiled for test targets.
+#![cfg(test)]
 
 use capsula_config::CapsulaConfig;
 use std::path::Path;

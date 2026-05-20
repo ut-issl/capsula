@@ -1398,7 +1398,6 @@ fn sanitize_relative_path(candidate: &str) -> Result<String, &'static str> {
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests may use unwrap for brevity")]
 mod tests {
     use super::{content_disposition_inline, sanitize_relative_path};
 
