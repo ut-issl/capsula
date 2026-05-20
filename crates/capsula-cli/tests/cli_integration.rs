@@ -1,6 +1,7 @@
 //! Integration tests for the capsula CLI tool.
 #![expect(
     clippy::unwrap_used,
+    clippy::panic,
     reason = "Test code doesn't need production-level error handling"
 )]
 
