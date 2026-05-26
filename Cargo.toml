@@ -34,7 +34,11 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 crossterm = "0.29"
 dotenvy = "0.15.7"
-git2 = "0.20"
+gix = { version = "0.83.0", default-features = false, features = [
+  "revision",
+  "sha1",
+  "status"
+] }
 glob = "0.3"
 mime_guess = "2"
 names = { version = "0.14", default-features = false }
