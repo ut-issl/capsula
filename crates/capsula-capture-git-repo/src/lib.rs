@@ -200,7 +200,7 @@ impl GitHook {
         // Check remote branches: HEAD is at tip or ancestor of a remote branch
         for reference in repo.references().map_err(GitHookError::from)? {
             let reference = reference.map_err(GitHookError::from)?;
-            if let Some(name) = reference.name()
+            if let Ok(name) = reference.name()
                 && name.starts_with(&remote_branch_prefix)
                 && let Ok(remote_commit) = reference.peel_to_commit()
                 && (remote_commit.id() == head_oid
