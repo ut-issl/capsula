@@ -601,12 +601,15 @@ async fn search_runs(
     let query_sql = builder.build_query();
     let count_sql = builder.build_count_query();
     let bind_values = builder.bind_values();
+    // SAFETY: RunQueryBuilder only interpolates server-selected SQL fragments
+    // (column predicates, parameter placeholders, sort order, and clamped numeric
+    // LIMIT/OFFSET). User-provided values are bound below.
 
     info!("Executing search query: {}", query_sql);
 
     // Execute count query first
     let total: i64 = {
-        let mut query = sqlx::query_scalar::<_, i64>(&count_sql);
+        let mut query = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(count_sql));
         for value in bind_values {
             query = match value {
                 query::BindValue::String(s) => query.bind(s.clone()),
@@ -630,7 +633,7 @@ async fn search_runs(
 
     // Execute main query
     let runs: Vec<models::Run> = {
-        let mut query = sqlx::query_as::<_, models::Run>(&query_sql);
+        let mut query = sqlx::query_as::<_, models::Run>(sqlx::AssertSqlSafe(query_sql));
         for value in bind_values {
             query = match value {
                 query::BindValue::String(s) => query.bind(s.clone()),
