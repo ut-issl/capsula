@@ -46,10 +46,11 @@ serde_json = "1"
 sha2 = "0.11"
 shlex = "2"
 sql-json-path = "0.1"
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9", features = [
   "chrono",
   "postgres",
-  "runtime-tokio-rustls"
+  "runtime-tokio",
+  "tls-rustls"
 ] }
 sysinfo = "0.39"
 tempfile = "3"
