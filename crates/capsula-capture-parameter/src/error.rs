@@ -24,7 +24,7 @@ pub enum ParameterHookError {
     #[error("Parameter conflict at key path '{0}'")]
     ParameterConflict(String),
 
-    /// strip_prefix is not a literal prefix of a matched file's relative path
+    /// `strip_prefix` is not a literal prefix of a matched file's relative path
     #[error("strip_prefix '{prefix}' is not a prefix of matched path '{path}'")]
     StripPrefixMismatch { prefix: String, path: String },
 

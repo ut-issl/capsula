@@ -31,9 +31,9 @@ fn make_run(project_root: &Path) -> PreparedRun {
 
 fn run_hook(
     project_root: &Path,
-    config: serde_json::Value,
+    config: &serde_json::Value,
 ) -> capsula_core::error::CapsulaResult<serde_json::Value> {
-    let hook = <ParameterHook as Hook<PreRun>>::from_config(&config, project_root)?;
+    let hook = <ParameterHook as Hook<PreRun>>::from_config(config, project_root)?;
     let run = make_run(project_root);
     let params = RuntimeParams::<PreRun>::default();
     let captured = <ParameterHook as Hook<PreRun>>::run(&hook, &run, &params)?;
@@ -59,7 +59,7 @@ fn parses_single_json_file() {
     let tmp = TempDir::new().unwrap();
     fs::write(tmp.path().join("params.json"), r#"{"a": 1, "b": "x"}"#).unwrap();
 
-    let out = run_hook(tmp.path(), json!({ "glob": "*.json" })).unwrap();
+    let out = run_hook(tmp.path(), &json!({ "glob": "*.json" })).unwrap();
     assert_eq!(
         out,
         json!({
@@ -77,7 +77,7 @@ fn parses_toml_file() {
     )
     .unwrap();
 
-    let out = run_hook(tmp.path(), json!({ "glob": "*.toml" })).unwrap();
+    let out = run_hook(tmp.path(), &json!({ "glob": "*.toml" })).unwrap();
     assert_eq!(
         out,
         json!({
@@ -92,7 +92,7 @@ fn merges_json_and_yaml_with_same_stem() {
     fs::write(tmp.path().join("orbit.json"), r#"{"a": 1}"#).unwrap();
     fs::write(tmp.path().join("orbit.yaml"), "b: 2\n").unwrap();
 
-    let out = run_hook(tmp.path(), json!({ "glob": "orbit.*" })).unwrap();
+    let out = run_hook(tmp.path(), &json!({ "glob": "orbit.*" })).unwrap();
     assert_eq!(
         out,
         json!({
@@ -111,7 +111,7 @@ fn nested_directories_with_strip_prefix() {
 
     let out = run_hook(
         tmp.path(),
-        json!({
+        &json!({
             "glob": "config/**/*.json",
             "strip_prefix": "config"
         }),
@@ -135,7 +135,7 @@ fn leaf_and_intermediate_node_merge() {
     fs::write(tmp.path().join("sat1.json"), r#"{"x": 1}"#).unwrap();
     fs::write(tmp.path().join("sat1/orbit.json"), r#"{"a": 1}"#).unwrap();
 
-    let out = run_hook(tmp.path(), json!({ "glob": "**/*.json" })).unwrap();
+    let out = run_hook(tmp.path(), &json!({ "glob": "**/*.json" })).unwrap();
     assert_eq!(
         out,
         json!({
@@ -155,7 +155,7 @@ fn conflict_when_two_files_disagree_on_value() {
     fs::write(tmp.path().join("p.json"), r#"{"x": 1}"#).unwrap();
     fs::write(tmp.path().join("p.yaml"), "x: 2\n").unwrap();
 
-    let result = run_hook(tmp.path(), json!({ "glob": "p.*" }));
+    let result = run_hook(tmp.path(), &json!({ "glob": "p.*" }));
     let err = result.unwrap_err();
     let msg = full_error_text(&err);
     assert!(
@@ -169,7 +169,7 @@ fn unsupported_extension_errors() {
     let tmp = TempDir::new().unwrap();
     fs::write(tmp.path().join("data.csv"), "a,b\n1,2\n").unwrap();
 
-    let result = run_hook(tmp.path(), json!({ "glob": "*.csv" }));
+    let result = run_hook(tmp.path(), &json!({ "glob": "*.csv" }));
     assert!(result.is_err());
 }
 
@@ -181,7 +181,7 @@ fn strip_prefix_mismatch_errors() {
 
     let result = run_hook(
         tmp.path(),
-        json!({
+        &json!({
             "glob": "etc/*.json",
             "strip_prefix": "config"
         }),
