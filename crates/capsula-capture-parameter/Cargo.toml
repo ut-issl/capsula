@@ -1,29 +1,29 @@
 [package]
-name = "capsula-registry"
+name = "capsula-capture-parameter"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "A Capsula hooks registry."
-keywords = ["capsula", "registry"]
+description = "A Capsula hook that captures a parameter value."
 readme.workspace = true
 repository.workspace = true
 license.workspace = true
+keywords = ["capsula", "capsula-hook"]
 categories = ["development-tools"]
 
 [dependencies]
-capsula-capture-command = { workspace = true }
-capsula-capture-cwd = { workspace = true }
-capsula-capture-env = { workspace = true }
 capsula-capture-file = { workspace = true }
-capsula-capture-git-repo = { workspace = true }
-capsula-capture-machine = { workspace = true }
-capsula-capture-parameter = { workspace = true }
 capsula-core = { workspace = true }
-capsula-notify-slack = { workspace = true }
+glob = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+toml = { workspace = true }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+ulid = { workspace = true }
 
 [lints]
 workspace = true

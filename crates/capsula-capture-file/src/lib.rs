@@ -1,4 +1,4 @@
-mod error;
+pub mod error;
 mod hash;
 
 use crate::error::FileHookError;
