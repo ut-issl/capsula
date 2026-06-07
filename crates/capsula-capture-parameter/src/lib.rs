@@ -49,12 +49,9 @@ where
     type Config = ParameterHookConfig;
     type Output = ParameterCaptured;
 
-    fn from_config(
-        config: &serde_json::Value,
-        _project_root: &Path,
-    ) -> CapsulaResult<Self> {
-        let config: ParameterHookConfig = serde_json::from_value(config.clone())
-            .map_err(ParameterHookError::from)?;
+    fn from_config(config: &serde_json::Value, _project_root: &Path) -> CapsulaResult<Self> {
+        let config: ParameterHookConfig =
+            serde_json::from_value(config.clone()).map_err(ParameterHookError::from)?;
         Ok(Self { config })
     }
 
@@ -117,12 +114,12 @@ fn compute_keys(
     strip_prefix: Option<&str>,
 ) -> Result<Vec<String>, ParameterHookError> {
     let trimmed = if let Some(prefix) = strip_prefix {
-        rel_path
-            .strip_prefix(Path::new(prefix))
-            .map_err(|_| ParameterHookError::StripPrefixMismatch {
+        rel_path.strip_prefix(Path::new(prefix)).map_err(|_| {
+            ParameterHookError::StripPrefixMismatch {
                 prefix: prefix.to_string(),
                 path: rel_path.to_string_lossy().into_owned(),
-            })?
+            }
+        })?
     } else {
         rel_path
     };
@@ -271,7 +268,10 @@ mod tests {
     #[test]
     fn compute_keys_strip_prefix_mismatch_errors() {
         let err = compute_keys(Path::new("etc/foo.json"), Some("config")).unwrap_err();
-        assert!(matches!(err, ParameterHookError::StripPrefixMismatch { .. }));
+        assert!(matches!(
+            err,
+            ParameterHookError::StripPrefixMismatch { .. }
+        ));
     }
 
     // ---- merge_value ------------------------------------------------------
@@ -413,4 +413,3 @@ mod tests {
         );
     }
 }
-
