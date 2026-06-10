@@ -1,0 +1,24 @@
+[project]
+name = "capsula-client"
+version = "0.1.0"
+description = "Python client for the Capsula server API"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-httpx>=0.35",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/capsula_client"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
