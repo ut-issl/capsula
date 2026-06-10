@@ -623,3 +623,146 @@ async fn test_hook_outputs_storage() {
     assert_eq!(post_hooks[0]["__meta"]["id"], "file");
     assert_eq!(post_hooks[0]["__meta"]["success"], true);
 }
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "End-to-end regression test covering three distinct uploads and their\
+              assertions; splitting would obscure the regression scenario."
+)]
+async fn multiple_hook_instances_with_same_id_coexist() {
+    // Regression for #1017: multiple hook outputs with the same hook_id but
+    // distinct configs (typical for capture-json / capture-toml) must all
+    // survive on the server, distinguished by the generated config_hash
+    // column in the UNIQUE index.
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    let run_id = "01MULTIHOOK00000000000000";
+
+    let run_data = json!({
+        "id": run_id,
+        "name": "test-multi-hook",
+        "timestamp": "2026-06-12T10:00:00Z",
+        "command": "cargo test",
+        "vault": "multi-hook-vault",
+        "project_root": "/tmp/test",
+        "exit_code": 0,
+        "duration_ms": 100,
+        "stdout": null,
+        "stderr": null
+    });
+    let response = client
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
+        .json(&run_data)
+        .send()
+        .await
+        .expect("create run");
+    assert_eq!(response.status(), 201);
+
+    // Two capture-json hooks for the SAME phase with DIFFERENT config paths.
+    // Before the config_hash widening they would collide on
+    // UNIQUE(run_id, phase, hook_id) and the second would overwrite the first.
+    let pre_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "config/sat1/orbit.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "a": 1.42 }
+        },
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "config/sat2/orbit.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "a": 2.5 }
+        }
+    ]);
+
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id.to_string())
+        .text("pre_run", pre_run_hooks.to_string());
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("upload hooks");
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("parse upload body");
+    assert_eq!(
+        body["pre_run_hooks"], 2,
+        "both pre-run hook instances must persist"
+    );
+
+    // Verify both rows survived via GET /api/v1/runs/{id}.
+    let response = client
+        .get(format!("{}/api/v1/runs/{run_id}", ctx.base_url()))
+        .send()
+        .await
+        .expect("get run");
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("parse body");
+    let pre = body["pre_run_hooks"]
+        .as_array()
+        .expect("pre_run_hooks array");
+    assert_eq!(pre.len(), 2, "both capture-json rows must be present");
+
+    // Distinct content survives — each row reflects its own config.
+    let mut a_values: Vec<f64> = pre
+        .iter()
+        .map(|h| h["content"]["a"].as_f64().expect("number"))
+        .collect();
+    a_values.sort_by(f64::total_cmp);
+    assert_eq!(a_values, vec![1.42, 2.5]);
+
+    // Re-uploading the SAME hook (same hook_id, same config) must be
+    // idempotent: it should UPSERT the existing row, not duplicate it.
+    let same_hook_replay = json!([{
+        "__meta": {
+            "id": "capture-json",
+            "config": { "path": "config/sat1/orbit.json" },
+            "success": true,
+            "error": null
+        },
+        "content": { "a": 9.99 }
+    }]);
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id.to_string())
+        .text("pre_run", same_hook_replay.to_string());
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("re-upload hook");
+    assert_eq!(response.status(), 200);
+
+    let response = client
+        .get(format!("{}/api/v1/runs/{run_id}", ctx.base_url()))
+        .send()
+        .await
+        .expect("get run after re-upload");
+    let body: serde_json::Value = response.json().await.expect("parse body");
+    let pre = body["pre_run_hooks"]
+        .as_array()
+        .expect("pre_run_hooks array");
+    assert_eq!(
+        pre.len(),
+        2,
+        "re-upload with same hook+config must UPSERT, not duplicate"
+    );
+
+    // The sat1 row was updated to 9.99; sat2 still has 2.5.
+    let mut a_values: Vec<f64> = pre
+        .iter()
+        .map(|h| h["content"]["a"].as_f64().expect("number"))
+        .collect();
+    a_values.sort_by(f64::total_cmp);
+    assert_eq!(a_values, vec![2.5, 9.99]);
+}
