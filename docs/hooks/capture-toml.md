@@ -5,7 +5,7 @@ icon: material/hook
 # capture-toml
 
 Parses a single TOML file and embeds its parsed content in the run output
-under the `parameters` field, alongside the configured path in `file`.
+under the `content` field.
 
 ## Use Cases
 
@@ -31,8 +31,10 @@ path = "config/sat1/orbit.toml"
 
 ## Output Example
 
-The `file` field contains the path verbatim as written in the config. The
-`parameters` field contains the parsed TOML, converted to JSON.
+The `content` field contains the parsed TOML, converted to JSON. The
+configured path is not duplicated in the output body — it is already
+preserved in the standard `__meta.config.path` field injected by the
+orchestrator.
 
 Given `config/sat1/orbit.toml`:
 
@@ -53,8 +55,7 @@ The hook output is:
     },
     "success": true
   },
-  "file": "config/sat1/orbit.toml",
-  "parameters": {
+  "content": {
     "orbit": {
       "a": 1.42,
       "b": "LEO"
@@ -62,6 +63,9 @@ The hook output is:
   }
 }
 ```
+
+To distinguish multiple `capture-toml` outputs, filter on
+`__meta.config.path`.
 
 ## Composing Multiple Files
 
@@ -78,8 +82,8 @@ id = "capture-toml"
 path = "config/sat2/orbit.toml"
 ```
 
-Each entry produces its own row in `pre-run.json` with its own `file` and
-`parameters` fields.
+Each entry produces its own row in `pre-run.json` with its own `content`
+field; the configured path is available under `__meta.config.path`.
 
 ## TOML → JSON Conversion
 

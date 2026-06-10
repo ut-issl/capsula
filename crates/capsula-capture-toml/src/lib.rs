@@ -1,9 +1,11 @@
 //! `capture-toml` hook: parse a single TOML file and embed its parsed
-//! content in the run output under the `parameters` field.
+//! content in the run output under the `content` field.
 //!
 //! By design this hook captures exactly one file per instance. Compose
 //! multiple `capture-toml` entries in `capsula.toml` to capture multiple
-//! files.
+//! files. The path written in the config is preserved as part of the
+//! standard `__meta.config.path`, so the captured value does not need
+//! to duplicate it.
 
 mod error;
 
@@ -28,18 +30,13 @@ pub struct TomlHookConfig {
 #[derive(Debug)]
 pub struct TomlHook {
     config: TomlHookConfig,
-    project_root: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
 pub struct TomlCaptured {
-    /// The path as written in the configuration (verbatim, including any
-    /// directory components). Useful for distinguishing multiple
-    /// `capture-toml` outputs that share the same basename.
-    file: String,
     /// The parsed content of the file, converted to JSON. TOML datetime
     /// values are emitted as RFC 3339 strings.
-    parameters: serde_json::Value,
+    content: serde_json::Value,
 }
 
 impl<P> Hook<P> for TomlHook
@@ -51,13 +48,10 @@ where
     type Config = TomlHookConfig;
     type Output = TomlCaptured;
 
-    fn from_config(config: &serde_json::Value, project_root: &Path) -> CapsulaResult<Self> {
+    fn from_config(config: &serde_json::Value, _project_root: &Path) -> CapsulaResult<Self> {
         let config: TomlHookConfig =
             serde_json::from_value(config.clone()).map_err(TomlHookError::from)?;
-        Ok(Self {
-            config,
-            project_root: project_root.to_path_buf(),
-        })
+        Ok(Self { config })
     }
 
     fn config(&self) -> &Self::Config {
@@ -66,24 +60,21 @@ where
 
     fn run(
         &self,
-        _metadata: &PreparedRun,
+        metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
-        let full_path = self.project_root.join(&self.config.path);
+        let full_path = metadata.project_root.join(&self.config.path);
         debug!("TomlHook: reading {}", full_path.display());
 
-        let content = std::fs::read_to_string(&full_path).map_err(|source| TomlHookError::Io {
+        let raw = std::fs::read_to_string(&full_path).map_err(|source| TomlHookError::Io {
             path: full_path.clone(),
             source,
         })?;
 
-        let toml_value: toml::Value = toml::from_str(&content).map_err(TomlHookError::from)?;
-        let parameters = toml_value_to_json(toml_value);
+        let toml_value: toml::Value = toml::from_str(&raw).map_err(TomlHookError::from)?;
+        let content = toml_value_to_json(toml_value);
 
-        Ok(TomlCaptured {
-            file: self.config.path.to_string_lossy().into_owned(),
-            parameters,
-        })
+        Ok(TomlCaptured { content })
     }
 }
 
@@ -153,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_valid_toml_into_parameters_field() {
+    fn parses_valid_toml_into_content_field() {
         let tmp = TempDir::new().unwrap();
         fs::write(
             tmp.path().join("p.toml"),
@@ -164,27 +155,25 @@ mod tests {
         let hook = make_hook(tmp.path(), "p.toml");
         let captured = run_hook(&hook, tmp.path()).unwrap();
 
-        assert_eq!(captured.file, "p.toml");
         assert_eq!(
-            captured.parameters,
+            captured.content,
             serde_json::json!({"name": "capsula", "port": 8080})
         );
     }
 
     #[test]
-    fn file_field_preserves_configured_path_verbatim() {
-        let tmp = TempDir::new().unwrap();
-        fs::create_dir_all(tmp.path().join("config/sat1")).unwrap();
-        fs::write(
-            tmp.path().join("config/sat1/orbit.toml"),
-            "a = 1.42\nb = \"LEO\"\n",
-        )
-        .unwrap();
+    fn resolves_path_relative_to_metadata_project_root() {
+        // The hook reads project_root from PreparedRun, not from its own
+        // state. Capture this contract: a hook built against tmp_a but
+        // run against tmp_b should resolve relative to tmp_b.
+        let tmp_a = TempDir::new().unwrap();
+        let tmp_b = TempDir::new().unwrap();
+        fs::write(tmp_b.path().join("p.toml"), "x = 42\n").unwrap();
 
-        let hook = make_hook(tmp.path(), "config/sat1/orbit.toml");
-        let captured = run_hook(&hook, tmp.path()).unwrap();
+        let hook = make_hook(tmp_a.path(), "p.toml");
+        let captured = run_hook(&hook, tmp_b.path()).unwrap();
 
-        assert_eq!(captured.file, "config/sat1/orbit.toml");
+        assert_eq!(captured.content, serde_json::json!({"x": 42}));
     }
 
     #[test]
@@ -203,8 +192,8 @@ b = "LEO"
         let hook = make_hook(tmp.path(), "nested.toml");
         let captured = run_hook(&hook, tmp.path()).unwrap();
 
-        assert_eq!(captured.parameters["sat1"]["orbit"]["a"], 1.42);
-        assert_eq!(captured.parameters["sat1"]["orbit"]["b"], "LEO");
+        assert_eq!(captured.content["sat1"]["orbit"]["a"], 1.42);
+        assert_eq!(captured.content["sat1"]["orbit"]["b"], "LEO");
     }
 
     #[test]
@@ -222,9 +211,9 @@ b = "LEO"
         let captured = run_hook(&hook, tmp.path()).unwrap();
 
         assert!(
-            captured.parameters["created_at"].is_string(),
+            captured.content["created_at"].is_string(),
             "TOML datetime should be coerced to a JSON string, got: {:?}",
-            captured.parameters["created_at"]
+            captured.content["created_at"]
         );
     }
 
@@ -245,7 +234,7 @@ b = "LEO"
     }
 
     #[test]
-    fn serialized_output_has_file_and_parameters_fields() {
+    fn serialized_output_has_only_content_field() {
         let tmp = TempDir::new().unwrap();
         fs::write(tmp.path().join("p.toml"), "x = 42\n").unwrap();
 
@@ -253,8 +242,11 @@ b = "LEO"
         let captured = run_hook(&hook, tmp.path()).unwrap();
         let json = captured.serialize_json().unwrap();
 
-        assert_eq!(json["file"], "p.toml");
-        assert_eq!(json["parameters"]["x"], 42);
+        assert_eq!(json["content"]["x"], 42);
+        assert!(
+            json.get("file").is_none(),
+            "file is redundant with __meta.config.path"
+        );
         assert!(
             json.get("__meta").is_none(),
             "__meta is added by orchestration, not the hook"
