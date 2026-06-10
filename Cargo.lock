@@ -629,6 +629,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "capsula-capture-json"
+version = "0.12.1"
+dependencies = [
+ "capsula-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+ "ulid",
+]
+
+[[package]]
 name = "capsula-capture-machine"
 version = "0.12.1"
 dependencies = [
@@ -739,6 +752,7 @@ dependencies = [
  "capsula-capture-env",
  "capsula-capture-file",
  "capsula-capture-git-repo",
+ "capsula-capture-json",
  "capsula-capture-machine",
  "capsula-capture-toml",
  "capsula-core",

@@ -16,6 +16,7 @@ capsula-capture-cwd = { workspace = true }
 capsula-capture-env = { workspace = true }
 capsula-capture-file = { workspace = true }
 capsula-capture-git-repo = { workspace = true }
+capsula-capture-json = { workspace = true }
 capsula-capture-machine = { workspace = true }
 capsula-capture-toml = { workspace = true }
 capsula-core = { workspace = true }
