@@ -60,6 +60,83 @@ pub struct HookFilter {
     pub output_filter: String,
 }
 
+/// Comparison operator for parameter matching
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ComparisonOp {
+    /// Exact equality
+    Eq,
+    /// Not equal
+    Ne,
+    /// Greater than
+    Gt,
+    /// Greater than or equal
+    Ge,
+    /// Less than
+    Lt,
+    /// Less than or equal
+    Le,
+}
+
+/// A structured filter for parameter-capturing hooks (e.g., `capture-json`,
+/// `capture-toml`, ...).
+///
+/// Targets `run_outputs` rows whose `output` JSON has the shape:
+///
+/// ```text
+/// { "file": "<configured-path>", "parameters": { ...parsed... } }
+/// ```
+///
+/// The server selects matching rows structurally (by the presence of both
+/// the `file` and `parameters` top-level fields) — it is decoupled from
+/// the concrete `hook_id`, so any future hook that emits this shape works
+/// automatically.
+///
+/// Constraints (validated server-side):
+///
+/// - At least one of `file` / `parameter` must be specified.
+/// - If `parameter` is present, `operator` and `value` must also be present.
+/// - If `parameter` is absent, `operator` and `value` must also be absent.
+/// - Specifying `parameter` without `file` emits a server-side warning,
+///   since the match will scan across every parameter-capturing row of
+///   the run regardless of which file it came from.
+///
+/// # Example
+///
+/// ```json
+/// {
+///     "phase": "pre",
+///     "file": "config/sat1/orbit.json",
+///     "parameter": "a",
+///     "operator": "ge",
+///     "value": 1.0
+/// }
+/// ```
+///
+/// generates `$.parameters.a ? (@ >= 1.0)` against the row whose
+/// `file == "config/sat1/orbit.json"`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ParameterMatch {
+    /// Phase: `"pre"` or `"post"`
+    pub phase: String,
+    /// Optional exact match on the captured `file` field. Omitting this
+    /// causes the match to apply across every parameter-capturing row of
+    /// the run; the server logs a warning when this happens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// Dot path within the captured `parameters` object (e.g., `"lr"`,
+    /// `"sat1.orbit.a"`). When present, `operator` and `value` are required.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameter: Option<String>,
+    /// Comparison operator (required iff `parameter` is present).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operator: Option<ComparisonOp>,
+    /// Value to compare against — number, string, or boolean. Required
+    /// iff `parameter` is present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<serde_json::Value>,
+}
+
 /// Fields that can be included in search response
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -101,6 +178,11 @@ pub struct SearchRunsRequest {
     /// Hook output filters (AND logic)
     #[serde(default)]
     pub hook_filters: Vec<HookFilter>,
+    /// Structured parameter match filters for parameter-capturing hooks
+    /// (`capture-json`, `capture-toml`, ...). Each entry is an independent
+    /// EXISTS subquery; multiple entries are AND-combined.
+    #[serde(default)]
+    pub parameter_matches: Vec<ParameterMatch>,
     /// What to include in response
     #[serde(default)]
     pub include: Vec<IncludeField>,

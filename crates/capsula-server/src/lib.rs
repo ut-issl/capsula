@@ -582,9 +582,10 @@ async fn search_runs(
     Json(request): Json<models::SearchRunsRequest>,
 ) -> impl IntoResponse {
     info!(
-        "Searching runs: vault={:?}, hook_filters={}",
+        "Searching runs: vault={:?}, hook_filters={}, parameter_matches={}",
         request.vault,
-        request.hook_filters.len()
+        request.hook_filters.len(),
+        request.parameter_matches.len()
     );
 
     // Build the query

@@ -126,6 +126,9 @@ pub struct SearchRunsRequest {
     /// Hook output filters (AND logic)
     #[serde(default)]
     pub hook_filters: Vec<HookFilter>,
+    /// Structured parameter match filters (AND logic)
+    #[serde(default)]
+    pub parameter_matches: Vec<ParameterMatch>,
     /// What to include in response
     #[serde(default)]
     pub include: Vec<IncludeField>,
@@ -147,6 +150,34 @@ pub struct HookFilter {
     pub config_filter: Option<String>,
     /// `JSONPath` expression to match against hook's output
     pub output_filter: String,
+}
+
+/// Comparison operator for parameter matching
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComparisonOp {
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+}
+
+/// Structured filter for parameter-capturing hooks. See the `capsula-api-types`
+/// documentation for the full semantics. The server validates constraints at
+/// query-build time.
+#[derive(Debug, Deserialize)]
+pub struct ParameterMatch {
+    pub phase: String,
+    #[serde(default)]
+    pub file: Option<String>,
+    #[serde(default)]
+    pub parameter: Option<String>,
+    #[serde(default)]
+    pub operator: Option<ComparisonOp>,
+    #[serde(default)]
+    pub value: Option<JsonValue>,
 }
 
 /// Fields that can be included in search response

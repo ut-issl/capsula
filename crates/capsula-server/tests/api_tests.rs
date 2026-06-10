@@ -974,3 +974,560 @@ async fn response_exposes_hook_index_and_preserves_array_order() {
     assert_eq!(pre[2]["__meta"]["id"], "capture-command");
     assert_eq!(pre[2]["stdout"], "second");
 }
+// =============================================================================
+// ParameterMatch integration tests
+// =============================================================================
+//
+// Exercises POST /api/v1/runs/search with `parameter_matches`. The filter
+// targets rows produced by parameter-capturing hooks (capture-json,
+// capture-toml), which all share the shape:
+//
+//   __meta.config = { "path": "<configured-path>" }
+//   output        = { "content": <parsed JSON> }
+//
+// The server selects rows structurally (`output ? 'content'`), pins by
+// `config->>'path'` when `file` is set, and adds a JSONPath predicate
+// rooted at `$.content` when `parameter`+`operator`+`value` is set.
+
+async fn pm_create_run(ctx: &TestContext, run_id: &str, vault: &str) {
+    let run_data = json!({
+        "id": run_id,
+        "name": format!("test-{run_id}"),
+        "timestamp": "2026-01-08T10:00:00Z",
+        "command": "test",
+        "vault": vault,
+        "project_root": "/tmp/test",
+        "exit_code": 0,
+        "duration_ms": 100,
+        "stdout": null,
+        "stderr": null,
+    });
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
+        .json(&run_data)
+        .send()
+        .await
+        .expect("create run");
+    assert_eq!(response.status(), 201, "create_run for {run_id} failed");
+}
+
+async fn pm_upload_hook(
+    ctx: &TestContext,
+    run_id: &str,
+    phase: &str,
+    hook_id: &str,
+    config: serde_json::Value,
+    payload: serde_json::Value,
+) {
+    let mut combined = serde_json::Map::new();
+    combined.insert(
+        "__meta".to_string(),
+        json!({
+            "id": hook_id,
+            "config": config,
+            "success": true,
+            "error": null,
+        }),
+    );
+    if let Some(obj) = payload.as_object() {
+        for (k, v) in obj {
+            combined.insert(k.clone(), v.clone());
+        }
+    }
+    let hooks_array = serde_json::Value::Array(vec![serde_json::Value::Object(combined)]);
+    let field = match phase {
+        "pre" => "pre_run",
+        "post" => "post_run",
+        other => panic!("phase must be 'pre' or 'post', got: {other}"),
+    };
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id.to_string())
+        .text(field, hooks_array.to_string());
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("upload hook");
+    assert_eq!(
+        response.status(),
+        200,
+        "upload {phase} hook for {run_id} failed"
+    );
+}
+
+async fn pm_seed_capture_json(
+    ctx: &TestContext,
+    run_id: &str,
+    vault: &str,
+    phase: &str,
+    file: &str,
+    content: serde_json::Value,
+) {
+    pm_create_run(ctx, run_id, vault).await;
+    pm_upload_hook(
+        ctx,
+        run_id,
+        phase,
+        "capture-json",
+        json!({ "path": file }),
+        json!({ "content": content }),
+    )
+    .await;
+}
+
+async fn pm_search(ctx: &TestContext, body: serde_json::Value) -> serde_json::Value {
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/v1/runs/search", ctx.base_url()))
+        .json(&body)
+        .send()
+        .await
+        .expect("search request");
+    assert_eq!(response.status(), 200);
+    response.json().await.expect("parse body")
+}
+
+fn pm_run_ids(body: &serde_json::Value) -> Vec<String> {
+    body["runs"]
+        .as_array()
+        .expect("runs array")
+        .iter()
+        .map(|r| r["id"].as_str().expect("id").to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn pm_finds_run_by_file_and_parameter() {
+    let ctx = TestContext::new().await;
+
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI001AAAAAAAAAAAAAAA",
+        "v1",
+        "pre",
+        "config.json",
+        json!({ "lr": 0.01 }),
+    )
+    .await;
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI001BBBBBBBBBBBBBBB",
+        "v1",
+        "pre",
+        "config.json",
+        json!({ "lr": 0.001 }),
+    )
+    .await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "config.json",
+                "parameter": "lr",
+                "operator": "ge",
+                "value": 0.01,
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["status"], "ok");
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI001AAAAAAAAAAAAAAA".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn pm_string_eq() {
+    let ctx = TestContext::new().await;
+
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI002STRAAAAAAAAAAAA",
+        "v1",
+        "pre",
+        "model.json",
+        json!({ "architecture": "transformer" }),
+    )
+    .await;
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI002STRBBBBBBBBBBBB",
+        "v1",
+        "pre",
+        "model.json",
+        json!({ "architecture": "lstm" }),
+    )
+    .await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "model.json",
+                "parameter": "architecture",
+                "operator": "eq",
+                "value": "transformer",
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI002STRAAAAAAAAAAAA".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn pm_nested_dot_path() {
+    let ctx = TestContext::new().await;
+
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI003NESTAAAAAAAAAAA",
+        "v1",
+        "pre",
+        "sat1/orbit.json",
+        json!({ "orbit": { "a": 1.42 } }),
+    )
+    .await;
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI003NESTBBBBBBBBBBB",
+        "v1",
+        "pre",
+        "sat1/orbit.json",
+        json!({ "orbit": { "a": 0.5 } }),
+    )
+    .await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "sat1/orbit.json",
+                "parameter": "orbit.a",
+                "operator": "ge",
+                "value": 1.0,
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI003NESTAAAAAAAAAAA".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn pm_multiple_matches_are_anded_across_files() {
+    let ctx = TestContext::new().await;
+
+    // Run A: two capture-json hooks with the same hook_id but distinct
+    // config.path. With the hook_index widening of the run_outputs unique
+    // index (#1017 / #1036), they coexist as separate rows.
+    //
+    // NOTE: capsula's `/api/v1/upload` enumerates each phase's array with
+    // `.enumerate()` and uses the position as hook_index. Calling
+    // `pm_upload_hook` twice in a row each sends a 1-element array, so
+    // both rows would receive hook_index=0 and the second upload would
+    // ON CONFLICT UPSERT the first. Send both hooks in a single multipart
+    // POST instead — that mirrors how the real CLI uploads pre-run.json.
+    pm_create_run(&ctx, "01PMI004ANDOKAAAAAAAAAA", "v1").await;
+    let pre_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "train.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.01 }
+        },
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "data.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "batch_size": 32 }
+        }
+    ]);
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", "01PMI004ANDOKAAAAAAAAAA".to_string())
+        .text("pre_run", pre_run_hooks.to_string());
+    let response = reqwest::Client::new()
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("batch upload");
+    assert_eq!(response.status(), 200);
+
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI004ANDNOBBBBBBBBBB",
+        "v1",
+        "pre",
+        "train.json",
+        json!({ "lr": 0.01 }),
+    )
+    .await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [
+                { "phase": "pre", "file": "train.json", "parameter": "lr",
+                  "operator": "ge", "value": 0.001 },
+                { "phase": "pre", "file": "data.json", "parameter": "batch_size",
+                  "operator": "eq", "value": 32 }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI004ANDOKAAAAAAAAAA".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn pm_range_query_on_same_file() {
+    let ctx = TestContext::new().await;
+
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI005RNG001AAAAAAAAA",
+        "v1",
+        "pre",
+        "train.json",
+        json!({ "lr": 0.001 }),
+    )
+    .await;
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI005RNG010BBBBBBBBB",
+        "v1",
+        "pre",
+        "train.json",
+        json!({ "lr": 0.01 }),
+    )
+    .await;
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI005RNG100CCCCCCCCC",
+        "v1",
+        "pre",
+        "train.json",
+        json!({ "lr": 0.1 }),
+    )
+    .await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [
+                { "phase": "pre", "file": "train.json", "parameter": "lr",
+                  "operator": "ge", "value": 0.005 },
+                { "phase": "pre", "file": "train.json", "parameter": "lr",
+                  "operator": "le", "value": 0.05 }
+            ]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI005RNG010BBBBBBBBB".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn pm_phase_pre_does_not_match_post_outputs() {
+    let ctx = TestContext::new().await;
+
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI006PHASEAAAAAAAAAA",
+        "v1",
+        "post",
+        "config.json",
+        json!({ "lr": 0.01 }),
+    )
+    .await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "config.json",
+                "parameter": "lr",
+                "operator": "eq",
+                "value": 0.01,
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 0);
+}
+
+#[tokio::test]
+async fn pm_does_not_match_non_parameter_hooks() {
+    let ctx = TestContext::new().await;
+
+    // capture-env style: no `content` field. ParameterMatch's structural
+    // filter (`output ? 'content'`) must skip it.
+    pm_create_run(&ctx, "01PMI007OTHRAAAAAAAAAAA", "v1").await;
+    pm_upload_hook(
+        &ctx,
+        "01PMI007OTHRAAAAAAAAAAA",
+        "pre",
+        "capture-env",
+        json!({ "name": "PATH" }),
+        json!({ "value": "/usr/bin" }),
+    )
+    .await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "parameter": "value",
+                "operator": "eq",
+                "value": "/usr/bin",
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 0);
+}
+
+#[tokio::test]
+async fn pm_file_only_matches_when_file_present() {
+    let ctx = TestContext::new().await;
+
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI008FOAAAAAAAAAAAAA",
+        "v1",
+        "pre",
+        "orbit.json",
+        json!({ "a": 1 }),
+    )
+    .await;
+    pm_seed_capture_json(
+        &ctx,
+        "01PMI008FOBBBBBBBBBBBBB",
+        "v1",
+        "pre",
+        "other.json",
+        json!({ "a": 1 }),
+    )
+    .await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "orbit.json",
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI008FOAAAAAAAAAAAAA".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn pm_invalid_phase_returns_error() {
+    let ctx = TestContext::new().await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "during",
+                "file": "config.json",
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["status"], "error", "body: {body}");
+}
+
+#[tokio::test]
+async fn pm_empty_match_returns_error() {
+    let ctx = TestContext::new().await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["status"], "error", "body: {body}");
+}
+
+#[tokio::test]
+async fn pm_partial_triple_returns_error() {
+    let ctx = TestContext::new().await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "config.json",
+                "parameter": "lr",
+                "operator": "ge"
+                // value missing
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["status"], "error", "body: {body}");
+}
