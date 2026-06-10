@@ -642,6 +642,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "capsula-capture-toml"
+version = "0.12.1"
+dependencies = [
+ "capsula-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml",
+ "tracing",
+ "ulid",
+]
+
+[[package]]
 name = "capsula-client"
 version = "0.12.1"
 dependencies = [
@@ -726,6 +740,7 @@ dependencies = [
  "capsula-capture-file",
  "capsula-capture-git-repo",
  "capsula-capture-machine",
+ "capsula-capture-toml",
  "capsula-core",
  "capsula-notify-slack",
  "serde",

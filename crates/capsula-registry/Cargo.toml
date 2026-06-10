@@ -17,6 +17,7 @@ capsula-capture-env = { workspace = true }
 capsula-capture-file = { workspace = true }
 capsula-capture-git-repo = { workspace = true }
 capsula-capture-machine = { workspace = true }
+capsula-capture-toml = { workspace = true }
 capsula-core = { workspace = true }
 capsula-notify-slack = { workspace = true }
 serde = { workspace = true }
