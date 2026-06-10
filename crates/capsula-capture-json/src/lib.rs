@@ -1,9 +1,11 @@
 //! `capture-json` hook: parse a single JSON file and embed its parsed
-//! content in the run output under the `parameters` field.
+//! content in the run output under the `content` field.
 //!
 //! By design this hook captures exactly one file per instance. Compose
 //! multiple `capture-json` entries in `capsula.toml` to capture multiple
-//! files.
+//! files. The path written in the config is preserved as part of the
+//! standard `__meta.config.path`, so the captured value does not need
+//! to duplicate it.
 
 mod error;
 
@@ -28,17 +30,12 @@ pub struct JsonHookConfig {
 #[derive(Debug)]
 pub struct JsonHook {
     config: JsonHookConfig,
-    project_root: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
 pub struct JsonCaptured {
-    /// The path as written in the configuration (verbatim, including any
-    /// directory components). Useful for distinguishing multiple
-    /// `capture-json` outputs that share the same basename.
-    file: String,
     /// The parsed content of the file as JSON.
-    parameters: serde_json::Value,
+    content: serde_json::Value,
 }
 
 impl<P> Hook<P> for JsonHook
@@ -50,13 +47,10 @@ where
     type Config = JsonHookConfig;
     type Output = JsonCaptured;
 
-    fn from_config(config: &serde_json::Value, project_root: &Path) -> CapsulaResult<Self> {
+    fn from_config(config: &serde_json::Value, _project_root: &Path) -> CapsulaResult<Self> {
         let config: JsonHookConfig =
             serde_json::from_value(config.clone()).map_err(JsonHookError::from)?;
-        Ok(Self {
-            config,
-            project_root: project_root.to_path_buf(),
-        })
+        Ok(Self { config })
     }
 
     fn config(&self) -> &Self::Config {
@@ -65,24 +59,20 @@ where
 
     fn run(
         &self,
-        _metadata: &PreparedRun,
+        metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
     ) -> CapsulaResult<Self::Output> {
-        let full_path = self.project_root.join(&self.config.path);
+        let full_path = metadata.project_root.join(&self.config.path);
         debug!("JsonHook: reading {}", full_path.display());
 
-        let content = std::fs::read_to_string(&full_path).map_err(|source| JsonHookError::Io {
+        let raw = std::fs::read_to_string(&full_path).map_err(|source| JsonHookError::Io {
             path: full_path.clone(),
             source,
         })?;
 
-        let parameters: serde_json::Value =
-            serde_json::from_str(&content).map_err(JsonHookError::from)?;
+        let content: serde_json::Value = serde_json::from_str(&raw).map_err(JsonHookError::from)?;
 
-        Ok(JsonCaptured {
-            file: self.config.path.to_string_lossy().into_owned(),
-            parameters,
-        })
+        Ok(JsonCaptured { content })
     }
 }
 
@@ -128,27 +118,29 @@ mod tests {
     }
 
     #[test]
-    fn parses_valid_json_into_parameters_field() {
+    fn parses_valid_json_into_content_field() {
         let tmp = TempDir::new().unwrap();
         fs::write(tmp.path().join("p.json"), r#"{"a": 1, "b": "x"}"#).unwrap();
 
         let hook = make_hook(tmp.path(), "p.json");
         let captured = run_hook(&hook, tmp.path()).unwrap();
 
-        assert_eq!(captured.file, "p.json");
-        assert_eq!(captured.parameters, serde_json::json!({"a": 1, "b": "x"}));
+        assert_eq!(captured.content, serde_json::json!({"a": 1, "b": "x"}));
     }
 
     #[test]
-    fn file_field_preserves_configured_path_verbatim() {
-        let tmp = TempDir::new().unwrap();
-        fs::create_dir_all(tmp.path().join("config/sat1")).unwrap();
-        fs::write(tmp.path().join("config/sat1/orbit.json"), r#"{"a": 1}"#).unwrap();
+    fn resolves_path_relative_to_metadata_project_root() {
+        // The hook reads project_root from PreparedRun, not from its own
+        // state. Capture this contract: a hook built against tmp_a but
+        // run against tmp_b should resolve relative to tmp_b.
+        let tmp_a = TempDir::new().unwrap();
+        let tmp_b = TempDir::new().unwrap();
+        fs::write(tmp_b.path().join("p.json"), r#"{"x": 1}"#).unwrap();
 
-        let hook = make_hook(tmp.path(), "config/sat1/orbit.json");
-        let captured = run_hook(&hook, tmp.path()).unwrap();
+        let hook = make_hook(tmp_a.path(), "p.json");
+        let captured = run_hook(&hook, tmp_b.path()).unwrap();
 
-        assert_eq!(captured.file, "config/sat1/orbit.json");
+        assert_eq!(captured.content, serde_json::json!({"x": 1}));
     }
 
     #[test]
@@ -163,8 +155,8 @@ mod tests {
         let hook = make_hook(tmp.path(), "nested.json");
         let captured = run_hook(&hook, tmp.path()).unwrap();
 
-        assert_eq!(captured.parameters["sat1"]["orbit"]["a"], 1.42);
-        assert_eq!(captured.parameters["sat1"]["orbit"]["b"], "LEO");
+        assert_eq!(captured.content["sat1"]["orbit"]["a"], 1.42);
+        assert_eq!(captured.content["sat1"]["orbit"]["b"], "LEO");
     }
 
     #[test]
@@ -184,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn serialized_output_has_file_and_parameters_fields() {
+    fn serialized_output_has_only_content_field() {
         let tmp = TempDir::new().unwrap();
         fs::write(tmp.path().join("p.json"), r#"{"x": 42}"#).unwrap();
 
@@ -192,8 +184,11 @@ mod tests {
         let captured = run_hook(&hook, tmp.path()).unwrap();
         let json = captured.serialize_json().unwrap();
 
-        assert_eq!(json["file"], "p.json");
-        assert_eq!(json["parameters"]["x"], 42);
+        assert_eq!(json["content"]["x"], 42);
+        assert!(
+            json.get("file").is_none(),
+            "file is redundant with __meta.config.path"
+        );
         assert!(
             json.get("__meta").is_none(),
             "__meta is added by orchestration, not the hook"

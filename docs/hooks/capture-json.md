@@ -5,7 +5,7 @@ icon: material/hook
 # capture-json
 
 Parses a single JSON file and embeds its parsed content in the run output
-under the `parameters` field, alongside the configured path in `file`.
+under the `content` field.
 
 ## Use Cases
 
@@ -31,9 +31,9 @@ path = "config/sat1/orbit.json"
 
 ## Output Example
 
-The `file` field contains the path verbatim as written in the config (useful
-for distinguishing multiple `capture-json` outputs that share a basename).
-The `parameters` field contains the parsed JSON.
+The `content` field contains the parsed JSON. The configured path is not
+duplicated in the output body — it is already preserved in the standard
+`__meta.config.path` field injected by the orchestrator.
 
 ```json
 {
@@ -44,13 +44,15 @@ The `parameters` field contains the parsed JSON.
     },
     "success": true
   },
-  "file": "config/sat1/orbit.json",
-  "parameters": {
+  "content": {
     "a": 1.42,
     "b": "LEO"
   }
 }
 ```
+
+To distinguish multiple `capture-json` outputs (e.g., two files with the
+same basename), filter on `__meta.config.path`.
 
 ## Composing Multiple Files
 
@@ -67,8 +69,8 @@ id = "capture-json"
 path = "config/sat2/orbit.json"
 ```
 
-Each entry produces its own row in `pre-run.json` with its own `file` and
-`parameters` fields.
+Each entry produces its own row in `pre-run.json` with its own `content`
+field; the configured path is available under `__meta.config.path`.
 
 ## Error Behaviour
 
@@ -82,3 +84,4 @@ A failing `capture-json` does not stop other hooks from running.
 ## See Also
 
 - [`capture-file`](capture-file.md) — byte-exact archival of any file
+- [`capture-toml`](capture-toml.md) — same shape, for TOML inputs
