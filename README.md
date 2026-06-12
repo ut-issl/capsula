@@ -69,6 +69,19 @@ filename collisions between hooks.
 - **Auditing** - Generate complete execution records
 - **Debugging** - Understand what went wrong by reviewing the complete context
 
+## Server and Web UI
+
+Capsula also includes `capsula-server`, a PostgreSQL-backed web server for storing,
+browsing, and sharing run records beyond the local `.capsula` directory. It provides:
+
+- A web UI for browsing vaults, runs, hook outputs, and captured files
+- A REST API for programmatic access to runs, vaults, and file downloads
+- CLI integration via `capsula push` and `capsula vaults list`
+
+Run data can be pushed to a server configured with `--server`, `CAPSULA_SERVER_URL`,
+or the top-level `server = "https://capsula.example.com"` field in `capsula.toml`.
+See `crates/capsula-server/README.md` for setup details.
+
 ## License
 
 Licensed under either of:
