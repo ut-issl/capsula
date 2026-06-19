@@ -1167,13 +1167,23 @@ async fn upload_files(
 
     if let Some(ref rid) = run_id {
         if let Some(hooks) = pre_run_hooks {
-            for hook in hooks {
+            // hook_index is the position of the hook in the capsula.toml
+            // pre_run array — global within the phase, not per hook_id.
+            // The unique key (run_id, phase, hook_index) combined with this
+            // enumeration lets multiple instances of the same hook_id
+            // (e.g., several `capture-json` or `capture-command` entries)
+            // coexist as separate rows. See migration
+            // 20260613000000_add_hook_index_to_run_outputs.sql.
+            for (idx, hook) in hooks.iter().enumerate() {
+                let hook_index = i32::try_from(idx).unwrap_or(i32::MAX);
+
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)
-                    VALUES ($1, 'pre', $2, $3, $4, $5, $6)
-                    ON CONFLICT (run_id, phase, hook_id) DO UPDATE
-                    SET config = EXCLUDED.config,
+                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error, hook_index)
+                    VALUES ($1, 'pre', $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (run_id, phase, hook_index) DO UPDATE
+                    SET hook_id = EXCLUDED.hook_id,
+                        config = EXCLUDED.config,
                         output = EXCLUDED.output,
                         success = EXCLUDED.success,
                         error = EXCLUDED.error
@@ -1183,7 +1193,8 @@ async fn upload_files(
                     hook.meta.config,
                     hook.output,
                     hook.meta.success,
-                    hook.meta.error
+                    hook.meta.error,
+                    hook_index
                 )
                 .execute(&state.pool)
                 .await;
@@ -1205,13 +1216,16 @@ async fn upload_files(
         }
 
         if let Some(hooks) = post_run_hooks {
-            for hook in hooks {
+            for (idx, hook) in hooks.iter().enumerate() {
+                let hook_index = i32::try_from(idx).unwrap_or(i32::MAX);
+
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error)
-                    VALUES ($1, 'post', $2, $3, $4, $5, $6)
-                    ON CONFLICT (run_id, phase, hook_id) DO UPDATE
-                    SET config = EXCLUDED.config,
+                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error, hook_index)
+                    VALUES ($1, 'post', $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (run_id, phase, hook_index) DO UPDATE
+                    SET hook_id = EXCLUDED.hook_id,
+                        config = EXCLUDED.config,
                         output = EXCLUDED.output,
                         success = EXCLUDED.success,
                         error = EXCLUDED.error
@@ -1221,7 +1235,8 @@ async fn upload_files(
                     hook.meta.config,
                     hook.output,
                     hook.meta.success,
-                    hook.meta.error
+                    hook.meta.error,
+                    hook_index
                 )
                 .execute(&state.pool)
                 .await;
