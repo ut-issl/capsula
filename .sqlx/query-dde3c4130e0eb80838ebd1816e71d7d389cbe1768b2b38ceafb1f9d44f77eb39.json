@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT phase, hook_id, config, output, success, error\n        FROM run_outputs\n        WHERE run_id = $1\n        ORDER BY id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "phase",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "phase"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "hook_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "hook_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "config",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "config"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "output",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "output"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "success",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "success"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "error",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "error"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "dde3c4130e0eb80838ebd1816e71d7d389cbe1768b2b38ceafb1f9d44f77eb39"
+}

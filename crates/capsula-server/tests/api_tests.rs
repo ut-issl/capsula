@@ -623,3 +623,255 @@ async fn test_hook_outputs_storage() {
     assert_eq!(post_hooks[0]["__meta"]["id"], "file");
     assert_eq!(post_hooks[0]["__meta"]["success"], true);
 }
+
+#[tokio::test]
+async fn multiple_hooks_with_distinct_configs_coexist() {
+    // Regression for #1017: two capture-json hooks with the same hook_id
+    // but distinct configs must both survive on the server. With the new
+    // hook_index column they sit at array positions 0 and 1.
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    let run_id = "01HOOKIDX00000000000000A";
+    let response = client
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
+        .json(&json!({
+            "id": run_id,
+            "name": "multi-hooks-distinct",
+            "timestamp": "2026-06-13T10:00:00Z",
+            "command": "test",
+            "vault": "hook-index-vault",
+            "project_root": "/tmp/test",
+            "exit_code": 0,
+            "duration_ms": 100,
+            "stdout": null,
+            "stderr": null,
+        }))
+        .send()
+        .await
+        .expect("create run");
+    assert_eq!(response.status(), 201);
+
+    let pre_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "config/sat1.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "a": 1.0 }
+        },
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "config/sat2.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "a": 2.0 }
+        }
+    ]);
+
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id.to_string())
+        .text("pre_run", pre_run_hooks.to_string());
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("upload hooks");
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("parse upload body");
+    assert_eq!(body["pre_run_hooks"], 2);
+
+    let response = client
+        .get(format!("{}/api/v1/runs/{run_id}", ctx.base_url()))
+        .send()
+        .await
+        .expect("get run");
+    let body: serde_json::Value = response.json().await.expect("parse body");
+    let pre = body["pre_run_hooks"]
+        .as_array()
+        .expect("pre_run_hooks array");
+    assert_eq!(pre.len(), 2, "both rows must persist");
+}
+
+#[tokio::test]
+async fn multiple_hooks_with_identical_configs_coexist() {
+    // Reviewer's concern that closed #1019: two hooks with the same
+    // hook_id AND the same config (e.g., two capture-command hooks
+    // running the identical command) should still produce distinct rows.
+    // A config-hash discriminator would collide; hook_index uses array
+    // position, so they remain separate.
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    let run_id = "01HOOKIDX00000000000000B";
+    let response = client
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
+        .json(&json!({
+            "id": run_id,
+            "name": "multi-hooks-identical",
+            "timestamp": "2026-06-13T10:00:00Z",
+            "command": "test",
+            "vault": "hook-index-vault",
+            "project_root": "/tmp/test",
+            "exit_code": 0,
+            "duration_ms": 100,
+            "stdout": null,
+            "stderr": null,
+        }))
+        .send()
+        .await
+        .expect("create run");
+    assert_eq!(response.status(), 201);
+
+    let pre_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "capture-command",
+                "config": { "command": "echo hello" },
+                "success": true,
+                "error": null
+            },
+            "stdout": "first invocation",
+            "exit_code": 0
+        },
+        {
+            "__meta": {
+                "id": "capture-command",
+                "config": { "command": "echo hello" },
+                "success": true,
+                "error": null
+            },
+            "stdout": "second invocation",
+            "exit_code": 0
+        }
+    ]);
+
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id.to_string())
+        .text("pre_run", pre_run_hooks.to_string());
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("upload hooks");
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("parse body");
+    assert_eq!(body["pre_run_hooks"], 2);
+
+    let response = client
+        .get(format!("{}/api/v1/runs/{run_id}", ctx.base_url()))
+        .send()
+        .await
+        .expect("get run");
+    let body: serde_json::Value = response.json().await.expect("parse body");
+    let pre = body["pre_run_hooks"]
+        .as_array()
+        .expect("pre_run_hooks array");
+    assert_eq!(pre.len(), 2);
+    let stdouts: Vec<&str> = pre
+        .iter()
+        .map(|h| h["stdout"].as_str().expect("stdout"))
+        .collect();
+    assert!(
+        stdouts.contains(&"first invocation"),
+        "missing first invocation, got: {stdouts:?}"
+    );
+    assert!(
+        stdouts.contains(&"second invocation"),
+        "missing second invocation, got: {stdouts:?}"
+    );
+}
+
+#[tokio::test]
+async fn re_upload_with_same_array_is_idempotent() {
+    // The hook_index is stable for re-uploads of the same capsula.toml
+    // structure, so ON CONFLICT UPSERTs the existing row instead of
+    // creating a duplicate.
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    let run_id = "01HOOKIDX00000000000000C";
+    let response = client
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
+        .json(&json!({
+            "id": run_id,
+            "name": "re-upload-test",
+            "timestamp": "2026-06-13T10:00:00Z",
+            "command": "test",
+            "vault": "hook-index-vault",
+            "project_root": "/tmp/test",
+            "exit_code": 0,
+            "duration_ms": 100,
+            "stdout": null,
+            "stderr": null,
+        }))
+        .send()
+        .await
+        .expect("create run");
+    assert_eq!(response.status(), 201);
+
+    let upload = |variant: &str| {
+        let body = json!([
+            {
+                "__meta": {
+                    "id": "capture-json",
+                    "config": { "path": "config/a.json" },
+                    "success": true,
+                    "error": null
+                },
+                "content": { "v": variant }
+            },
+            {
+                "__meta": {
+                    "id": "capture-json",
+                    "config": { "path": "config/b.json" },
+                    "success": true,
+                    "error": null
+                },
+                "content": { "v": variant }
+            }
+        ]);
+        reqwest::multipart::Form::new()
+            .text("run_id", run_id.to_string())
+            .text("pre_run", body.to_string())
+    };
+
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(upload("first"))
+        .send()
+        .await
+        .expect("first upload");
+    assert_eq!(response.status(), 200);
+
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(upload("second"))
+        .send()
+        .await
+        .expect("second upload");
+    assert_eq!(response.status(), 200);
+
+    let response = client
+        .get(format!("{}/api/v1/runs/{run_id}", ctx.base_url()))
+        .send()
+        .await
+        .expect("get run");
+    let body: serde_json::Value = response.json().await.expect("parse body");
+    let pre = body["pre_run_hooks"]
+        .as_array()
+        .expect("pre_run_hooks array");
+    assert_eq!(pre.len(), 2, "re-upload must UPSERT, not duplicate");
+    for hook in pre {
+        assert_eq!(
+            hook["content"]["v"], "second",
+            "every row should reflect the latest upload"
+        );
+    }
+}
