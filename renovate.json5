@@ -7,6 +7,15 @@
   },
   packageRules: [
     {
+      // Docker Hub provides a tag timestamp, but Renovate cannot reliably know
+      // the true per-digest publish time. Wait until the minimumReleaseAge
+      // stability check is no longer pending before opening Docker Hub digest PRs.
+      matchDatasources: ["docker"],
+      matchUpdateTypes: ["digest"],
+      matchRegistryUrls: ["https://index.docker.io"],
+      prCreation: "not-pending",
+    },
+    {
       matchUpdateTypes: ["lockFileMaintenance"],
       minimumReleaseAge: null,
     },
