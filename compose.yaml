@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18@sha256:0f87cee50046e04196f8faa2f017b9bab8cd68c5292a77d8d58e85b08e3afd1a
+    image: postgres:18@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
     environment:
       - POSTGRES_USER=${POSTGRES_USER?Variable POSTGRES_USER not set}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable POSTGRES_PASSWORD not set}
