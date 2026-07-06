@@ -80,7 +80,7 @@ Capsula stores everything in `.capsula/`:
     └── output.txt              # Your captured file
 ```
 
-Hooks that produce file artifacts (e.g., `capture-file`, `capture-git-repo`) each
+Hooks that produce file artifacts (e.g., `capture-file`, `capture-dir`, `capture-git-repo`) each
 get a dedicated subdirectory named `{phase}-{index}-{hook_id}/`. This prevents
 filename collisions between hooks and keeps each hook's outputs isolated.
 
@@ -98,6 +98,7 @@ cat .capsula/my-project/2025-01-09/143022-happy-river/_capsula/pre-run.json
 | [capture-env](hooks/capture-env.md) | Captures environment variables | Pre-run |
 | [capture-git-repo](hooks/capture-git-repo.md) | Captures git repository state | Pre-run |
 | [capture-file](hooks/capture-file.md) | Captures files (copy/move/hash) | Both |
+| [capture-dir](hooks/capture-dir.md) | Captures directory trees (copy/move/hash files) | Both |
 | [capture-machine](hooks/capture-machine.md) | Captures system information | Pre-run |
 | [capture-command](hooks/capture-command.md) | Runs commands and captures output | Both |
 | [notify-slack](hooks/notify-slack.md) | Sends Slack notifications | Both |

@@ -53,6 +53,7 @@ nav = [
     { "capture-env" = "hooks/capture-env.md" },
     { "capture-git-repo" = "hooks/capture-git-repo.md" },
     { "capture-file" = "hooks/capture-file.md" },
+    { "capture-dir" = "hooks/capture-dir.md" },
     { "capture-machine" = "hooks/capture-machine.md" },
     { "capture-command" = "hooks/capture-command.md" },
     { "notify-slack" = "hooks/notify-slack.md" },

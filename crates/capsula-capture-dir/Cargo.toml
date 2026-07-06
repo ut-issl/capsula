@@ -1,0 +1,25 @@
+[package]
+name = "capsula-capture-dir"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "A Capsula hook that captures directory contents."
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords = ["capsula", "capsula-hook"]
+categories = ["development-tools", "filesystem"]
+
+[dependencies]
+capsula-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+ulid = { workspace = true }
+
+[lints]
+workspace = true
