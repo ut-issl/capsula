@@ -82,5 +82,5 @@ success_codes = [1]
 }
 ```
 
-!!! warning "Abort Behavior"
-    Pre-run hook failures are recorded, remaining pre-run hooks still run, and then Capsula stops before running your main command.
+!!! warning "Failure Behavior"
+    Pre-run hook failures are recorded, remaining pre-run hooks still run, and then Capsula stops before running your main command. Post-run hook failures are recorded after the main command; they make `capsula run` fail if the main command succeeded, while preserving the main command's non-zero exit code if it already failed.

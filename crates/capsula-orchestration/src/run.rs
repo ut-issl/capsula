@@ -82,17 +82,18 @@ pub fn run_pre_hooks(
 }
 
 /// Execute post-run hooks and write results to `post-run.json`.
+///
+/// Returns whether any hook failed or errored.
 pub fn run_post_hooks(
     run: &PreparedRun,
     capsula_dir: &Path,
     config: &HookPhaseConfig,
     registry: &capsula_registry::HookRegistry<PostRun>,
     project_root: &Path,
-) -> Result<()> {
+) -> Result<bool> {
     debug!("Executing post-run hooks");
-    let (post_json, _should_abort) =
-        build_and_run_hooks::<PostRun>(run, config, registry, project_root)
-            .context("Failed to execute post-run hooks")?;
+    let (post_json, failed) = build_and_run_hooks::<PostRun>(run, config, registry, project_root)
+        .context("Failed to execute post-run hooks")?;
     debug!("Post-run hooks completed");
 
     let post_json_path = capsula_dir.join("post-run.json");
@@ -105,5 +106,5 @@ pub fn run_post_hooks(
         },
     )?;
 
-    Ok(())
+    Ok(failed)
 }

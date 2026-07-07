@@ -30,9 +30,9 @@ const VERSION: &str = if env!("GIT_HASH").is_empty() {
     )
 };
 
-/// Exit code used when pre-run hooks capture successfully but request that the
-/// command itself must not run.
-const PRE_RUN_ABORT_EXIT_CODE: i32 = 125;
+/// Exit code used when Capsula hook failures should make the CLI fail and no
+/// child command exit code needs to be propagated.
+const HOOK_FAILURE_EXIT_CODE: i32 = 125;
 
 #[derive(Parser, Debug)]
 #[command(name = "capsula", bin_name = "capsula", version = VERSION, about = "Capsula CLI")]
@@ -312,7 +312,7 @@ path = \".\"
             )?;
             if should_abort {
                 error!("Aborting run due to pre-run hook failure.");
-                std::process::exit(PRE_RUN_ABORT_EXIT_CODE);
+                std::process::exit(HOOK_FAILURE_EXIT_CODE);
             }
 
             // Execute the command
@@ -328,13 +328,19 @@ path = \".\"
                     format!("Failed to write run output to {}", run_json_path.display())
                 })?;
 
-            run_post_hooks(
+            let post_hooks_failed = run_post_hooks(
                 &run,
                 &capsula_dir,
                 &config.post_run,
                 &post_run_hook_registry,
                 &project_root,
             )?;
+            if post_hooks_failed {
+                error!("Post-run hook failure recorded.");
+                if run_output.exit_code == 0 {
+                    std::process::exit(HOOK_FAILURE_EXIT_CODE);
+                }
+            }
 
             std::process::exit(run_output.exit_code);
         }
@@ -350,7 +356,7 @@ path = \".\"
             )?;
             if should_abort {
                 error!("Aborting run-start due to pre-run hook failure.");
-                std::process::exit(PRE_RUN_ABORT_EXIT_CODE);
+                std::process::exit(HOOK_FAILURE_EXIT_CODE);
             }
 
             // Print run name to stdout for callers to capture
@@ -379,13 +385,17 @@ path = \".\"
 
             info!("Finalizing run: {} (ID: {})", run.name, run.id);
 
-            run_post_hooks(
+            let post_hooks_failed = run_post_hooks(
                 &run,
                 &capsula_dir,
                 &config.post_run,
                 &post_run_hook_registry,
                 &project_root,
             )?;
+            if post_hooks_failed {
+                error!("Post-run hook failure recorded.");
+                std::process::exit(HOOK_FAILURE_EXIT_CODE);
+            }
 
             info!("Run '{}' finalized successfully", run_name);
         }
