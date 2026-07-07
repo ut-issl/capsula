@@ -3,7 +3,7 @@ mod error;
 use crate::error::GitHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
 use serde::{Deserialize, Serialize};
@@ -46,17 +46,11 @@ pub struct GitCaptured {
     is_dirty: bool,
     is_pushed: bool,
     tag: Option<String>,
-    #[serde(skip)]
-    abort_requested: bool,
 }
 
 impl Captured for GitCaptured {
     fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
         serde_json::to_value(self)
-    }
-
-    fn abort_requested(&self) -> bool {
-        self.abort_requested
     }
 }
 
@@ -96,7 +90,7 @@ where
         &self,
         metadata: &PreparedRun,
         params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         let repo_path = if self.working_dir.as_os_str().is_empty() {
             std::env::current_dir()?
         } else {
@@ -182,15 +176,27 @@ where
             None
         };
 
-        Ok(GitCaptured {
+        let captured = GitCaptured {
             working_dir: repo_path,
             sha: oid.to_string(),
             is_dirty,
             is_pushed,
             tag,
-            abort_requested: (is_dirty && !self.config.allow_dirty)
-                || (self.config.require_pushed && !is_pushed),
-        })
+        };
+
+        let failure_reasons = [
+            (is_dirty && !self.config.allow_dirty).then_some("repository has uncommitted changes"),
+            (self.config.require_pushed && !is_pushed)
+                .then_some("HEAD commit is not pushed to the configured remote"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+
+        match failure_reasons.as_slice() {
+            [] => Ok(HookOutcome::success(captured)),
+            reasons => Ok(HookOutcome::failure(captured, reasons.join("; "))),
+        }
     }
 }
 
