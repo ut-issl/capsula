@@ -21,6 +21,7 @@ use tracing::debug;
 use crate::error::JsonHookError;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct JsonHookConfig {
     /// Path to the JSON file to parse, relative to `project_root`.
     /// Absolute paths are also accepted.
@@ -193,5 +194,17 @@ mod tests {
             json.get("__meta").is_none(),
             "__meta is added by orchestration, not the hook"
         );
+    }
+
+    #[test]
+    fn rejects_unknown_config_fields() {
+        let config = serde_json::json!({
+            "path": "p.json",
+            "unexpected": true,
+        });
+
+        let result = <JsonHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+        assert!(result.is_err(), "unknown config fields should be rejected");
     }
 }
