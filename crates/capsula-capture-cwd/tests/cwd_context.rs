@@ -23,8 +23,9 @@ fn cwd_hook_captures_current_dir_and_json() {
     };
     let params = RuntimeParams::<PreRun>::default();
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("CwdHook::run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("CwdHook::run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
     let json_cwd = json
@@ -34,7 +35,7 @@ fn cwd_hook_captures_current_dir_and_json() {
 
     // Assert (captured struct)
     assert_eq!(
-        captured.cwd_abs(),
+        outcome.output().cwd_abs(),
         expected.as_path(),
         "cwd_abs should match current_dir"
     );
