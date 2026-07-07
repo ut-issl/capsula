@@ -4,6 +4,77 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
+/// The semantic outcome of a hook that ran to completion.
+///
+/// Operational errors are still represented by the outer [`CapsulaResult`]
+/// returned from [`Hook::run`]. `Failed` is for hooks that captured useful
+/// output but determined that their configured success condition was not met.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HookOutcome<T> {
+    /// The hook ran and its configured success condition passed.
+    Succeeded(T),
+    /// The hook ran and captured output, but its configured success condition failed.
+    Failed { output: T, reason: String },
+}
+
+impl<T> HookOutcome<T> {
+    #[must_use]
+    pub const fn success(output: T) -> Self {
+        Self::Succeeded(output)
+    }
+
+    #[must_use]
+    pub fn failure(output: T, reason: impl Into<String>) -> Self {
+        Self::Failed {
+            output,
+            reason: reason.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn is_success(&self) -> bool {
+        matches!(self, Self::Succeeded(_))
+    }
+
+    #[must_use]
+    pub const fn is_failure(&self) -> bool {
+        matches!(self, Self::Failed { .. })
+    }
+
+    #[must_use]
+    pub const fn failure_reason(&self) -> Option<&str> {
+        match self {
+            Self::Succeeded(_) => None,
+            Self::Failed { reason, .. } => Some(reason.as_str()),
+        }
+    }
+
+    #[must_use]
+    pub const fn output(&self) -> &T {
+        match self {
+            Self::Succeeded(output) | Self::Failed { output, .. } => output,
+        }
+    }
+
+    #[must_use]
+    pub fn into_output(self) -> T {
+        match self {
+            Self::Succeeded(output) | Self::Failed { output, .. } => output,
+        }
+    }
+
+    #[must_use]
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> HookOutcome<U> {
+        match self {
+            Self::Succeeded(output) => HookOutcome::Succeeded(f(output)),
+            Self::Failed { output, reason } => HookOutcome::Failed {
+                output: f(output),
+                reason,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct PreRun;
 #[derive(Debug, Clone, Default)]
@@ -74,8 +145,11 @@ pub trait Hook<P: PhaseMarker>: Send + Sync {
         Self: Sized;
 
     fn config(&self) -> &Self::Config;
-    fn run(&self, metadata: &PreparedRun, params: &RuntimeParams<P>)
-    -> CapsulaResult<Self::Output>;
+    fn run(
+        &self,
+        metadata: &PreparedRun,
+        params: &RuntimeParams<P>,
+    ) -> CapsulaResult<HookOutcome<Self::Output>>;
 
     /// Whether this hook needs a dedicated artifact directory.
     ///
@@ -94,7 +168,7 @@ pub trait HookErased<P: PhaseMarker>: Send + Sync {
         &self,
         metadata: &PreparedRun,
         params: &RuntimeParams<P>,
-    ) -> Result<Box<dyn super::captured::Captured>, CapsulaError>;
+    ) -> Result<HookOutcome<Box<dyn super::captured::Captured>>, CapsulaError>;
     fn needs_artifact_dir(&self) -> bool;
 }
 
@@ -115,9 +189,9 @@ where
         &self,
         metadata: &PreparedRun,
         params: &RuntimeParams<P>,
-    ) -> Result<Box<dyn super::captured::Captured>, CapsulaError> {
-        let out = <T as Hook<P>>::run(self, metadata, params)?;
-        Ok(Box::new(out))
+    ) -> Result<HookOutcome<Box<dyn super::captured::Captured>>, CapsulaError> {
+        let outcome = <T as Hook<P>>::run(self, metadata, params)?;
+        Ok(outcome.map(|out| Box::new(out) as Box<dyn super::captured::Captured>))
     }
 
     fn needs_artifact_dir(&self) -> bool {

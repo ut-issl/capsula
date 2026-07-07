@@ -43,7 +43,7 @@ id = "capture-cwd"
     config_path
 }
 
-/// Helper to create a capsula.toml config whose pre-run hook requests abort
+/// Helper to create a capsula.toml config whose pre-run hook fails.
 fn create_test_config_with_aborting_pre_run(dir: &TempDir, vault_name: &str) -> PathBuf {
     let config_path = dir.path().join("capsula.toml");
     let config_content = format!(
@@ -153,12 +153,12 @@ fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
     cmd.assert()
         .code(PRE_RUN_ABORT_EXIT_CODE)
         .stderr(predicate::str::contains(
-            "Aborting run due to pre-run hook request",
+            "Aborting run due to pre-run hook failure",
         ));
 
     assert!(
         !sentinel_path.exists(),
-        "command should not execute after a pre-run abort request"
+        "command should not execute after a pre-run hook failure"
     );
 
     let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
@@ -175,6 +175,70 @@ fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
     assert!(
         !capsula_dir.join("post-run.json").exists(),
         "post-run hooks should not run when pre-run hooks abort"
+    );
+}
+
+#[test]
+fn test_capsula_run_aborts_after_all_pre_run_hooks_when_one_errors() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("capsula.toml");
+    let config_content = r#"
+[vault]
+name = "test-vault"
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = []
+
+[[pre-run.hooks]]
+id = "capture-cwd"
+"#;
+    fs::write(&config_path, config_content).unwrap();
+    let sentinel_path = temp_dir.path().join("should-not-run");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("sh")
+        .arg("-c")
+        .arg("touch should-not-run");
+
+    cmd.assert()
+        .code(PRE_RUN_ABORT_EXIT_CODE)
+        .stderr(predicate::str::contains(
+            "Aborting run due to pre-run hook failure",
+        ));
+
+    assert!(
+        !sentinel_path.exists(),
+        "command should not execute after a pre-run hook error"
+    );
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, _) = find_first_run(&vault_dir);
+    let capsula_dir = run_dir.join("_capsula");
+    let pre_run_json = fs::read_to_string(capsula_dir.join("pre-run.json")).unwrap();
+    let pre_run: serde_json::Value = serde_json::from_str(&pre_run_json).unwrap();
+    let hooks = pre_run
+        .as_array()
+        .expect("pre-run output should be an array");
+
+    assert_eq!(hooks.len(), 2, "all pre-run hooks should be recorded");
+    assert_eq!(hooks[0]["__meta"]["id"], "capture-command");
+    assert_eq!(hooks[0]["__meta"]["success"], false);
+    assert!(
+        hooks[0]["__meta"]["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("Command cannot be empty")),
+        "the command hook error should be recorded"
+    );
+    assert_eq!(hooks[1]["__meta"]["id"], "capture-cwd");
+    assert_eq!(hooks[1]["__meta"]["success"], true);
+    assert!(
+        !capsula_dir.join("command.json").exists(),
+        "command output should not exist when pre-run hooks fail"
     );
 }
 
@@ -614,7 +678,7 @@ fn test_run_start_exits_nonzero_and_prints_no_name_when_pre_run_requests_abort()
         .assert()
         .code(PRE_RUN_ABORT_EXIT_CODE)
         .stderr(predicate::str::contains(
-            "Aborting run-start due to pre-run hook request",
+            "Aborting run-start due to pre-run hook failure",
         ));
     let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
     assert!(

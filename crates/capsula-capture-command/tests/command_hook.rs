@@ -9,28 +9,32 @@ use serde_json::json;
 use std::path::PathBuf;
 use ulid::Ulid;
 
-#[test]
-fn command_hook_executes_successful_command() {
-    // Arrange
-    let config = json!({
-        "command": ["echo", "hello world"],
-        "abort_on_failure": false
-    });
-    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
-        .expect("from_config ok");
-
-    let run_metadata = PreparedRun {
+fn prepared_run() -> PreparedRun {
+    PreparedRun {
         id: Ulid::new(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),
         project_root: PathBuf::from("."),
-    };
+    }
+}
+
+#[test]
+fn command_hook_executes_successful_command() {
+    // Arrange
+    let config = json!({
+        "command": ["echo", "hello world"]
+    });
+    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
+
+    let run_metadata = prepared_run();
     let params = RuntimeParams::<PreRun>::default();
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -44,31 +48,25 @@ fn command_hook_executes_successful_command() {
         stdout.contains("hello world"),
         "stdout should contain output"
     );
-    assert!(!captured.abort_requested(), "Should not request abort");
+    assert!(outcome.is_success(), "successful command should pass");
 }
 
 #[test]
-fn command_hook_captures_failing_command() {
+fn command_hook_fails_on_unexpected_status_by_default() {
     // Arrange - use 'false' command which always exits with code 1
     let config = json!({
-        "command": ["false"],
-        "abort_on_failure": false
+        "command": ["false"]
     });
     let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
         .expect("from_config ok");
 
-    let run_metadata = PreparedRun {
-        id: Ulid::new(),
-        name: "test-run".to_string(),
-        command: vec![],
-        run_dir: PathBuf::from("."),
-        project_root: PathBuf::from("."),
-    };
+    let run_metadata = prepared_run();
     let params = RuntimeParams::<PreRun>::default();
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -78,37 +76,54 @@ fn command_hook_captures_failing_command() {
         Some(0)
     );
     assert!(
-        !captured.abort_requested(),
-        "Should not request abort when abort_on_failure is false"
+        outcome.is_failure(),
+        "non-zero status should fail unless configured as successful"
     );
 }
 
 #[test]
-fn command_hook_aborts_on_failure_when_configured() {
+fn command_hook_allows_expected_nonzero_status() {
     // Arrange
     let config = json!({
         "command": ["false"],
-        "abort_on_failure": true
+        "success_codes": [1]
     });
     let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
         .expect("from_config ok");
 
-    let run_metadata = PreparedRun {
-        id: Ulid::new(),
-        name: "test-run".to_string(),
-        command: vec![],
-        run_dir: PathBuf::from("."),
-        project_root: PathBuf::from("."),
-    };
+    let run_metadata = prepared_run();
     let params = RuntimeParams::<PreRun>::default();
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
     assert!(
-        captured.abort_requested(),
-        "Should request abort when command fails and abort_on_failure is true"
+        outcome.is_success(),
+        "configured non-zero status should be accepted"
+    );
+}
+
+#[test]
+fn command_hook_preserves_abort_on_failure_false_compatibility() {
+    // Arrange
+    let config = json!({
+        "command": ["false"],
+        "abort_on_failure": false
+    });
+    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
+
+    let run_metadata = prepared_run();
+    let params = RuntimeParams::<PreRun>::default();
+
+    // Act
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+
+    // Assert
+    assert!(
+        outcome.is_success(),
+        "legacy abort_on_failure = false should accept any exit status"
     );
 }
 
@@ -116,24 +131,18 @@ fn command_hook_aborts_on_failure_when_configured() {
 fn command_hook_captures_stderr() {
     // Arrange - use a command that writes to stderr
     let config = json!({
-        "command": ["sh", "-c", "echo 'error message' >&2"],
-        "abort_on_failure": false
+        "command": ["sh", "-c", "echo 'error message' >&2"]
     });
     let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
         .expect("from_config ok");
 
-    let run_metadata = PreparedRun {
-        id: Ulid::new(),
-        name: "test-run".to_string(),
-        command: vec![],
-        run_dir: PathBuf::from("."),
-        project_root: PathBuf::from("."),
-    };
+    let run_metadata = prepared_run();
     let params = RuntimeParams::<PreRun>::default();
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -143,6 +152,7 @@ fn command_hook_captures_stderr() {
         stderr.contains("error message"),
         "stderr should contain error message"
     );
+    assert!(outcome.is_success(), "status 0 should pass");
 }
 
 #[test]
@@ -155,4 +165,32 @@ fn command_hook_rejects_unknown_config_fields() {
     let result = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
 
     assert!(result.is_err(), "unknown config fields should be rejected");
+}
+
+#[test]
+fn command_hook_rejects_empty_success_codes() {
+    let config = json!({
+        "command": ["true"],
+        "success_codes": []
+    });
+
+    let result = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+    assert!(result.is_err(), "success_codes must not be empty");
+}
+
+#[test]
+fn command_hook_rejects_conflicting_status_policy() {
+    let config = json!({
+        "command": ["true"],
+        "success_codes": [0],
+        "abort_on_failure": true
+    });
+
+    let result = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+    assert!(
+        result.is_err(),
+        "success_codes and abort_on_failure should not be combined"
+    );
 }
