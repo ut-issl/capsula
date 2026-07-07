@@ -173,6 +173,8 @@ pub struct ParameterMatch {
     #[serde(default)]
     pub file: Option<String>,
     #[serde(default)]
+    pub hook_index: Option<i32>,
+    #[serde(default)]
     pub parameter: Option<String>,
     #[serde(default)]
     pub operator: Option<ComparisonOp>,
