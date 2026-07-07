@@ -21,6 +21,7 @@ use tracing::debug;
 use crate::error::TomlHookError;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct TomlHookConfig {
     /// Path to the TOML file to parse, relative to `project_root`.
     /// Absolute paths are also accepted.
@@ -251,5 +252,17 @@ b = "LEO"
             json.get("__meta").is_none(),
             "__meta is added by orchestration, not the hook"
         );
+    }
+
+    #[test]
+    fn rejects_unknown_config_fields() {
+        let config = serde_json::json!({
+            "path": "p.toml",
+            "unexpected": true,
+        });
+
+        let result = <TomlHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+        assert!(result.is_err(), "unknown config fields should be rejected");
     }
 }
