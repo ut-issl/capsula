@@ -43,6 +43,27 @@ id = "capture-cwd"
     config_path
 }
 
+/// Helper to create a capsula.toml config whose pre-run hook requests abort
+fn create_test_config_with_aborting_pre_run(dir: &TempDir, vault_name: &str) -> PathBuf {
+    let config_path = dir.path().join("capsula.toml");
+    let config_content = format!(
+        r#"
+[vault]
+name = "{vault_name}"
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["sh", "-c", "exit 1"]
+abort_on_failure = true
+
+[[post-run.hooks]]
+id = "capture-cwd"
+"#,
+    );
+    fs::write(&config_path, config_content).unwrap();
+    config_path
+}
+
 #[derive(Deserialize)]
 struct TestRunMetadata {
     name: String,
@@ -52,6 +73,8 @@ struct TestRunMetadata {
 struct TestCommandOutput {
     exit_code: i32,
 }
+
+const PRE_RUN_ABORT_EXIT_CODE: i32 = 125;
 
 fn find_first_run(vault_dir: &std::path::Path) -> (PathBuf, String) {
     let date_dirs: Vec<_> = fs::read_dir(vault_dir)
@@ -110,6 +133,49 @@ fn test_capsula_run_propagates_child_exit_code() {
     let command_json = fs::read_to_string(capsula_dir.join("command.json")).unwrap();
     let command_output: TestCommandOutput = serde_json::from_str(&command_json).unwrap();
     assert_eq!(command_output.exit_code, 42);
+}
+
+#[test]
+fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config_with_aborting_pre_run(&temp_dir, "test-vault");
+    let sentinel_path = temp_dir.path().join("should-not-run");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("sh")
+        .arg("-c")
+        .arg("touch should-not-run");
+
+    cmd.assert()
+        .code(PRE_RUN_ABORT_EXIT_CODE)
+        .stderr(predicate::str::contains(
+            "Aborting run due to pre-run hook request",
+        ));
+
+    assert!(
+        !sentinel_path.exists(),
+        "command should not execute after a pre-run abort request"
+    );
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, _) = find_first_run(&vault_dir);
+    let capsula_dir = run_dir.join("_capsula");
+    assert!(
+        capsula_dir.join("pre-run.json").exists(),
+        "pre-run results should be recorded before aborting"
+    );
+    assert!(
+        !capsula_dir.join("command.json").exists(),
+        "command output should not exist when the command was not executed"
+    );
+    assert!(
+        !capsula_dir.join("post-run.json").exists(),
+        "post-run hooks should not run when pre-run hooks abort"
+    );
 }
 
 #[test]
@@ -494,6 +560,42 @@ fn test_run_start_prints_name_to_stdout() {
     assert!(
         lines[0].contains('-'),
         "Run name should be hyphenated (e.g., 'happy-river')"
+    );
+}
+
+#[test]
+fn test_run_start_exits_nonzero_and_prints_no_name_when_pre_run_requests_abort() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config_with_aborting_pre_run(&temp_dir, "test-vault");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-start");
+
+    let output = cmd
+        .assert()
+        .code(PRE_RUN_ABORT_EXIT_CODE)
+        .stderr(predicate::str::contains(
+            "Aborting run-start due to pre-run hook request",
+        ));
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+    assert!(
+        stdout.is_empty(),
+        "run-start should not print a run name when pre-run hooks abort"
+    );
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, _) = find_first_run(&vault_dir);
+    let capsula_dir = run_dir.join("_capsula");
+    assert!(
+        capsula_dir.join("pre-run.json").exists(),
+        "pre-run results should be recorded before aborting"
+    );
+    assert!(
+        !capsula_dir.join("post-run.json").exists(),
+        "run-start should not finalize an aborted run"
     );
 }
 
