@@ -48,6 +48,11 @@ struct TestRunMetadata {
     name: String,
 }
 
+#[derive(Deserialize)]
+struct TestCommandOutput {
+    exit_code: i32,
+}
+
 fn find_first_run(vault_dir: &std::path::Path) -> (PathBuf, String) {
     let date_dirs: Vec<_> = fs::read_dir(vault_dir)
         .unwrap()
@@ -76,6 +81,35 @@ fn find_first_run(vault_dir: &std::path::Path) -> (PathBuf, String) {
     }
 
     panic!("No run directory found");
+}
+
+#[test]
+fn test_capsula_run_propagates_child_exit_code() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config_with_post_run(&temp_dir, "test-vault");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("sh")
+        .arg("-c")
+        .arg("exit 42");
+
+    cmd.assert().code(42);
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, _) = find_first_run(&vault_dir);
+    let capsula_dir = run_dir.join("_capsula");
+    assert!(
+        capsula_dir.join("post-run.json").exists(),
+        "post-run hooks should run before propagating the child exit code"
+    );
+
+    let command_json = fs::read_to_string(capsula_dir.join("command.json")).unwrap();
+    let command_output: TestCommandOutput = serde_json::from_str(&command_json).unwrap();
+    assert_eq!(command_output.exit_code, 42);
 }
 
 #[test]
