@@ -3,7 +3,7 @@ mod error;
 use crate::error::MachineHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
@@ -62,7 +62,7 @@ where
         &self,
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         debug!("MachineHook: Gathering system information");
         let os = System::name().ok_or(MachineHookError::OsInfoError)?;
         let os_version = System::os_version().ok_or(MachineHookError::OsInfoError)?;
@@ -99,7 +99,7 @@ where
             hostname
         );
 
-        Ok(MachineCaptured {
+        Ok(HookOutcome::success(MachineCaptured {
             os,
             os_version,
             kernel_version,
@@ -107,7 +107,7 @@ where
             cpus,
             total_memory,
             hostname,
-        })
+        }))
     }
 }
 

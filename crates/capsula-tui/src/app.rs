@@ -123,8 +123,7 @@ impl App {
         match self.execute_start_run() {
             Ok(should_abort) => {
                 if should_abort {
-                    self.error =
-                        Some("A pre-run hook requested abort. Run was not started.".into());
+                    self.error = Some("A pre-run hook failed. Run was not started.".into());
                     self.status_message = None;
                     self.active_run = None;
                     self.focused = FocusTarget::StartButton;
