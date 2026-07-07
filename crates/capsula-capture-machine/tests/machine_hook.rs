@@ -81,3 +81,14 @@ fn machine_hook_default_config() {
 
     assert!(json.is_object(), "Should return valid JSON object");
 }
+
+#[test]
+fn machine_hook_rejects_unknown_config_fields() {
+    let config = json!({
+        "unexpected": true
+    });
+
+    let result = <MachineHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+    assert!(result.is_err(), "unknown config fields should be rejected");
+}

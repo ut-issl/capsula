@@ -97,3 +97,15 @@ fn env_hook_captures_missing_variable() {
     // Assert
     assert!(json.get("value").unwrap().is_null());
 }
+
+#[test]
+fn env_hook_rejects_unknown_config_fields() {
+    let config = json!({
+        "name": "PATH",
+        "unexpected": true
+    });
+
+    let result = <EnvVarHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+    assert!(result.is_err(), "unknown config fields should be rejected");
+}

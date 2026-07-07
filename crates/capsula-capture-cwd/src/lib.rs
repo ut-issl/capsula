@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct CwdHookConfig {}
 
 #[derive(Debug, Default)]
@@ -40,12 +41,11 @@ where
     type Output = CwdCaptured;
 
     fn from_config(
-        _config: &serde_json::Value,
+        config: &serde_json::Value,
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
-        Ok(Self {
-            config: CwdHookConfig {},
-        })
+        let config: CwdHookConfig = serde_json::from_value(config.clone())?;
+        Ok(Self { config })
     }
 
     fn config(&self) -> &Self::Config {

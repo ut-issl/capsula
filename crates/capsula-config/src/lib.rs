@@ -165,18 +165,18 @@ path = "."
 
 [[pre-run.hooks]]
 id = "capture-file"
-path = "capsula.toml"
-copy = true
-hash = true
+glob = "capsula.toml"
+mode = "copy"
+hash = "sha256"
 
 [[pre-run.hooks]]
 id = "capture-file"
-path = "Cargo.toml"
-hash = true
+glob = "Cargo.toml"
+hash = "sha256"
 
 [[post-run.hooks]]
 id = "capture-env"
-key = "PATH"
+name = "PATH"
 "#;
 
         let config = CapsulaConfig::from_toml_str(config_str).unwrap();

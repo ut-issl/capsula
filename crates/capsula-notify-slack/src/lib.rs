@@ -29,6 +29,7 @@ const MAX_SLACK_ATTACHMENTS: usize = 10;
 /// attachment_globs = ["*.png", "outputs/*.jpg"]
 /// ```
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct SlackNotifyHookConfig {
     channel: String,
     #[serde(default = "token_from_env")]

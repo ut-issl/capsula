@@ -5,6 +5,8 @@ use capsula_capture_cwd::CwdHook;
 use capsula_core::captured::Captured;
 use capsula_core::hook::{Hook, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
+use serde_json::json;
+use std::path::PathBuf;
 use ulid::Ulid;
 
 #[test]
@@ -43,4 +45,15 @@ fn cwd_hook_captures_current_dir_and_json() {
         expected.to_string_lossy(),
         "JSON 'cwd' should match current_dir string"
     );
+}
+
+#[test]
+fn cwd_hook_rejects_unknown_config_fields() {
+    let config = json!({
+        "unexpected": true
+    });
+
+    let result = <CwdHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+    assert!(result.is_err(), "unknown config fields should be rejected");
 }

@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct CommandHookConfig {
     command: Vec<String>,
     #[serde(default)]

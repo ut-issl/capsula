@@ -10,6 +10,7 @@ use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct MachineHookConfig {}
 
 #[derive(Debug, Default)]
@@ -46,12 +47,11 @@ where
     type Output = MachineCaptured;
 
     fn from_config(
-        _config: &serde_json::Value,
+        config: &serde_json::Value,
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
-        Ok(Self {
-            config: MachineHookConfig {},
-        })
+        let config: MachineHookConfig = serde_json::from_value(config.clone())?;
+        Ok(Self { config })
     }
 
     fn config(&self) -> &Self::Config {

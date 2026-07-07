@@ -393,3 +393,16 @@ fn file_hook_matches_glob_pattern() {
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
 }
+
+#[test]
+fn file_hook_rejects_unknown_config_fields() {
+    let config = json!({
+        "glob": "*.txt",
+        "mode": "copy",
+        "copy": true
+    });
+
+    let result = <FileHook as Hook<PreRun>>::from_config(&config, &std::env::temp_dir());
+
+    assert!(result.is_err(), "unknown config fields should be rejected");
+}
