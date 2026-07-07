@@ -335,7 +335,7 @@ path = \".\"
                 &project_root,
             )?;
             if should_abort {
-                error!("Aborting run due to pre-run hook request.");
+                error!("Aborting run due to pre-run hook failure.");
                 std::process::exit(PRE_RUN_ABORT_EXIT_CODE);
             }
 
@@ -373,7 +373,7 @@ path = \".\"
                 &project_root,
             )?;
             if should_abort {
-                error!("Aborting run-start due to pre-run hook request.");
+                error!("Aborting run-start due to pre-run hook failure.");
                 std::process::exit(PRE_RUN_ABORT_EXIT_CODE);
             }
 

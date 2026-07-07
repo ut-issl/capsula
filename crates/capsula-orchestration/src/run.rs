@@ -54,7 +54,7 @@ pub fn create_and_setup_run(
 
 /// Execute pre-run hooks and write results to `pre-run.json`.
 ///
-/// Returns whether any hook requested an abort.
+/// Returns whether any hook failed or errored and the run should abort.
 pub fn run_pre_hooks(
     run: &PreparedRun,
     capsula_dir: &Path,
