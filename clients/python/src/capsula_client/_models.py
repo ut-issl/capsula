@@ -54,18 +54,24 @@ class ParameterMatch:
 
     Constraints (validated server-side; the client does not raise):
 
-    - At least one of ``file`` / ``parameter`` must be specified.
+    - At least one of ``file`` / ``hook_index`` / ``parameter`` must be
+      specified.
     - ``parameter``, ``operator``, and ``value`` are an all-or-nothing
       triple — supply all three or none.
-    - Specifying ``parameter`` without ``file`` causes the server to log
-      a warning, since the match will scan every parameter-capturing row
-      of the run.
+    - Specifying ``parameter`` without either ``file`` or ``hook_index``
+      causes the server to log a warning, since the match will scan every
+      parameter-capturing row of the run.
 
     Example:
         ``ParameterMatch("pre", file="config/sat1/orbit.json",
         parameter="a", operator=ComparisonOp.GE, value=1.0)``
         generates ``$.content.a ? (@ >= 1.0)`` against the row whose
         ``config.path == "config/sat1/orbit.json"``.
+
+    Use ``hook_index`` to pin the match to a specific 0-based position in
+    the phase's array — useful when several parameter-capturing hooks in
+    ``capsula.toml`` share the same ``file`` / ``hook_id`` and would
+    otherwise be indistinguishable.
 
     For querying outputs of non-parameter hooks (``capture-env``,
     ``capture-command``, ...), use :class:`HookFilter` with a raw JSONPath
@@ -74,6 +80,7 @@ class ParameterMatch:
 
     phase: str
     file: str | None = None
+    hook_index: int | None = None
     parameter: str | None = None
     operator: ComparisonOp | None = None
     value: Any | None = None  # number, string, or bool
@@ -82,6 +89,8 @@ class ParameterMatch:
         d: dict[str, Any] = {"phase": self.phase}
         if self.file is not None:
             d["file"] = self.file
+        if self.hook_index is not None:
+            d["hook_index"] = self.hook_index
         if self.parameter is not None:
             d["parameter"] = self.parameter
         if self.operator is not None:
@@ -142,13 +151,20 @@ class SearchRunsRequest:
 
 @dataclass(frozen=True, slots=True)
 class HookOutput:
-    """A hook's output from a run."""
+    """A hook's output from a run.
+
+    ``hook_index`` is the 0-based position of this hook in the phase's array
+    (``pre_run`` / ``post_run`` in ``capsula.toml``). It is populated from
+    ``__meta.hook_index`` in the server response; older server responses
+    that do not include it leave the field as ``None``.
+    """
 
     hook_id: str
     output: dict[str, Any]
     success: bool
     config: dict[str, Any] | None = None
     error: str | None = None
+    hook_index: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

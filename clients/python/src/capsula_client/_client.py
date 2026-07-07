@@ -123,6 +123,7 @@ def _parse_hooks(hooks: list[dict[str, Any]]) -> list[HookOutput]:
                 success=meta.get("success", True),
                 config=meta.get("config"),
                 error=meta.get("error"),
+                hook_index=meta.get("hook_index"),
             )
         )
     return result

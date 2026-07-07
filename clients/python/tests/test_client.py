@@ -84,6 +84,44 @@ class TestParameterMatch:
         assert d["phase"] == "post"
         assert d["file"] == "model.json"
 
+    def test_to_dict_hook_index_alone(self):
+        pm = ParameterMatch(phase="pre", hook_index=2)
+        d = pm.to_dict()
+        assert d == {"phase": "pre", "hook_index": 2}
+        assert "file" not in d
+        assert "parameter" not in d
+
+    def test_to_dict_hook_index_composed_with_file_and_parameter(self):
+        pm = ParameterMatch(
+            phase="pre",
+            file="config.json",
+            hook_index=1,
+            parameter="lr",
+            operator=ComparisonOp.EQ,
+            value=0.01,
+        )
+        d = pm.to_dict()
+        assert d == {
+            "phase": "pre",
+            "file": "config.json",
+            "hook_index": 1,
+            "parameter": "lr",
+            "operator": "eq",
+            "value": 0.01,
+        }
+
+    def test_to_dict_hook_index_zero_is_included(self):
+        # ``hook_index`` uses ``is not None`` (not a falsy check), so 0
+        # must still be serialized — it is a legitimate array position.
+        pm = ParameterMatch(phase="pre", hook_index=0)
+        d = pm.to_dict()
+        assert d["hook_index"] == 0
+
+    def test_to_dict_default_hook_index_omitted(self):
+        pm = ParameterMatch(phase="pre", file="c.json")
+        d = pm.to_dict()
+        assert "hook_index" not in d
+
 
 class TestSearchRunsRequest:
     def test_minimal(self):
@@ -198,13 +236,21 @@ class TestCapsulaClient:
                         "exit_code": 0,
                         "pre_run_hooks": [
                             {
-                                "__meta": {"id": "capture-command", "success": True},
+                                "__meta": {
+                                    "id": "capture-command",
+                                    "success": True,
+                                    "hook_index": 0,
+                                },
                                 "solar_flux": 1361.0,
                             }
                         ],
                         "post_run_hooks": [
                             {
-                                "__meta": {"id": "capture-file", "success": True},
+                                "__meta": {
+                                    "id": "capture-file",
+                                    "success": True,
+                                    "hook_index": 3,
+                                },
                                 "max_temperature": 85.3,
                             }
                         ],
@@ -240,8 +286,43 @@ class TestCapsulaClient:
         assert resp.runs[0].id == "abc123"
         assert resp.runs[0].pre_run_hooks is not None
         assert resp.runs[0].pre_run_hooks[0].output["solar_flux"] == 1361.0
+        assert resp.runs[0].pre_run_hooks[0].hook_index == 0
         assert resp.runs[0].post_run_hooks is not None
         assert resp.runs[0].post_run_hooks[0].output["max_temperature"] == 85.3
+        assert resp.runs[0].post_run_hooks[0].hook_index == 3
+
+    def test_search_runs_missing_hook_index_is_none(self, httpx_mock):
+        # Older server responses (before hook_index was exposed) omit the
+        # field in ``__meta``. The client should tolerate this by leaving
+        # ``HookOutput.hook_index`` as ``None`` rather than raising.
+        httpx_mock.add_response(
+            url="https://capsula.test/api/v1/runs/search",
+            json={
+                "status": "ok",
+                "total": 1,
+                "runs": [
+                    {
+                        "id": "legacy001",
+                        "name": "legacy-response",
+                        "timestamp": "2026-05-15T12:00:00Z",
+                        "vault": "v1",
+                        "command": "true",
+                        "project_root": "/tmp/p",
+                        "exit_code": 0,
+                        "pre_run_hooks": [
+                            {
+                                "__meta": {"id": "capture-command", "success": True},
+                                "solar_flux": 1361.0,
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+        with CapsulaClient("https://capsula.test") as client:
+            resp = client.search_runs(SearchRunsRequest(vault="v1"))
+        assert resp.runs[0].pre_run_hooks is not None
+        assert resp.runs[0].pre_run_hooks[0].hook_index is None
 
     def test_search_runs_empty(self, httpx_mock):
         httpx_mock.add_response(
