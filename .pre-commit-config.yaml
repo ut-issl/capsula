@@ -1,6 +1,10 @@
+ci:
+  autoupdate_schedule: monthly
+  autofix_prs: false
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -21,16 +25,16 @@ repos:
       - id: no-commit-to-branch
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
+    rev: a4d5d37e66ebcd6b3705204a1d6dbb56dea66338  # frozen: v0.49.0
     hooks:
       - id: markdownlint
 
   - repo: https://github.com/crate-ci/typos
-    rev: v1.40.1
+    rev: 96d9af6217dc2855210655af7e1ff19d23d4e593  # frozen: v1
     hooks:
       - id: typos
 
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.25.2
+    rev: e3eebf65325ccc992422292cb7a4baee967cf815  # frozen: v1.26.1
     hooks:
       - id: zizmor
