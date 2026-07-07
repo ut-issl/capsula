@@ -30,6 +30,10 @@ const VERSION: &str = if env!("GIT_HASH").is_empty() {
     )
 };
 
+/// Exit code used when pre-run hooks capture successfully but request that the
+/// command itself must not run.
+const PRE_RUN_ABORT_EXIT_CODE: i32 = 125;
+
 #[derive(Parser, Debug)]
 #[command(name = "capsula", bin_name = "capsula", version = VERSION, about = "Capsula CLI")]
 struct Cli {
@@ -308,7 +312,7 @@ path = \".\"
             )?;
             if should_abort {
                 error!("Aborting run due to pre-run hook request.");
-                return Ok(());
+                std::process::exit(PRE_RUN_ABORT_EXIT_CODE);
             }
 
             // Execute the command
@@ -345,7 +349,8 @@ path = \".\"
                 &project_root,
             )?;
             if should_abort {
-                warn!("A pre-run hook requested abort.");
+                error!("Aborting run-start due to pre-run hook request.");
+                std::process::exit(PRE_RUN_ABORT_EXIT_CODE);
             }
 
             // Print run name to stdout for callers to capture
