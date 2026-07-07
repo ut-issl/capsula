@@ -331,6 +331,8 @@ path = \".\"
                 &post_run_hook_registry,
                 &project_root,
             )?;
+
+            std::process::exit(run_output.exit_code);
         }
         Commands::RunStart => {
             let (run, capsula_dir) = create_and_setup_run(vec![], &project_root, &vault_dir)?;
