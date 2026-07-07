@@ -74,7 +74,7 @@ struct TestCommandOutput {
     exit_code: i32,
 }
 
-const PRE_RUN_ABORT_EXIT_CODE: i32 = 125;
+const HOOK_FAILURE_EXIT_CODE: i32 = 125;
 
 fn find_first_run(vault_dir: &std::path::Path) -> (PathBuf, String) {
     let date_dirs: Vec<_> = fs::read_dir(vault_dir)
@@ -151,7 +151,7 @@ fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
         .arg("touch should-not-run");
 
     cmd.assert()
-        .code(PRE_RUN_ABORT_EXIT_CODE)
+        .code(HOOK_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains(
             "Aborting run due to pre-run hook failure",
         ));
@@ -206,7 +206,7 @@ id = "capture-cwd"
         .arg("touch should-not-run");
 
     cmd.assert()
-        .code(PRE_RUN_ABORT_EXIT_CODE)
+        .code(HOOK_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains(
             "Aborting run due to pre-run hook failure",
         ));
@@ -240,6 +240,97 @@ id = "capture-cwd"
         !capsula_dir.join("command.json").exists(),
         "command output should not exist when pre-run hooks fail"
     );
+}
+
+#[test]
+fn test_capsula_run_exits_nonzero_after_post_run_hook_failure() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("capsula.toml");
+    let config_content = r#"
+[vault]
+name = "test-vault"
+
+[[pre-run.hooks]]
+id = "capture-cwd"
+
+[[post-run.hooks]]
+id = "capture-command"
+command = []
+
+[[post-run.hooks]]
+id = "capture-cwd"
+"#;
+    fs::write(&config_path, config_content).unwrap();
+    let sentinel_path = temp_dir.path().join("did-run");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("sh")
+        .arg("-c")
+        .arg("touch did-run");
+
+    cmd.assert()
+        .code(HOOK_FAILURE_EXIT_CODE)
+        .stderr(predicate::str::contains("Post-run hook failure recorded"));
+
+    assert!(
+        sentinel_path.exists(),
+        "main command should execute before post-run hooks fail"
+    );
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, _) = find_first_run(&vault_dir);
+    let capsula_dir = run_dir.join("_capsula");
+    assert!(
+        capsula_dir.join("command.json").exists(),
+        "command output should be recorded before post-run hook failure is reported"
+    );
+
+    let post_run_json = fs::read_to_string(capsula_dir.join("post-run.json")).unwrap();
+    let post_run: serde_json::Value = serde_json::from_str(&post_run_json).unwrap();
+    let hooks = post_run
+        .as_array()
+        .expect("post-run output should be an array");
+
+    assert_eq!(hooks.len(), 2, "all post-run hooks should be recorded");
+    assert_eq!(hooks[0]["__meta"]["id"], "capture-command");
+    assert_eq!(hooks[0]["__meta"]["success"], false);
+    assert_eq!(hooks[1]["__meta"]["id"], "capture-cwd");
+    assert_eq!(hooks[1]["__meta"]["success"], true);
+}
+
+#[test]
+fn test_capsula_run_preserves_child_exit_code_when_post_run_hook_fails() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("capsula.toml");
+    let config_content = r#"
+[vault]
+name = "test-vault"
+
+[[pre-run.hooks]]
+id = "capture-cwd"
+
+[[post-run.hooks]]
+id = "capture-command"
+command = []
+"#;
+    fs::write(&config_path, config_content).unwrap();
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("sh")
+        .arg("-c")
+        .arg("exit 42");
+
+    cmd.assert()
+        .code(42)
+        .stderr(predicate::str::contains("Post-run hook failure recorded"));
 }
 
 #[test]
@@ -676,7 +767,7 @@ fn test_run_start_exits_nonzero_and_prints_no_name_when_pre_run_requests_abort()
 
     let output = cmd
         .assert()
-        .code(PRE_RUN_ABORT_EXIT_CODE)
+        .code(HOOK_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains(
             "Aborting run-start due to pre-run hook failure",
         ));
