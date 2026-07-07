@@ -39,25 +39,57 @@ pub struct ListRunsQuery {
     pub offset: Option<i64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HookOutput {
+/// A hook output as sent by the CLI to `POST /api/v1/upload`.
+///
+/// The uploaded variant does not carry a `hook_index` because the server
+/// authoritatively assigns positions from each phase's array on receipt
+/// (via `.enumerate()`). See [`HookOutputQueried`] for the outbound
+/// counterpart which does carry `hook_index`.
+#[derive(Debug, Deserialize)]
+pub struct HookOutputUploaded {
     #[serde(rename = "__meta")]
-    pub meta: HookMeta,
+    pub meta: HookMetaUploaded,
     #[serde(flatten)]
     pub output: JsonValue,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HookMeta {
+#[derive(Debug, Deserialize)]
+pub struct HookMetaUploaded {
     pub id: String,
     pub config: Option<JsonValue>,
     pub success: bool,
     pub error: Option<String>,
 }
 
+/// A hook output as returned by the server in run-detail / search responses.
+///
+/// Includes `hook_index` — the position of this hook in capsula.toml's
+/// `pre_run` / `post_run` array — so clients can distinguish the Nth
+/// invocation of the same `hook_id`. See [`HookOutputUploaded`] for the
+/// inbound counterpart which omits it.
+#[derive(Debug, Serialize)]
+pub struct HookOutputQueried {
+    #[serde(rename = "__meta")]
+    pub meta: HookMetaQueried,
+    #[serde(flatten)]
+    pub output: JsonValue,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HookMetaQueried {
+    pub id: String,
+    pub config: Option<JsonValue>,
+    pub success: bool,
+    pub error: Option<String>,
+    /// 0-based position of this hook in capsula.toml's `pre_run` /
+    /// `post_run` array, matching the DB `run_outputs.hook_index` column.
+    pub hook_index: i32,
+}
+
 #[derive(Debug, sqlx::FromRow)]
 pub struct RunOutputRow {
     pub phase: String,
+    pub hook_index: i32,
     pub hook_id: String,
     pub config: Option<JsonValue>,
     pub output: JsonValue,
@@ -157,9 +189,9 @@ pub struct SearchRunResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub files: Option<Vec<FileInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pre_run_hooks: Option<Vec<HookOutput>>,
+    pub pre_run_hooks: Option<Vec<HookOutputQueried>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub post_run_hooks: Option<Vec<HookOutput>>,
+    pub post_run_hooks: Option<Vec<HookOutputQueried>>,
 }
 
 /// File information in search results

@@ -105,8 +105,8 @@ struct RunsTemplate {
 #[template(path = "run_detail.html")]
 struct RunDetailTemplate {
     run: models::Run,
-    pre_run_hooks: Vec<models::HookOutput>,
-    post_run_hooks: Vec<models::HookOutput>,
+    pre_run_hooks: Vec<models::HookOutputQueried>,
+    post_run_hooks: Vec<models::HookOutputQueried>,
     files: Vec<models::CapturedFile>,
 }
 
@@ -376,10 +376,10 @@ async fn run_detail_page(
     let hook_outputs_result = sqlx::query_as!(
         models::RunOutputRow,
         r#"
-        SELECT phase, hook_id, config, output, success, error
+        SELECT phase, hook_index, hook_id, config, output, success, error
         FROM run_outputs
         WHERE run_id = $1
-        ORDER BY id
+        ORDER BY phase, hook_index
         "#,
         id
     )
@@ -392,12 +392,13 @@ async fn run_detail_page(
             let mut post_hooks = Vec::new();
 
             for row in rows {
-                let hook_output = models::HookOutput {
-                    meta: models::HookMeta {
+                let hook_output = models::HookOutputQueried {
+                    meta: models::HookMetaQueried {
                         id: row.hook_id,
                         config: row.config,
                         success: row.success,
                         error: row.error,
+                        hook_index: row.hook_index,
                     },
                     output: row.output,
                 };
@@ -697,8 +698,8 @@ async fn search_runs(
 
         let (pre_run_hooks, post_run_hooks) = if include_hooks {
             match sqlx::query_as::<_, models::RunOutputRow>(
-                "SELECT phase, hook_id, config, output, success, error \
-                 FROM run_outputs WHERE run_id = $1 ORDER BY id",
+                "SELECT phase, hook_index, hook_id, config, output, success, error \
+                 FROM run_outputs WHERE run_id = $1 ORDER BY phase, hook_index",
             )
             .bind(&run.id)
             .fetch_all(&state.pool)
@@ -708,12 +709,13 @@ async fn search_runs(
                     let mut pre_hooks = Vec::new();
                     let mut post_hooks = Vec::new();
                     for row in rows {
-                        let hook_output = models::HookOutput {
-                            meta: models::HookMeta {
+                        let hook_output = models::HookOutputQueried {
+                            meta: models::HookMetaQueried {
                                 id: row.hook_id,
                                 config: row.config,
                                 success: row.success,
                                 error: row.error,
+                                hook_index: row.hook_index,
                             },
                             output: row.output,
                         };
@@ -834,10 +836,10 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
             let hook_outputs_result = sqlx::query_as!(
                 models::RunOutputRow,
                 r#"
-                SELECT phase, hook_id, config, output, success, error
+                SELECT phase, hook_index, hook_id, config, output, success, error
                 FROM run_outputs
                 WHERE run_id = $1
-                ORDER BY id
+                ORDER BY phase, hook_index
                 "#,
                 id
             )
@@ -850,12 +852,13 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
                     let mut post_hooks = Vec::new();
 
                     for row in rows {
-                        let hook_output = models::HookOutput {
-                            meta: models::HookMeta {
+                        let hook_output = models::HookOutputQueried {
+                            meta: models::HookMetaQueried {
                                 id: row.hook_id,
                                 config: row.config,
                                 success: row.success,
                                 error: row.error,
+                                hook_index: row.hook_index,
                             },
                             output: row.output,
                         };
@@ -934,8 +937,8 @@ async fn upload_files(
     let mut total_bytes = 0u64;
     let mut run_id: Option<String> = None;
     let mut pending_paths: VecDeque<String> = VecDeque::new();
-    let mut pre_run_hooks: Option<Vec<models::HookOutput>> = None;
-    let mut post_run_hooks: Option<Vec<models::HookOutput>> = None;
+    let mut pre_run_hooks: Option<Vec<models::HookOutputUploaded>> = None;
+    let mut post_run_hooks: Option<Vec<models::HookOutputUploaded>> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let field_name = field.name().unwrap_or("unknown").to_string();
@@ -970,7 +973,7 @@ async fn upload_files(
             }
         } else if field_name == "pre_run" {
             match field.text().await {
-                Ok(text) => match serde_json::from_str::<Vec<models::HookOutput>>(&text) {
+                Ok(text) => match serde_json::from_str::<Vec<models::HookOutputUploaded>>(&text) {
                     Ok(hooks) => {
                         info!("Parsed {} pre-run hooks", hooks.len());
                         pre_run_hooks = Some(hooks);
@@ -994,7 +997,7 @@ async fn upload_files(
             }
         } else if field_name == "post_run" {
             match field.text().await {
-                Ok(text) => match serde_json::from_str::<Vec<models::HookOutput>>(&text) {
+                Ok(text) => match serde_json::from_str::<Vec<models::HookOutputUploaded>>(&text) {
                     Ok(hooks) => {
                         info!("Parsed {} post-run hooks", hooks.len());
                         post_run_hooks = Some(hooks);

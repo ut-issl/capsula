@@ -875,3 +875,102 @@ async fn re_upload_with_same_array_is_idempotent() {
         );
     }
 }
+
+#[tokio::test]
+async fn response_exposes_hook_index_and_preserves_array_order() {
+    // Verifies that each hook payload returned by GET /api/v1/runs/{id}
+    // carries its capsula.toml array position under __meta.hook_index,
+    // and that the response list is stably ordered by (phase, hook_index).
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    let run_id = "01HKIDXORDER00000000000AA";
+    let response = client
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
+        .json(&json!({
+            "id": run_id,
+            "name": "hook-index-order-test",
+            "timestamp": "2026-06-24T10:00:00Z",
+            "command": "test",
+            "vault": "hook-index-order",
+            "project_root": "/tmp/test",
+            "exit_code": 0,
+            "duration_ms": 100,
+            "stdout": null,
+            "stderr": null,
+        }))
+        .send()
+        .await
+        .expect("create run");
+    assert_eq!(response.status(), 201);
+
+    // Three hooks; positions 0 and 2 share hook_id "capture-command" so
+    // hook_index is the only thing that distinguishes them.
+    let pre_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "capture-command",
+                "config": { "command": "echo first" },
+                "success": true,
+                "error": null
+            },
+            "stdout": "first"
+        },
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "middle.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "n": 1 }
+        },
+        {
+            "__meta": {
+                "id": "capture-command",
+                "config": { "command": "echo second" },
+                "success": true,
+                "error": null
+            },
+            "stdout": "second"
+        }
+    ]);
+
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id.to_string())
+        .text("pre_run", pre_run_hooks.to_string());
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("upload");
+    assert_eq!(response.status(), 200);
+
+    let response = client
+        .get(format!("{}/api/v1/runs/{run_id}", ctx.base_url()))
+        .send()
+        .await
+        .expect("get run");
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("parse body");
+    let pre = body["pre_run_hooks"]
+        .as_array()
+        .expect("pre_run_hooks array");
+    assert_eq!(pre.len(), 3);
+
+    // Ordering: hook_index must be 0, 1, 2 in that sequence.
+    let indices: Vec<i64> = pre
+        .iter()
+        .map(|h| h["__meta"]["hook_index"].as_i64().expect("hook_index"))
+        .collect();
+    assert_eq!(indices, vec![0, 1, 2]);
+
+    // Content-level ordering matches capsula.toml array order.
+    assert_eq!(pre[0]["__meta"]["id"], "capture-command");
+    assert_eq!(pre[0]["stdout"], "first");
+    assert_eq!(pre[1]["__meta"]["id"], "capture-json");
+    assert_eq!(pre[1]["content"]["n"], 1);
+    assert_eq!(pre[2]["__meta"]["id"], "capture-command");
+    assert_eq!(pre[2]["stdout"], "second");
+}

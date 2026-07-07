@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT phase, hook_id, config, output, success, error\n                FROM run_outputs\n                WHERE run_id = $1\n                ORDER BY id\n                ",
+  "query": "\n        SELECT phase, hook_index, hook_id, config, output, success, error\n        FROM run_outputs\n        WHERE run_id = $1\n        ORDER BY phase, hook_index\n        ",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,17 @@
       },
       {
         "ordinal": 1,
+        "name": "hook_index",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "hook_index"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "hook_id",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "config",
         "type_info": "Jsonb",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "output",
         "type_info": "Jsonb",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "success",
         "type_info": "Bool",
         "origin": {
@@ -59,7 +70,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "error",
         "type_info": "Text",
         "origin": {
@@ -78,11 +89,12 @@
     "nullable": [
       false,
       false,
+      false,
       true,
       false,
       false,
       true
     ]
   },
-  "hash": "0f041bcff67becde780d8f50cd520ce827c65019c919c96f3bc748818b962057"
+  "hash": "b1ece1b6141fe63368ca2e17260e3713de69cadab68813f375aa028d307fd509"
 }
