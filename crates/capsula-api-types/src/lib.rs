@@ -81,25 +81,28 @@ pub enum ComparisonOp {
 /// A structured filter for parameter-capturing hooks (e.g., `capture-json`,
 /// `capture-toml`, ...).
 ///
-/// Targets `run_outputs` rows whose `output` JSON has the shape:
+/// Targets `run_outputs` rows produced by hooks whose `output` has a
+/// top-level `content` field:
 ///
 /// ```text
-/// { "file": "<configured-path>", "parameters": { ...parsed... } }
+/// output: { "content": { ...parsed file contents... } }
+/// config: { "path": "<configured-path>", ... }
 /// ```
 ///
-/// The server selects matching rows structurally (by the presence of both
-/// the `file` and `parameters` top-level fields) — it is decoupled from
-/// the concrete `hook_id`, so any future hook that emits this shape works
+/// The server selects matching rows structurally (by the presence of
+/// the `content` top-level field) — decoupled from the concrete
+/// `hook_id`, so any future hook that emits this shape works
 /// automatically.
 ///
 /// Constraints (validated server-side):
 ///
-/// - At least one of `file` / `parameter` must be specified.
+/// - At least one of `file` / `hook_index` / `parameter` must be specified.
 /// - If `parameter` is present, `operator` and `value` must also be present.
 /// - If `parameter` is absent, `operator` and `value` must also be absent.
-/// - Specifying `parameter` without `file` emits a server-side warning,
-///   since the match will scan across every parameter-capturing row of
-///   the run regardless of which file it came from.
+/// - Specifying `parameter` without `file` (and without `hook_index`)
+///   emits a server-side warning, since the match will scan across
+///   every parameter-capturing row of the run regardless of which
+///   file it came from.
 ///
 /// # Example
 ///
@@ -113,18 +116,40 @@ pub enum ComparisonOp {
 /// }
 /// ```
 ///
-/// generates `$.parameters.a ? (@ >= 1.0)` against the row whose
-/// `file == "config/sat1/orbit.json"`.
+/// generates `$.content.a ? (@ >= 1.0)` against the row whose
+/// `config.path == "config/sat1/orbit.json"`.
+///
+/// # Example — using `hook_index`
+///
+/// Pin the match to the hook at position 1 (0-indexed) in the phase's
+/// array, useful when several entries share the same file / `hook_id`:
+///
+/// ```json
+/// {
+///     "phase": "pre",
+///     "hook_index": 1,
+///     "parameter": "a",
+///     "operator": "ge",
+///     "value": 1.0
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ParameterMatch {
     /// Phase: `"pre"` or `"post"`
     pub phase: String,
-    /// Optional exact match on the captured `file` field. Omitting this
-    /// causes the match to apply across every parameter-capturing row of
-    /// the run; the server logs a warning when this happens.
+    /// Optional exact match on the captured file path (compared against
+    /// `run_outputs.config->>'path'`). Omitting this causes the match to
+    /// apply across every parameter-capturing row of the run; the server
+    /// logs a warning when neither `file` nor `hook_index` is supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
-    /// Dot path within the captured `parameters` object (e.g., `"lr"`,
+    /// Optional exact match on the 0-based position of the hook in
+    /// `capsula.toml`'s `pre_run` / `post_run` list. Useful when several
+    /// entries share the same file / `hook_id` and disambiguation by
+    /// position is needed (e.g., "the 2nd `capture-json`").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hook_index: Option<i32>,
+    /// Dot path within the captured `content` object (e.g., `"lr"`,
     /// `"sat1.orbit.a"`). When present, `operator` and `value` are required.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parameter: Option<String>,

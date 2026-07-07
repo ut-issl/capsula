@@ -1531,3 +1531,215 @@ async fn pm_partial_triple_returns_error() {
 
     assert_eq!(body["status"], "error", "body: {body}");
 }
+
+// Uploads a phase whose array contains multiple parameter-capturing hooks
+// so `hook_index` (server-assigned via `.enumerate()`) is the only way to
+// disambiguate individual rows. Used by the `hook_index`-focused tests.
+async fn pm_upload_two_hook_array(ctx: &TestContext, run_id: &str, vault: &str) {
+    pm_create_run(ctx, run_id, vault).await;
+    let pre_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "first.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.01 }
+        },
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "second.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.1 }
+        }
+    ]);
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id.to_string())
+        .text("pre_run", pre_run_hooks.to_string());
+    let response = reqwest::Client::new()
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("batch upload");
+    assert_eq!(response.status(), 200, "two-hook batch upload failed");
+}
+
+#[tokio::test]
+async fn pm_hook_index_pins_to_specific_row() {
+    let ctx = TestContext::new().await;
+
+    // Match run whose hook at index 1 has lr == 0.1.
+    pm_upload_two_hook_array(&ctx, "01PMI010HIDXOKAAAAAAAAA", "v1").await;
+
+    // Decoy: a run whose hook at index 0 has lr == 0.1 (but not at 1).
+    pm_create_run(&ctx, "01PMI010HIDXNOBBBBBBBBB", "v1").await;
+    let decoy = json!([
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "first.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.1 }
+        },
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "second.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.01 }
+        }
+    ]);
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", "01PMI010HIDXNOBBBBBBBBB".to_string())
+        .text("pre_run", decoy.to_string());
+    let response = reqwest::Client::new()
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("decoy upload");
+    assert_eq!(response.status(), 200);
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "hook_index": 1,
+                "parameter": "lr",
+                "operator": "eq",
+                "value": 0.1,
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI010HIDXOKAAAAAAAAA".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn pm_hook_index_alone_matches_row_at_position() {
+    let ctx = TestContext::new().await;
+
+    pm_upload_two_hook_array(&ctx, "01PMI011HIDXALONEAAAAAA", "v1").await;
+
+    // hook_index=0 alone (no file, no parameter): should match the row at
+    // position 0 in the phase's array — succeeds because our fixture has
+    // exactly two parameter-capturing rows.
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "hook_index": 0,
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI011HIDXALONEAAAAAA".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn pm_hook_index_out_of_range_returns_no_match() {
+    let ctx = TestContext::new().await;
+
+    pm_upload_two_hook_array(&ctx, "01PMI012HIDXOOBAAAAAAAA", "v1").await;
+
+    // No hook at index 5 in the phase's array.
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "hook_index": 5,
+                "parameter": "lr",
+                "operator": "eq",
+                "value": 0.01,
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 0);
+}
+
+#[tokio::test]
+async fn pm_hook_index_composes_with_file() {
+    let ctx = TestContext::new().await;
+
+    // Match: hook at position 1 whose config.path is "second.json".
+    pm_upload_two_hook_array(&ctx, "01PMI013HIDXCMPOKAAAAAA", "v1").await;
+
+    // Mismatch: hook at position 1 exists but its file is "different.json".
+    pm_create_run(&ctx, "01PMI013HIDXCMPNOBBBBBB", "v1").await;
+    let mismatch = json!([
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "first.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.01 }
+        },
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "different.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.1 }
+        }
+    ]);
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", "01PMI013HIDXCMPNOBBBBBB".to_string())
+        .text("pre_run", mismatch.to_string());
+    let response = reqwest::Client::new()
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("mismatch upload");
+    assert_eq!(response.status(), 200);
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "hook_index": 1,
+                "file": "second.json",
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["total"], 1);
+    assert_eq!(
+        pm_run_ids(&body),
+        vec!["01PMI013HIDXCMPOKAAAAAA".to_string()]
+    );
+}

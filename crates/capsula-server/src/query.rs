@@ -213,14 +213,17 @@ impl RunQueryBuilder {
     ///    filter is decoupled from the concrete `hook_id`.
     /// 2. Optionally pins to a specific captured file by matching
     ///    `ro.config->>'path'` against the supplied `file`.
-    /// 3. Optionally adds a `JSONPath` predicate
+    /// 3. Optionally pins to a specific hook position in the phase's array
+    ///    by matching `ro.hook_index` against the supplied `hook_index`.
+    /// 4. Optionally adds a `JSONPath` predicate
     ///    `$.content.<parameter> ? (@ <op> <value>)` on `ro.output`.
     ///
     /// Validation:
     /// - `phase` must be `"pre"` or `"post"`.
-    /// - At least one of `file` / `parameter` must be specified.
+    /// - At least one of `file` / `hook_index` / `parameter` must be specified.
     /// - `parameter`, `operator`, and `value` are an all-or-nothing group.
-    /// - Specifying `parameter` without `file` emits a warning.
+    /// - Specifying `parameter` without either `file` or `hook_index`
+    ///   emits a warning.
     pub fn with_parameter_match(mut self, pm: &ParameterMatch) -> Result<Self, QueryError> {
         // Validate phase
         let phase = match pm.phase.as_str() {
@@ -243,18 +246,21 @@ impl RunQueryBuilder {
             }
         };
 
-        // At least one of file / parameter must be present, otherwise the
-        // filter would match every parameter-capturing row of the run.
-        if pm.file.is_none() && condition.is_none() {
+        // At least one of file / hook_index / parameter must be present,
+        // otherwise the filter would match every parameter-capturing row
+        // of the run.
+        if pm.file.is_none() && pm.hook_index.is_none() && condition.is_none() {
             return Err(QueryError::InvalidJsonPath(
-                "ParameterMatch requires at least one of 'file' or 'parameter'".to_string(),
+                "ParameterMatch requires at least one of 'file', 'hook_index', \
+                 or 'parameter'"
+                    .to_string(),
             ));
         }
 
-        if condition.is_some() && pm.file.is_none() {
+        if condition.is_some() && pm.file.is_none() && pm.hook_index.is_none() {
             tracing::warn!(
-                "ParameterMatch without 'file' will match across every \
-                 parameter-capturing row of the run; specify 'file' to narrow"
+                "ParameterMatch without 'file' or 'hook_index' will match across \
+                 every parameter-capturing row of the run; specify one to narrow"
             );
         }
 
@@ -272,6 +278,12 @@ impl RunQueryBuilder {
         if let Some(file) = &pm.file {
             conds.push(format!("ro.config->>'path' = ${}", self.param_index));
             self.bind_values.push(BindValue::String(file.clone()));
+            self.param_index += 1;
+        }
+
+        if let Some(hook_index) = pm.hook_index {
+            conds.push(format!("ro.hook_index = ${}", self.param_index));
+            self.bind_values.push(BindValue::I32(hook_index));
             self.param_index += 1;
         }
 
@@ -504,6 +516,7 @@ mod tests {
         let pm = ParameterMatch {
             phase: "pre".into(),
             file: Some("config/sat1/orbit.json".into()),
+            hook_index: None,
             parameter: Some("a".into()),
             operator: Some(ComparisonOp::Ge),
             value: Some(serde_json::json!(1.0)),
@@ -531,6 +544,7 @@ mod tests {
         let pm = ParameterMatch {
             phase: "pre".into(),
             file: Some("config.json".into()),
+            hook_index: None,
             parameter: None,
             operator: None,
             value: None,
@@ -549,6 +563,7 @@ mod tests {
         let pm = ParameterMatch {
             phase: "pre".into(),
             file: None,
+            hook_index: None,
             parameter: Some("lr".into()),
             operator: Some(ComparisonOp::Ge),
             value: Some(serde_json::json!(0.01)),
@@ -567,6 +582,7 @@ mod tests {
         let pm = ParameterMatch {
             phase: "pre".into(),
             file: None,
+            hook_index: None,
             parameter: None,
             operator: None,
             value: None,
@@ -582,6 +598,7 @@ mod tests {
         let pm = ParameterMatch {
             phase: "pre".into(),
             file: Some("c.json".into()),
+            hook_index: None,
             parameter: Some("lr".into()),
             operator: Some(ComparisonOp::Ge),
             // value missing
@@ -598,6 +615,7 @@ mod tests {
         let pm = ParameterMatch {
             phase: "during".into(),
             file: Some("c.json".into()),
+            hook_index: None,
             parameter: None,
             operator: None,
             value: None,
@@ -613,6 +631,7 @@ mod tests {
         let pm = ParameterMatch {
             phase: "pre".into(),
             file: None,
+            hook_index: None,
             parameter: Some("x; DROP TABLE".into()),
             operator: Some(ComparisonOp::Eq),
             value: Some(serde_json::json!(1)),
@@ -626,6 +645,7 @@ mod tests {
         let pm = ParameterMatch {
             phase: "post".into(),
             file: Some("results.json".into()),
+            hook_index: None,
             parameter: Some("metrics.max_temp".into()),
             operator: Some(ComparisonOp::Le),
             value: Some(serde_json::json!(85.0)),
@@ -647,5 +667,67 @@ mod tests {
         let expr = build_parameter_jsonpath("orbit", &ComparisonOp::Eq, &serde_json::json!("LEO"))
             .expect("valid string match");
         assert_eq!(expr, r#"$.content.orbit ? (@ == "LEO")"#);
+    }
+
+    #[test]
+    fn pm_hook_index_only_generates_hook_index_clause() {
+        let pm = ParameterMatch {
+            phase: "pre".into(),
+            file: None,
+            hook_index: Some(2),
+            parameter: None,
+            operator: None,
+            value: None,
+        };
+        let builder = RunQueryBuilder::new()
+            .with_parameter_match(&pm)
+            .expect("hook_index-only parameter match");
+        let query = builder.build_query();
+        assert!(query.contains("ro.output ? 'content'"));
+        assert!(query.contains("ro.hook_index = $"));
+        assert!(!query.contains("ro.config->>'path'"));
+        assert!(!query.contains("jsonb_path_exists"));
+        let has_hook_index = builder.bind_values().iter().any(|v| match v {
+            BindValue::I32(i) => *i == 2,
+            _ => false,
+        });
+        assert!(has_hook_index, "expected hook_index=2 in bind values");
+    }
+
+    #[test]
+    fn pm_hook_index_with_file_and_parameter_composes_all_clauses() {
+        let pm = ParameterMatch {
+            phase: "post".into(),
+            file: Some("config.json".into()),
+            hook_index: Some(1),
+            parameter: Some("lr".into()),
+            operator: Some(ComparisonOp::Eq),
+            value: Some(serde_json::json!(0.01)),
+        };
+        let builder = RunQueryBuilder::new()
+            .with_parameter_match(&pm)
+            .expect("hook_index + file + parameter compose");
+        let query = builder.build_query();
+        assert!(query.contains("ro.output ? 'content'"));
+        assert!(query.contains("ro.config->>'path'"));
+        assert!(query.contains("ro.hook_index = $"));
+        assert!(query.contains("jsonb_path_exists"));
+    }
+
+    #[test]
+    fn pm_hook_index_alone_satisfies_at_least_one_rule() {
+        let pm = ParameterMatch {
+            phase: "pre".into(),
+            file: None,
+            hook_index: Some(0),
+            parameter: None,
+            operator: None,
+            value: None,
+        };
+        let result = RunQueryBuilder::new().with_parameter_match(&pm);
+        assert!(
+            result.is_ok(),
+            "hook_index alone should satisfy the at-least-one rule"
+        );
     }
 }
