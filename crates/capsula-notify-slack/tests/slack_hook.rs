@@ -126,3 +126,16 @@ fn slack_hook_parses_config_without_attachments() {
         "attachment_globs should default to empty vec"
     );
 }
+
+#[test]
+fn slack_hook_rejects_unknown_config_fields() {
+    let config = json!({
+        "channel": "#test-channel",
+        "token": "xoxb-test-token",
+        "attachment_glob": ["*.png"]
+    });
+
+    let result = <SlackNotifyHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+    assert!(result.is_err(), "unknown config fields should be rejected");
+}

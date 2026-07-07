@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnvVarHookConfig {
     name: String,
 }

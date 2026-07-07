@@ -963,3 +963,16 @@ fn git_hook_detects_untracked_files_as_dirty() {
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
 }
+
+#[test]
+fn git_hook_rejects_unknown_config_fields() {
+    let config = json!({
+        "name": "test-repo",
+        "path": ".",
+        "allow_dirty_typo": false
+    });
+
+    let result = <GitHook as Hook<PreRun>>::from_config(&config, &std::env::temp_dir());
+
+    assert!(result.is_err(), "unknown config fields should be rejected");
+}

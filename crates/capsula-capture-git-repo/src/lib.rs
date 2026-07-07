@@ -17,6 +17,7 @@ fn default_remote() -> String {
 
 /// Configuration for `GitHook`
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct GitHookConfig {
     name: String,
     path: PathBuf,

@@ -144,3 +144,15 @@ fn command_hook_captures_stderr() {
         "stderr should contain error message"
     );
 }
+
+#[test]
+fn command_hook_rejects_unknown_config_fields() {
+    let config = json!({
+        "command": ["true"],
+        "abort_on_failure_typo": true
+    });
+
+    let result = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+    assert!(result.is_err(), "unknown config fields should be rejected");
+}

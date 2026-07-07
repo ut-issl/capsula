@@ -179,6 +179,42 @@ fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
 }
 
 #[test]
+fn test_capsula_run_rejects_unknown_hook_config_fields() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("capsula.toml");
+    let config_content = r#"
+[vault]
+name = "test-vault"
+
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["sh", "-c", "true"]
+abort_on_failure_typo = true
+"#;
+    fs::write(&config_path, config_content).unwrap();
+    let sentinel_path = temp_dir.path().join("should-not-run");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("sh")
+        .arg("-c")
+        .arg("touch should-not-run");
+
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("unknown field"))
+        .stderr(predicate::str::contains("abort_on_failure_typo"));
+
+    assert!(
+        !sentinel_path.exists(),
+        "command should not execute when hook config contains unknown fields"
+    );
+}
+
+#[test]
 fn test_capsula_run_creates_run_directory() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = create_test_config(&temp_dir, "test-vault");

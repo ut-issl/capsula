@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use tracing::debug;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct FileHookConfig {
     glob: String,
     #[serde(default)]
