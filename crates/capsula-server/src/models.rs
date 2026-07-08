@@ -46,7 +46,7 @@ pub struct ListRunsQuery {
 /// (via `.enumerate()`). See [`HookOutputResponse`] for the outbound
 /// counterpart which does carry `hook_index`.
 #[derive(Debug, Deserialize)]
-pub struct HookOutputUploaded {
+pub struct HookOutputUpload {
     #[serde(rename = "__meta")]
     pub meta: HookMetaUploaded,
     #[serde(flatten)]
@@ -65,7 +65,7 @@ pub struct HookMetaUploaded {
 ///
 /// Includes `hook_index` — the position of this hook in capsula.toml's
 /// `pre_run` / `post_run` array — so clients can distinguish the Nth
-/// invocation of the same `hook_id`. See [`HookOutputUploaded`] for the
+/// invocation of the same `hook_id`. See [`HookOutputUpload`] for the
 /// inbound counterpart which omits it.
 #[derive(Debug, Serialize)]
 pub struct HookOutputResponse {

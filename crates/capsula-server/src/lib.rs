@@ -937,8 +937,8 @@ async fn upload_files(
     let mut total_bytes = 0u64;
     let mut run_id: Option<String> = None;
     let mut pending_paths: VecDeque<String> = VecDeque::new();
-    let mut pre_run_hooks: Option<Vec<models::HookOutputUploaded>> = None;
-    let mut post_run_hooks: Option<Vec<models::HookOutputUploaded>> = None;
+    let mut pre_run_hooks: Option<Vec<models::HookOutputUpload>> = None;
+    let mut post_run_hooks: Option<Vec<models::HookOutputUpload>> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let field_name = field.name().unwrap_or("unknown").to_string();
@@ -973,7 +973,7 @@ async fn upload_files(
             }
         } else if field_name == "pre_run" {
             match field.text().await {
-                Ok(text) => match serde_json::from_str::<Vec<models::HookOutputUploaded>>(&text) {
+                Ok(text) => match serde_json::from_str::<Vec<models::HookOutputUpload>>(&text) {
                     Ok(hooks) => {
                         info!("Parsed {} pre-run hooks", hooks.len());
                         pre_run_hooks = Some(hooks);
@@ -997,7 +997,7 @@ async fn upload_files(
             }
         } else if field_name == "post_run" {
             match field.text().await {
-                Ok(text) => match serde_json::from_str::<Vec<models::HookOutputUploaded>>(&text) {
+                Ok(text) => match serde_json::from_str::<Vec<models::HookOutputUpload>>(&text) {
                     Ok(hooks) => {
                         info!("Parsed {} post-run hooks", hooks.len());
                         post_run_hooks = Some(hooks);
