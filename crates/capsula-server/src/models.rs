@@ -48,13 +48,13 @@ pub struct ListRunsQuery {
 #[derive(Debug, Deserialize)]
 pub struct HookOutputUpload {
     #[serde(rename = "__meta")]
-    pub meta: HookMetaUploaded,
+    pub meta: HookMetaUpload,
     #[serde(flatten)]
     pub output: JsonValue,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct HookMetaUploaded {
+pub struct HookMetaUpload {
     pub id: String,
     pub config: Option<JsonValue>,
     pub success: bool,
@@ -70,13 +70,13 @@ pub struct HookMetaUploaded {
 #[derive(Debug, Serialize)]
 pub struct HookOutputResponse {
     #[serde(rename = "__meta")]
-    pub meta: HookMetaQueried,
+    pub meta: HookMetaResponse,
     #[serde(flatten)]
     pub output: JsonValue,
 }
 
 #[derive(Debug, Serialize)]
-pub struct HookMetaQueried {
+pub struct HookMetaResponse {
     pub id: String,
     pub config: Option<JsonValue>,
     pub success: bool,

@@ -393,7 +393,7 @@ async fn run_detail_page(
 
             for row in rows {
                 let hook_output = models::HookOutputResponse {
-                    meta: models::HookMetaQueried {
+                    meta: models::HookMetaResponse {
                         id: row.hook_id,
                         config: row.config,
                         success: row.success,
@@ -710,7 +710,7 @@ async fn search_runs(
                     let mut post_hooks = Vec::new();
                     for row in rows {
                         let hook_output = models::HookOutputResponse {
-                            meta: models::HookMetaQueried {
+                            meta: models::HookMetaResponse {
                                 id: row.hook_id,
                                 config: row.config,
                                 success: row.success,
@@ -853,7 +853,7 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
 
                     for row in rows {
                         let hook_output = models::HookOutputResponse {
-                            meta: models::HookMetaQueried {
+                            meta: models::HookMetaResponse {
                                 id: row.hook_id,
                                 config: row.config,
                                 success: row.success,
