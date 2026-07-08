@@ -105,8 +105,8 @@ struct RunsTemplate {
 #[template(path = "run_detail.html")]
 struct RunDetailTemplate {
     run: models::Run,
-    pre_run_hooks: Vec<models::HookOutputQueried>,
-    post_run_hooks: Vec<models::HookOutputQueried>,
+    pre_run_hooks: Vec<models::HookOutputResponse>,
+    post_run_hooks: Vec<models::HookOutputResponse>,
     files: Vec<models::CapturedFile>,
 }
 
@@ -392,7 +392,7 @@ async fn run_detail_page(
             let mut post_hooks = Vec::new();
 
             for row in rows {
-                let hook_output = models::HookOutputQueried {
+                let hook_output = models::HookOutputResponse {
                     meta: models::HookMetaQueried {
                         id: row.hook_id,
                         config: row.config,
@@ -709,7 +709,7 @@ async fn search_runs(
                     let mut pre_hooks = Vec::new();
                     let mut post_hooks = Vec::new();
                     for row in rows {
-                        let hook_output = models::HookOutputQueried {
+                        let hook_output = models::HookOutputResponse {
                             meta: models::HookMetaQueried {
                                 id: row.hook_id,
                                 config: row.config,
@@ -852,7 +852,7 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
                     let mut post_hooks = Vec::new();
 
                     for row in rows {
-                        let hook_output = models::HookOutputQueried {
+                        let hook_output = models::HookOutputResponse {
                             meta: models::HookMetaQueried {
                                 id: row.hook_id,
                                 config: row.config,

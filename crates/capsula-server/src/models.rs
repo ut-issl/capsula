@@ -43,7 +43,7 @@ pub struct ListRunsQuery {
 ///
 /// The uploaded variant does not carry a `hook_index` because the server
 /// authoritatively assigns positions from each phase's array on receipt
-/// (via `.enumerate()`). See [`HookOutputQueried`] for the outbound
+/// (via `.enumerate()`). See [`HookOutputResponse`] for the outbound
 /// counterpart which does carry `hook_index`.
 #[derive(Debug, Deserialize)]
 pub struct HookOutputUploaded {
@@ -68,7 +68,7 @@ pub struct HookMetaUploaded {
 /// invocation of the same `hook_id`. See [`HookOutputUploaded`] for the
 /// inbound counterpart which omits it.
 #[derive(Debug, Serialize)]
-pub struct HookOutputQueried {
+pub struct HookOutputResponse {
     #[serde(rename = "__meta")]
     pub meta: HookMetaQueried,
     #[serde(flatten)]
@@ -189,9 +189,9 @@ pub struct SearchRunResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub files: Option<Vec<FileInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pre_run_hooks: Option<Vec<HookOutputQueried>>,
+    pub pre_run_hooks: Option<Vec<HookOutputResponse>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub post_run_hooks: Option<Vec<HookOutputQueried>>,
+    pub post_run_hooks: Option<Vec<HookOutputResponse>>,
 }
 
 /// File information in search results
