@@ -7,6 +7,11 @@
   },
   packageRules: [
     {
+      matchManagers: ["rust-toolchain"],
+      matchDepTypes: ["toolchain"],
+      addLabels: ["rust", "ci"],
+    },
+    {
       // Docker Hub provides a tag timestamp, but Renovate cannot reliably know
       // the true per-digest publish time. Wait until the minimumReleaseAge
       // stability check is no longer pending before opening Docker Hub digest PRs.
