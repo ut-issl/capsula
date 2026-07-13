@@ -3,26 +3,31 @@
 //! This module provides a builder for constructing dynamic SQL queries
 //! that filter runs based on metadata and hook outputs using `JSONPath` expressions.
 
-use crate::models::{ComparisonOp, HookFilter, ParameterMatch, SearchRunsRequest, SortOrder};
+use crate::models::{
+    ComparisonOp, HookFilter, ParameterCondition, ParameterMatch, SearchRunsRequest, SortOrder,
+};
 use chrono::{DateTime, Utc};
 use sql_json_path::JsonPath;
 use std::fmt::Write;
 
-/// Maximum length for `JSONPath` expressions (prevents denial-of-service)
+/// `str::len` cap for `JSONPath` expressions passed to `sql-json-path`.
 const MAX_JSONPATH_LENGTH: usize = 500;
 
-/// Maximum LIMIT value: callers asking for more than this are clamped.
 const MAX_LIMIT: i64 = 1_000;
 
-/// Maximum OFFSET value: callers asking for more than this are clamped.
-/// Prevents slow-query `DoS` from a large `OFFSET` forcing a sequential scan.
+/// Guards against a large `OFFSET` forcing a sequential scan.
 const MAX_OFFSET: i64 = 100_000;
 
-/// Error types for query building
+/// Each entry becomes an independent `EXISTS`, so an unbounded list
+/// would let a caller stall the planner.
+const MAX_PARAMETER_MATCHES: usize = 32;
+
 #[derive(Debug, thiserror::Error)]
 pub enum QueryError {
     #[error("Invalid JSONPath expression: {0}")]
     InvalidJsonPath(String),
+    #[error("Invalid parameter match: {0}")]
+    InvalidParameterMatch(String),
 }
 
 /// Builder for constructing run search queries
@@ -97,6 +102,12 @@ impl RunQueryBuilder {
             builder = builder.with_hook_filter(hook_filter)?;
         }
 
+        if request.parameter_matches.len() > MAX_PARAMETER_MATCHES {
+            return Err(QueryError::InvalidParameterMatch(format!(
+                "at most {MAX_PARAMETER_MATCHES} parameter_matches entries are allowed, got {}",
+                request.parameter_matches.len()
+            )));
+        }
         for parameter_match in &request.parameter_matches {
             builder = builder.with_parameter_match(parameter_match)?;
         }
@@ -201,75 +212,61 @@ impl RunQueryBuilder {
         Ok(self)
     }
 
-    /// Add a structured parameter match filter targeting parameter-capturing
-    /// hooks (`capture-json`, `capture-toml`, ...).
-    ///
-    /// Those hooks share an output shape — a top-level `content` field
-    /// containing the parsed file — and store the configured path under
-    /// `__meta.config.path` (persisted in the `config` column of
-    /// `run_outputs`). This method:
-    ///
-    /// 1. Selects rows structurally with `ro.output ? 'content'`, so the
-    ///    filter is decoupled from the concrete `hook_id`.
-    /// 2. Optionally pins to a specific captured file by matching
-    ///    `ro.config->>'path'` against the supplied `file`.
-    /// 3. Optionally pins to a specific hook position in the phase's array
-    ///    by matching `ro.hook_index` against the supplied `hook_index`.
-    /// 4. Optionally adds a `JSONPath` predicate
-    ///    `$.content.<parameter> ? (@ <op> <value>)` on `ro.output`.
-    ///
-    /// Validation:
-    /// - `phase` must be `"pre"` or `"post"`.
-    /// - At least one of `file` / `hook_index` / `parameter` must be specified.
-    /// - `parameter`, `operator`, and `value` are an all-or-nothing group.
-    /// - Specifying `parameter` without either `file` or `hook_index`
-    ///   emits a warning.
+    /// Add a `ParameterMatch` filter — targets rows produced by
+    /// parameter-capturing hooks and combines phase / file / `hook_index`
+    /// pins with an optional multi-condition `JSONPath` predicate.
     pub fn with_parameter_match(mut self, pm: &ParameterMatch) -> Result<Self, QueryError> {
-        // Validate phase
-        let phase = match pm.phase.as_str() {
-            "pre" | "post" => pm.phase.clone(),
-            _ => {
-                return Err(QueryError::InvalidJsonPath(
-                    "phase must be 'pre' or 'post'".to_string(),
-                ));
-            }
-        };
-
-        // Validate the parameter/operator/value triple is all-or-nothing
-        let condition = match (&pm.parameter, &pm.operator, &pm.value) {
-            (None, None, None) => None,
-            (Some(p), Some(op), Some(v)) => Some((p.as_str(), op, v)),
-            _ => {
-                return Err(QueryError::InvalidJsonPath(
-                    "parameter, operator, and value must all be specified together".to_string(),
-                ));
-            }
-        };
-
-        // At least one of file / hook_index / parameter must be present,
-        // otherwise the filter would match every parameter-capturing row
-        // of the run.
-        if pm.file.is_none() && pm.hook_index.is_none() && condition.is_none() {
-            return Err(QueryError::InvalidJsonPath(
+        // At least one of file / hook_index / conditions is required —
+        // an unconstrained match would scan every parameter-capturing
+        // row of the run.
+        if pm.file.is_none() && pm.hook_index.is_none() && pm.conditions.is_empty() {
+            return Err(QueryError::InvalidParameterMatch(
                 "ParameterMatch requires at least one of 'file', 'hook_index', \
-                 or 'parameter'"
+                 or a non-empty 'conditions'"
                     .to_string(),
             ));
         }
 
-        if condition.is_some() && pm.file.is_none() && pm.hook_index.is_none() {
+        // `hook_index` is `i32` for parity with the DB column but the
+        // API contract is non-negative; reject negatives so callers see
+        // a clear error instead of an empty result set.
+        if let Some(hook_index) = pm.hook_index
+            && hook_index < 0
+        {
+            return Err(QueryError::InvalidParameterMatch(format!(
+                "hook_index must be non-negative, got {hook_index}"
+            )));
+        }
+
+        // Ordering operators on booleans have no defined JSONPath
+        // semantics — reject at the input layer instead of letting
+        // Postgres error out.
+        for c in &pm.conditions {
+            if matches!(c.value, serde_json::Value::Bool(_))
+                && matches!(
+                    c.operator,
+                    ComparisonOp::Gt | ComparisonOp::Ge | ComparisonOp::Lt | ComparisonOp::Le
+                )
+            {
+                return Err(QueryError::InvalidParameterMatch(
+                    "boolean value only supports 'eq' / 'ne' operators".to_string(),
+                ));
+            }
+        }
+
+        if !pm.conditions.is_empty() && pm.file.is_none() && pm.hook_index.is_none() {
             tracing::warn!(
                 "ParameterMatch without 'file' or 'hook_index' will match across \
                  every parameter-capturing row of the run; specify one to narrow"
             );
         }
 
-        // Build EXISTS subquery
         let mut conds = vec![
             "ro.run_id = r.id".to_string(),
             format!("ro.phase = ${}", self.param_index),
         ];
-        self.bind_values.push(BindValue::String(phase));
+        self.bind_values
+            .push(BindValue::String(pm.phase.as_str().to_string()));
         self.param_index += 1;
 
         // Structural filter: only parameter-capturing rows have `content`.
@@ -287,8 +284,8 @@ impl RunQueryBuilder {
             self.param_index += 1;
         }
 
-        if let Some((param, op, value)) = condition {
-            let jsonpath = build_parameter_jsonpath(param, op, value)?;
+        if !pm.conditions.is_empty() {
+            let jsonpath = build_conditions_jsonpath(&pm.conditions)?;
             Self::validate_jsonpath(&jsonpath)?;
             conds.push(format!(
                 "jsonb_path_exists(ro.output, ${}::jsonpath)",
@@ -390,58 +387,113 @@ impl RunQueryBuilder {
     }
 }
 
-/// Build a PostgreSQL-compatible `JSONPath` expression for a single
-/// parameter comparison inside the captured `content` object.
+/// Compile a list of conditions into a single `JSONPath` predicate.
 ///
-/// The path is rooted at `$.content` (the field produced by parameter-capturing
-/// hooks), e.g., `$.content.sat1.orbit.a ? (@ >= 1.0)`.
-fn build_parameter_jsonpath(
-    parameter: &str,
-    operator: &ComparisonOp,
-    value: &serde_json::Value,
-) -> Result<String, QueryError> {
-    // Validate parameter name (1-200 chars of [A-Za-z0-9_.])
-    if parameter.is_empty() || parameter.len() > 200 {
-        return Err(QueryError::InvalidJsonPath(
-            "parameter name must be 1-200 characters".to_string(),
-        ));
-    }
-    for ch in parameter.chars() {
-        if !ch.is_alphanumeric() && ch != '_' && ch != '.' {
-            return Err(QueryError::InvalidJsonPath(format!(
-                "parameter name contains invalid character: '{ch}'"
-            )));
-        }
+/// One condition emits the compact `$.content.<path> ? (@ <op> <val>)`
+/// form so single-parameter matches stay legible. Two or more emit the
+/// composable `$ ? (@.content.<p1> <op1> <v1> && ...)` form — the
+/// per-row AND that motivated putting conditions inside one entry
+/// (see `ParameterMatch::conditions` for the false-positive it avoids).
+fn build_conditions_jsonpath(conditions: &[ParameterCondition]) -> Result<String, QueryError> {
+    debug_assert!(
+        !conditions.is_empty(),
+        "caller must not pass empty conditions"
+    );
+
+    if conditions.len() == 1 {
+        let c = &conditions[0];
+        let path = build_path(&c.parameter)?;
+        let op = op_to_jsonpath(&c.operator);
+        let val = value_to_jsonpath(&c.value)?;
+        return Ok(format!("$.content.{path} ? (@ {op} {val})"));
     }
 
-    let op_str = match operator {
+    let mut parts = Vec::with_capacity(conditions.len());
+    for c in conditions {
+        let path = build_path(&c.parameter)?;
+        let op = op_to_jsonpath(&c.operator);
+        let val = value_to_jsonpath(&c.value)?;
+        parts.push(format!("@.content.{path} {op} {val}"));
+    }
+    Ok(format!("$ ? ({})", parts.join(" && ")))
+}
+
+/// Build the dot-path portion of a `JSONPath`, quoting segments that
+/// contain characters outside the bare-identifier set `[A-Za-z0-9_]`.
+///
+/// Quoting exists so keys with hyphens (`learning-rate`), spaces, or
+/// non-ASCII characters (`温度`) remain addressable without inviting
+/// injection — control characters and empty segments are still
+/// rejected, and `\` / `"` inside a segment are escaped.
+fn build_path(parameter: &str) -> Result<String, QueryError> {
+    if parameter.is_empty() {
+        return Err(QueryError::InvalidParameterMatch(
+            "parameter must not be empty".to_string(),
+        ));
+    }
+    if parameter.len() > 200 {
+        return Err(QueryError::InvalidParameterMatch(
+            "parameter must be at most 200 bytes".to_string(),
+        ));
+    }
+
+    let mut segments = Vec::new();
+    for seg in parameter.split('.') {
+        if seg.is_empty() {
+            return Err(QueryError::InvalidParameterMatch(
+                "parameter has an empty segment (leading, trailing, or consecutive '.')"
+                    .to_string(),
+            ));
+        }
+        for ch in seg.chars() {
+            if ch.is_control() {
+                return Err(QueryError::InvalidParameterMatch(format!(
+                    "parameter segment contains a control character: {ch:?}"
+                )));
+            }
+        }
+        segments.push(quote_segment_if_needed(seg));
+    }
+    Ok(segments.join("."))
+}
+
+fn quote_segment_if_needed(seg: &str) -> String {
+    if seg.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        seg.to_string()
+    } else {
+        format!("\"{}\"", seg.replace('\\', "\\\\").replace('"', "\\\""))
+    }
+}
+
+const fn op_to_jsonpath(op: &ComparisonOp) -> &'static str {
+    match op {
         ComparisonOp::Eq => "==",
         ComparisonOp::Ne => "!=",
         ComparisonOp::Gt => ">",
         ComparisonOp::Ge => ">=",
         ComparisonOp::Lt => "<",
         ComparisonOp::Le => "<=",
-    };
+    }
+}
 
-    let value_str = match value {
-        serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => {
-            format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
-        }
-        serde_json::Value::Bool(b) => b.to_string(),
-        _ => {
-            return Err(QueryError::InvalidJsonPath(
-                "value must be number, string, or boolean".to_string(),
-            ));
-        }
-    };
-
-    Ok(format!("$.content.{parameter} ? (@ {op_str} {value_str})"))
+fn value_to_jsonpath(value: &serde_json::Value) -> Result<String, QueryError> {
+    match value {
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        serde_json::Value::String(s) => Ok(format!(
+            "\"{}\"",
+            s.replace('\\', "\\\\").replace('"', "\\\"")
+        )),
+        serde_json::Value::Bool(b) => Ok(b.to_string()),
+        _ => Err(QueryError::InvalidParameterMatch(
+            "value must be number, string, or boolean".to_string(),
+        )),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::Phase;
 
     #[test]
     fn test_basic_query() {
@@ -511,16 +563,36 @@ mod tests {
             .collect()
     }
 
+    fn cond(parameter: &str, operator: ComparisonOp, value: serde_json::Value) -> ParameterCondition {
+        ParameterCondition {
+            parameter: parameter.to_string(),
+            operator,
+            value,
+        }
+    }
+
+    fn pm_with(
+        phase: Phase,
+        file: Option<&str>,
+        hook_index: Option<i32>,
+        conditions: Vec<ParameterCondition>,
+    ) -> ParameterMatch {
+        ParameterMatch {
+            phase,
+            file: file.map(str::to_string),
+            hook_index,
+            conditions,
+        }
+    }
+
     #[test]
-    fn pm_file_and_parameter_generate_full_query() {
-        let pm = ParameterMatch {
-            phase: "pre".into(),
-            file: Some("config/sat1/orbit.json".into()),
-            hook_index: None,
-            parameter: Some("a".into()),
-            operator: Some(ComparisonOp::Ge),
-            value: Some(serde_json::json!(1.0)),
-        };
+    fn pm_file_and_single_condition_generate_full_query() {
+        let pm = pm_with(
+            Phase::Pre,
+            Some("config/sat1/orbit.json"),
+            None,
+            vec![cond("a", ComparisonOp::Ge, serde_json::json!(1.0))],
+        );
         let builder = RunQueryBuilder::new()
             .with_parameter_match(&pm)
             .expect("valid parameter match");
@@ -535,20 +607,13 @@ mod tests {
         assert!(bound.contains(&"config/sat1/orbit.json".to_string()));
         assert!(
             bound.iter().any(|s| s == "$.content.a ? (@ >= 1.0)"),
-            "expected JSONPath rooted at $.content, got bound values: {bound:?}"
+            "expected single-condition compact form, got: {bound:?}"
         );
     }
 
     #[test]
     fn pm_file_only_omits_jsonpath() {
-        let pm = ParameterMatch {
-            phase: "pre".into(),
-            file: Some("config.json".into()),
-            hook_index: None,
-            parameter: None,
-            operator: None,
-            value: None,
-        };
+        let pm = pm_with(Phase::Pre, Some("config.json"), None, vec![]);
         let builder = RunQueryBuilder::new()
             .with_parameter_match(&pm)
             .expect("file-only parameter match");
@@ -559,18 +624,16 @@ mod tests {
     }
 
     #[test]
-    fn pm_parameter_only_omits_file_clause() {
-        let pm = ParameterMatch {
-            phase: "pre".into(),
-            file: None,
-            hook_index: None,
-            parameter: Some("lr".into()),
-            operator: Some(ComparisonOp::Ge),
-            value: Some(serde_json::json!(0.01)),
-        };
+    fn pm_condition_only_omits_file_clause() {
+        let pm = pm_with(
+            Phase::Pre,
+            None,
+            None,
+            vec![cond("lr", ComparisonOp::Ge, serde_json::json!(0.01))],
+        );
         let builder = RunQueryBuilder::new()
             .with_parameter_match(&pm)
-            .expect("parameter-only match (broad)");
+            .expect("condition-only match (broad)");
         let query = builder.build_query();
         assert!(query.contains("ro.output ? 'content'"));
         assert!(!query.contains("ro.config->>'path'"));
@@ -579,14 +642,7 @@ mod tests {
 
     #[test]
     fn pm_rejects_empty_match() {
-        let pm = ParameterMatch {
-            phase: "pre".into(),
-            file: None,
-            hook_index: None,
-            parameter: None,
-            operator: None,
-            value: None,
-        };
+        let pm = pm_with(Phase::Pre, None, None, vec![]);
         let err = RunQueryBuilder::new()
             .with_parameter_match(&pm)
             .unwrap_err();
@@ -594,91 +650,269 @@ mod tests {
     }
 
     #[test]
-    fn pm_rejects_partial_triple() {
-        let pm = ParameterMatch {
-            phase: "pre".into(),
-            file: Some("c.json".into()),
-            hook_index: None,
-            parameter: Some("lr".into()),
-            operator: Some(ComparisonOp::Ge),
-            // value missing
-            value: None,
-        };
-        let err = RunQueryBuilder::new()
-            .with_parameter_match(&pm)
-            .unwrap_err();
-        assert!(format!("{err:?}").contains("all be specified together"));
-    }
-
-    #[test]
     fn pm_rejects_invalid_phase() {
-        let pm = ParameterMatch {
-            phase: "during".into(),
-            file: Some("c.json".into()),
-            hook_index: None,
-            parameter: None,
-            operator: None,
-            value: None,
-        };
+        // Invalid phase is rejected by `Phase`'s serde impl before the
+        // request reaches the builder — locks in that no unknown string
+        // can flow through.
+        let json = serde_json::json!({ "phase": "during", "file": "c.json" });
+        let err = serde_json::from_value::<ParameterMatch>(json).unwrap_err();
+        assert!(format!("{err}").contains("phase") || format!("{err}").contains("variant"));
+    }
+
+    #[test]
+    fn pm_rejects_negative_hook_index() {
+        let pm = pm_with(Phase::Pre, None, Some(-1), vec![]);
         let err = RunQueryBuilder::new()
             .with_parameter_match(&pm)
             .unwrap_err();
-        assert!(format!("{err:?}").contains("phase"));
+        assert!(format!("{err:?}").contains("non-negative"));
     }
 
     #[test]
-    fn pm_rejects_invalid_parameter_name() {
-        let pm = ParameterMatch {
-            phase: "pre".into(),
-            file: None,
-            hook_index: None,
-            parameter: Some("x; DROP TABLE".into()),
-            operator: Some(ComparisonOp::Eq),
-            value: Some(serde_json::json!(1)),
-        };
-        let result = RunQueryBuilder::new().with_parameter_match(&pm);
-        assert!(result.is_err());
+    fn pm_rejects_bool_value_with_ordering_operator() {
+        for op in [
+            ComparisonOp::Gt,
+            ComparisonOp::Ge,
+            ComparisonOp::Lt,
+            ComparisonOp::Le,
+        ] {
+            let pm = pm_with(
+                Phase::Pre,
+                Some("flags.json"),
+                None,
+                vec![cond("enabled", op, serde_json::json!(true))],
+            );
+            let err = RunQueryBuilder::new()
+                .with_parameter_match(&pm)
+                .unwrap_err();
+            assert!(format!("{err:?}").contains("boolean value only supports"));
+        }
     }
 
     #[test]
-    fn pm_nested_dot_path_in_jsonpath() {
-        let pm = ParameterMatch {
-            phase: "post".into(),
-            file: Some("results.json".into()),
-            hook_index: None,
-            parameter: Some("metrics.max_temp".into()),
-            operator: Some(ComparisonOp::Le),
-            value: Some(serde_json::json!(85.0)),
+    fn pm_accepts_bool_value_with_eq_and_ne() {
+        for op in [ComparisonOp::Eq, ComparisonOp::Ne] {
+            let pm = pm_with(
+                Phase::Pre,
+                Some("flags.json"),
+                None,
+                vec![cond("enabled", op, serde_json::json!(true))],
+            );
+            assert!(RunQueryBuilder::new().with_parameter_match(&pm).is_ok());
+        }
+    }
+
+    #[test]
+    fn pm_rejects_too_many_parameter_matches() {
+        let matches: Vec<ParameterMatch> = (0..=MAX_PARAMETER_MATCHES)
+            .map(|_| pm_with(Phase::Pre, Some("c.json"), None, vec![]))
+            .collect();
+        let request = SearchRunsRequest {
+            vault: None,
+            from: None,
+            to: None,
+            exit_code: None,
+            success: None,
+            hook_filters: Vec::new(),
+            parameter_matches: matches,
+            include: Vec::new(),
+            order: SortOrder::LatestFirst,
+            limit: None,
+            offset: None,
         };
+        let err = RunQueryBuilder::from_request(&request).unwrap_err();
+        assert!(format!("{err:?}").contains("at most"));
+    }
+
+    // ---- multi-condition (Issue 2 fix) -----------------------------
+
+    #[test]
+    fn pm_multi_condition_range_on_same_field_compiles_to_single_predicate() {
+        // The whole point of `conditions` being a list: both bounds
+        // apply to the *same* row, unlike two separate `parameter_matches`.
+        let pm = pm_with(
+            Phase::Pre,
+            Some("train.json"),
+            None,
+            vec![
+                cond("lr", ComparisonOp::Ge, serde_json::json!(0.005)),
+                cond("lr", ComparisonOp::Le, serde_json::json!(0.05)),
+            ],
+        );
         let builder = RunQueryBuilder::new()
             .with_parameter_match(&pm)
-            .expect("nested dot path");
+            .expect("valid multi-condition");
         let bound = bound_strings(&builder);
         assert!(
             bound
                 .iter()
-                .any(|s| s == "$.content.metrics.max_temp ? (@ <= 85.0)"),
-            "expected nested dot path in JSONPath, got: {bound:?}"
+                .any(|s| s == "$ ? (@.content.lr >= 0.005 && @.content.lr <= 0.05)"),
+            "expected composable multi-condition form, got: {bound:?}"
         );
     }
 
     #[test]
-    fn pm_build_jsonpath_string_value_quoted() {
-        let expr = build_parameter_jsonpath("orbit", &ComparisonOp::Eq, &serde_json::json!("LEO"))
-            .expect("valid string match");
-        assert_eq!(expr, r#"$.content.orbit ? (@ == "LEO")"#);
+    fn pm_multi_condition_different_fields_compose() {
+        let pm = pm_with(
+            Phase::Pre,
+            Some("train.json"),
+            None,
+            vec![
+                cond("lr", ComparisonOp::Ge, serde_json::json!(0.005)),
+                cond("epoch", ComparisonOp::Eq, serde_json::json!(10)),
+            ],
+        );
+        let builder = RunQueryBuilder::new()
+            .with_parameter_match(&pm)
+            .expect("valid multi-condition");
+        let bound = bound_strings(&builder);
+        assert!(
+            bound
+                .iter()
+                .any(|s| s == "$ ? (@.content.lr >= 0.005 && @.content.epoch == 10)"),
+            "expected multi-field compose form, got: {bound:?}"
+        );
+    }
+
+    // ---- parameter path validation & quoting (Issue 4 fix) ---------
+
+    #[test]
+    fn pm_accepts_hyphenated_parameter_via_quoting() {
+        let expr = build_conditions_jsonpath(&[cond(
+            "learning-rate",
+            ComparisonOp::Eq,
+            serde_json::json!(0.1),
+        )])
+        .expect("hyphens must be quoted, not rejected");
+        assert_eq!(expr, r#"$.content."learning-rate" ? (@ == 0.1)"#);
+        JsonPath::new(&expr).expect("quoted-segment path must be valid JSONPath");
     }
 
     #[test]
+    fn pm_accepts_non_ascii_parameter_via_quoting() {
+        let expr = build_conditions_jsonpath(&[cond(
+            "温度",
+            ComparisonOp::Eq,
+            serde_json::json!(25),
+        )])
+        .expect("non-ASCII keys must be quoted, not rejected");
+        assert_eq!(expr, r#"$.content."温度" ? (@ == 25)"#);
+        JsonPath::new(&expr).expect("quoted-segment path must be valid JSONPath");
+    }
+
+    #[test]
+    fn pm_nested_path_mixes_bare_and_quoted_segments() {
+        let expr = build_conditions_jsonpath(&[cond(
+            "sat1.learning-rate.value",
+            ComparisonOp::Le,
+            serde_json::json!(0.5),
+        )])
+        .expect("mixed-segment path");
+        assert_eq!(
+            expr,
+            r#"$.content.sat1."learning-rate".value ? (@ <= 0.5)"#
+        );
+    }
+
+    #[test]
+    fn pm_rejects_empty_parameter() {
+        let err =
+            build_conditions_jsonpath(&[cond("", ComparisonOp::Eq, serde_json::json!(1))])
+                .unwrap_err();
+        assert!(format!("{err:?}").contains("must not be empty"));
+    }
+
+    #[test]
+    fn pm_rejects_empty_parameter_segment() {
+        for bad in ["a..b", ".a", "a."] {
+            let err = build_conditions_jsonpath(&[cond(
+                bad,
+                ComparisonOp::Eq,
+                serde_json::json!(1),
+            )])
+            .unwrap_err();
+            assert!(format!("{err:?}").contains("empty segment"), "for {bad}");
+        }
+    }
+
+    #[test]
+    fn pm_rejects_control_char_in_parameter() {
+        let err = build_conditions_jsonpath(&[cond(
+            "a\nb",
+            ComparisonOp::Eq,
+            serde_json::json!(1),
+        )])
+        .unwrap_err();
+        assert!(format!("{err:?}").contains("control character"));
+    }
+
+    #[test]
+    fn pm_rejects_oversize_parameter() {
+        let long = "a".repeat(201);
+        let err = build_conditions_jsonpath(&[cond(
+            &long,
+            ComparisonOp::Eq,
+            serde_json::json!(1),
+        )])
+        .unwrap_err();
+        assert!(format!("{err:?}").contains("200 bytes"));
+    }
+
+    #[test]
+    fn pm_quoted_segment_escapes_backslash_and_quote() {
+        // A parameter segment containing both `"` and `\` must round-trip
+        // through the parser rather than break the JSONPath syntax.
+        let expr = build_conditions_jsonpath(&[cond(
+            r#"a"b\c"#,
+            ComparisonOp::Eq,
+            serde_json::json!(1),
+        )])
+        .expect("segment with quotes must be quoted, not rejected");
+        assert_eq!(expr, r#"$.content."a\"b\\c" ? (@ == 1)"#);
+        JsonPath::new(&expr).expect("escaped quoted segment must be valid JSONPath");
+    }
+
+    // ---- value validation ------------------------------------------
+
+    #[test]
+    fn pm_string_value_is_quoted_and_escaped() {
+        let expr = build_conditions_jsonpath(&[cond(
+            "name",
+            ComparisonOp::Eq,
+            serde_json::json!(r#"a"b\c"#),
+        )])
+        .expect("escape should succeed");
+        assert_eq!(expr, r#"$.content.name ? (@ == "a\"b\\c")"#);
+        JsonPath::new(&expr).expect("emitted expression must be valid JSONPath");
+    }
+
+    #[test]
+    fn pm_rejects_null_value() {
+        let err = build_conditions_jsonpath(&[cond(
+            "x",
+            ComparisonOp::Eq,
+            serde_json::Value::Null,
+        )])
+        .unwrap_err();
+        assert!(format!("{err:?}").contains("must be number, string, or boolean"));
+    }
+
+    #[test]
+    fn pm_rejects_array_value() {
+        let err = build_conditions_jsonpath(&[cond(
+            "x",
+            ComparisonOp::Eq,
+            serde_json::json!([1, 2]),
+        )])
+        .unwrap_err();
+        assert!(format!("{err:?}").contains("must be number, string, or boolean"));
+    }
+
+    // ---- hook_index composition ------------------------------------
+
+    #[test]
     fn pm_hook_index_only_generates_hook_index_clause() {
-        let pm = ParameterMatch {
-            phase: "pre".into(),
-            file: None,
-            hook_index: Some(2),
-            parameter: None,
-            operator: None,
-            value: None,
-        };
+        let pm = pm_with(Phase::Pre, None, Some(2), vec![]);
         let builder = RunQueryBuilder::new()
             .with_parameter_match(&pm)
             .expect("hook_index-only parameter match");
@@ -687,26 +921,20 @@ mod tests {
         assert!(query.contains("ro.hook_index = $"));
         assert!(!query.contains("ro.config->>'path'"));
         assert!(!query.contains("jsonb_path_exists"));
-        let has_hook_index = builder.bind_values().iter().any(|v| match v {
-            BindValue::I32(i) => *i == 2,
-            _ => false,
-        });
-        assert!(has_hook_index, "expected hook_index=2 in bind values");
+        assert!(builder.bind_values().iter().any(|v| matches!(v, BindValue::I32(2))));
     }
 
     #[test]
-    fn pm_hook_index_with_file_and_parameter_composes_all_clauses() {
-        let pm = ParameterMatch {
-            phase: "post".into(),
-            file: Some("config.json".into()),
-            hook_index: Some(1),
-            parameter: Some("lr".into()),
-            operator: Some(ComparisonOp::Eq),
-            value: Some(serde_json::json!(0.01)),
-        };
+    fn pm_hook_index_with_file_and_conditions_composes_all_clauses() {
+        let pm = pm_with(
+            Phase::Post,
+            Some("config.json"),
+            Some(1),
+            vec![cond("lr", ComparisonOp::Eq, serde_json::json!(0.01))],
+        );
         let builder = RunQueryBuilder::new()
             .with_parameter_match(&pm)
-            .expect("hook_index + file + parameter compose");
+            .expect("hook_index + file + conditions compose");
         let query = builder.build_query();
         assert!(query.contains("ro.output ? 'content'"));
         assert!(query.contains("ro.config->>'path'"));
@@ -716,18 +944,7 @@ mod tests {
 
     #[test]
     fn pm_hook_index_alone_satisfies_at_least_one_rule() {
-        let pm = ParameterMatch {
-            phase: "pre".into(),
-            file: None,
-            hook_index: Some(0),
-            parameter: None,
-            operator: None,
-            value: None,
-        };
-        let result = RunQueryBuilder::new().with_parameter_match(&pm);
-        assert!(
-            result.is_ok(),
-            "hook_index alone should satisfy the at-least-one rule"
-        );
+        let pm = pm_with(Phase::Pre, None, Some(0), vec![]);
+        assert!(RunQueryBuilder::new().with_parameter_match(&pm).is_ok());
     }
 }

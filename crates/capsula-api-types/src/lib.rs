@@ -78,88 +78,70 @@ pub enum ComparisonOp {
     Le,
 }
 
-/// A structured filter for parameter-capturing hooks (e.g., `capture-json`,
+/// Hook execution phase.
+///
+/// Serialized as `"pre"` / `"post"` on the wire.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Phase {
+    Pre,
+    Post,
+}
+
+/// A single `<parameter> <operator> <value>` comparison inside the
+/// captured `content` object. See [`ParameterMatch::conditions`].
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ParameterCondition {
+    pub parameter: String,
+    pub operator: ComparisonOp,
+    pub value: serde_json::Value,
+}
+
+/// A structured filter over parameter-capturing hooks (`capture-json`,
 /// `capture-toml`, ...).
 ///
-/// Targets `run_outputs` rows produced by hooks whose `output` has a
-/// top-level `content` field:
+/// Selects `run_outputs` rows structurally by the presence of a
+/// top-level `content` field, then optionally pins by `file` /
+/// `hook_index` and/or filters by `conditions`.
 ///
-/// ```text
-/// output: { "content": { ...parsed file contents... } }
-/// config: { "path": "<configured-path>", ... }
-/// ```
+/// # Why `conditions` is a list, not a single `parameter` + `operator` + `value`
 ///
-/// The server selects matching rows structurally (by the presence of
-/// the `content` top-level field) — decoupled from the concrete
-/// `hook_id`, so any future hook that emits this shape works
-/// automatically.
+/// Two entries at the `parameter_matches` level are AND-combined across
+/// *rows* — `lr >= 0.005` in one entry and `lr <= 0.05` in another are
+/// satisfied by a run that has *some* row above the lower bound and
+/// *some (possibly different)* row below the upper. Bundling them
+/// inside one `ParameterMatch` compiles both into a single `JSONPath`
+/// predicate applied to the same row, which is what a caller writing a
+/// range actually wants.
 ///
-/// Constraints (validated server-side):
-///
-/// - At least one of `file` / `hook_index` / `parameter` must be specified.
-/// - If `parameter` is present, `operator` and `value` must also be present.
-/// - If `parameter` is absent, `operator` and `value` must also be absent.
-/// - Specifying `parameter` without `file` (and without `hook_index`)
-///   emits a server-side warning, since the match will scan across
-///   every parameter-capturing row of the run regardless of which
-///   file it came from.
-///
-/// # Example
+/// # Example — range on the same field
 ///
 /// ```json
 /// {
 ///     "phase": "pre",
-///     "file": "config/sat1/orbit.json",
-///     "parameter": "a",
-///     "operator": "ge",
-///     "value": 1.0
+///     "file": "train.json",
+///     "conditions": [
+///         { "parameter": "lr", "operator": "ge", "value": 0.005 },
+///         { "parameter": "lr", "operator": "le", "value": 0.05 }
+///     ]
 /// }
 /// ```
 ///
-/// generates `$.content.a ? (@ >= 1.0)` against the row whose
-/// `config.path == "config/sat1/orbit.json"`.
-///
-/// # Example — using `hook_index`
-///
-/// Pin the match to the hook at position 1 (0-indexed) in the phase's
-/// array, useful when several entries share the same file / `hook_id`:
-///
-/// ```json
-/// {
-///     "phase": "pre",
-///     "hook_index": 1,
-///     "parameter": "a",
-///     "operator": "ge",
-///     "value": 1.0
-/// }
-/// ```
+/// compiles to `$ ? (@.content.lr >= 0.005 && @.content.lr <= 0.05)`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ParameterMatch {
-    /// Phase: `"pre"` or `"post"`
-    pub phase: String,
-    /// Optional exact match on the captured file path (compared against
-    /// `run_outputs.config->>'path'`). Omitting this causes the match to
-    /// apply across every parameter-capturing row of the run; the server
-    /// logs a warning when neither `file` nor `hook_index` is supplied.
+    pub phase: Phase,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
-    /// Optional exact match on the 0-based position of the hook in
-    /// `capsula.toml`'s `pre_run` / `post_run` list. Useful when several
-    /// entries share the same file / `hook_id` and disambiguation by
-    /// position is needed (e.g., "the 2nd `capture-json`").
+    /// 0-based position of the hook in `capsula.toml`'s `pre_run` /
+    /// `post_run` list. `i32` for parity with the DB column; negatives
+    /// are rejected server-side.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hook_index: Option<i32>,
-    /// Dot path within the captured `content` object (e.g., `"lr"`,
-    /// `"sat1.orbit.a"`). When present, `operator` and `value` are required.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parameter: Option<String>,
-    /// Comparison operator (required iff `parameter` is present).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub operator: Option<ComparisonOp>,
-    /// Value to compare against — number, string, or boolean. Required
-    /// iff `parameter` is present.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<serde_json::Value>,
+    /// May be empty when `file` or `hook_index` is set — the match then
+    /// only asserts a parameter-capturing row exists.
+    #[serde(default)]
+    pub conditions: Vec<ParameterCondition>,
 }
 
 /// Fields that can be included in search response
@@ -203,9 +185,10 @@ pub struct SearchRunsRequest {
     /// Hook output filters (AND logic)
     #[serde(default)]
     pub hook_filters: Vec<HookFilter>,
-    /// Structured parameter match filters for parameter-capturing hooks
-    /// (`capture-json`, `capture-toml`, ...). Each entry is an independent
-    /// EXISTS subquery; multiple entries are AND-combined.
+    /// Independent `ParameterMatch` entries, AND-combined at the run
+    /// level. To share a row between two conditions (e.g. a range) put
+    /// them inside a single entry's `conditions`, not across entries —
+    /// see [`ParameterMatch`]. Capped at 32 entries per request.
     #[serde(default)]
     pub parameter_matches: Vec<ParameterMatch>,
     /// What to include in response

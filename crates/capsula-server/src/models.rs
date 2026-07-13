@@ -164,22 +164,49 @@ pub enum ComparisonOp {
     Le,
 }
 
-/// Structured filter for parameter-capturing hooks. See the `capsula-api-types`
-/// documentation for the full semantics. The server validates constraints at
-/// query-build time.
+/// Hook execution phase. Wire form: `"pre"` / `"post"`. Any other value is
+/// rejected by `serde` at deserialize time (returns 4xx at the handler
+/// layer) rather than reaching the query builder.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Phase {
+    Pre,
+    Post,
+}
+
+impl Phase {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pre => "pre",
+            Self::Post => "post",
+        }
+    }
+}
+
+/// See `capsula-api-types::ParameterCondition`. Deserialize-only mirror.
+/// `deny_unknown_fields` catches typos in the wire payload up-front.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ParameterCondition {
+    pub parameter: String,
+    pub operator: ComparisonOp,
+    pub value: JsonValue,
+}
+
+/// See `capsula-api-types::ParameterMatch`. Deserialize-only mirror.
+/// Validated at query-build time in `query::RunQueryBuilder::with_parameter_match`.
+/// `deny_unknown_fields` prevents e.g. an outer `"parameter"` (a common
+/// mistake after the flat→conditions rework) from being silently ignored.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ParameterMatch {
-    pub phase: String,
+    pub phase: Phase,
     #[serde(default)]
     pub file: Option<String>,
     #[serde(default)]
     pub hook_index: Option<i32>,
     #[serde(default)]
-    pub parameter: Option<String>,
-    #[serde(default)]
-    pub operator: Option<ComparisonOp>,
-    #[serde(default)]
-    pub value: Option<JsonValue>,
+    pub conditions: Vec<ParameterCondition>,
 }
 
 /// Fields that can be included in search response
