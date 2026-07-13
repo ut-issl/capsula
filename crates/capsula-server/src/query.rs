@@ -563,7 +563,11 @@ mod tests {
             .collect()
     }
 
-    fn cond(parameter: &str, operator: ComparisonOp, value: serde_json::Value) -> ParameterCondition {
+    fn cond(
+        parameter: &str,
+        operator: ComparisonOp,
+        value: serde_json::Value,
+    ) -> ParameterCondition {
         ParameterCondition {
             parameter: parameter.to_string(),
             operator,
@@ -790,12 +794,9 @@ mod tests {
 
     #[test]
     fn pm_accepts_non_ascii_parameter_via_quoting() {
-        let expr = build_conditions_jsonpath(&[cond(
-            "温度",
-            ComparisonOp::Eq,
-            serde_json::json!(25),
-        )])
-        .expect("non-ASCII keys must be quoted, not rejected");
+        let expr =
+            build_conditions_jsonpath(&[cond("温度", ComparisonOp::Eq, serde_json::json!(25))])
+                .expect("non-ASCII keys must be quoted, not rejected");
         assert_eq!(expr, r#"$.content."温度" ? (@ == 25)"#);
         JsonPath::new(&expr).expect("quoted-segment path must be valid JSONPath");
     }
@@ -808,53 +809,39 @@ mod tests {
             serde_json::json!(0.5),
         )])
         .expect("mixed-segment path");
-        assert_eq!(
-            expr,
-            r#"$.content.sat1."learning-rate".value ? (@ <= 0.5)"#
-        );
+        assert_eq!(expr, r#"$.content.sat1."learning-rate".value ? (@ <= 0.5)"#);
     }
 
     #[test]
     fn pm_rejects_empty_parameter() {
-        let err =
-            build_conditions_jsonpath(&[cond("", ComparisonOp::Eq, serde_json::json!(1))])
-                .unwrap_err();
+        let err = build_conditions_jsonpath(&[cond("", ComparisonOp::Eq, serde_json::json!(1))])
+            .unwrap_err();
         assert!(format!("{err:?}").contains("must not be empty"));
     }
 
     #[test]
     fn pm_rejects_empty_parameter_segment() {
         for bad in ["a..b", ".a", "a."] {
-            let err = build_conditions_jsonpath(&[cond(
-                bad,
-                ComparisonOp::Eq,
-                serde_json::json!(1),
-            )])
-            .unwrap_err();
+            let err =
+                build_conditions_jsonpath(&[cond(bad, ComparisonOp::Eq, serde_json::json!(1))])
+                    .unwrap_err();
             assert!(format!("{err:?}").contains("empty segment"), "for {bad}");
         }
     }
 
     #[test]
     fn pm_rejects_control_char_in_parameter() {
-        let err = build_conditions_jsonpath(&[cond(
-            "a\nb",
-            ComparisonOp::Eq,
-            serde_json::json!(1),
-        )])
-        .unwrap_err();
+        let err =
+            build_conditions_jsonpath(&[cond("a\nb", ComparisonOp::Eq, serde_json::json!(1))])
+                .unwrap_err();
         assert!(format!("{err:?}").contains("control character"));
     }
 
     #[test]
     fn pm_rejects_oversize_parameter() {
         let long = "a".repeat(201);
-        let err = build_conditions_jsonpath(&[cond(
-            &long,
-            ComparisonOp::Eq,
-            serde_json::json!(1),
-        )])
-        .unwrap_err();
+        let err = build_conditions_jsonpath(&[cond(&long, ComparisonOp::Eq, serde_json::json!(1))])
+            .unwrap_err();
         assert!(format!("{err:?}").contains("200 bytes"));
     }
 
@@ -862,12 +849,9 @@ mod tests {
     fn pm_quoted_segment_escapes_backslash_and_quote() {
         // A parameter segment containing both `"` and `\` must round-trip
         // through the parser rather than break the JSONPath syntax.
-        let expr = build_conditions_jsonpath(&[cond(
-            r#"a"b\c"#,
-            ComparisonOp::Eq,
-            serde_json::json!(1),
-        )])
-        .expect("segment with quotes must be quoted, not rejected");
+        let expr =
+            build_conditions_jsonpath(&[cond(r#"a"b\c"#, ComparisonOp::Eq, serde_json::json!(1))])
+                .expect("segment with quotes must be quoted, not rejected");
         assert_eq!(expr, r#"$.content."a\"b\\c" ? (@ == 1)"#);
         JsonPath::new(&expr).expect("escaped quoted segment must be valid JSONPath");
     }
@@ -888,23 +872,17 @@ mod tests {
 
     #[test]
     fn pm_rejects_null_value() {
-        let err = build_conditions_jsonpath(&[cond(
-            "x",
-            ComparisonOp::Eq,
-            serde_json::Value::Null,
-        )])
-        .unwrap_err();
+        let err =
+            build_conditions_jsonpath(&[cond("x", ComparisonOp::Eq, serde_json::Value::Null)])
+                .unwrap_err();
         assert!(format!("{err:?}").contains("must be number, string, or boolean"));
     }
 
     #[test]
     fn pm_rejects_array_value() {
-        let err = build_conditions_jsonpath(&[cond(
-            "x",
-            ComparisonOp::Eq,
-            serde_json::json!([1, 2]),
-        )])
-        .unwrap_err();
+        let err =
+            build_conditions_jsonpath(&[cond("x", ComparisonOp::Eq, serde_json::json!([1, 2]))])
+                .unwrap_err();
         assert!(format!("{err:?}").contains("must be number, string, or boolean"));
     }
 
@@ -921,7 +899,12 @@ mod tests {
         assert!(query.contains("ro.hook_index = $"));
         assert!(!query.contains("ro.config->>'path'"));
         assert!(!query.contains("jsonb_path_exists"));
-        assert!(builder.bind_values().iter().any(|v| matches!(v, BindValue::I32(2))));
+        assert!(
+            builder
+                .bind_values()
+                .iter()
+                .any(|v| matches!(v, BindValue::I32(2)))
+        );
     }
 
     #[test]

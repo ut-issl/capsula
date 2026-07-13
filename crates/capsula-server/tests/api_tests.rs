@@ -1090,6 +1090,25 @@ async fn pm_search(ctx: &TestContext, body: serde_json::Value) -> serde_json::Va
     response.json().await.expect("parse body")
 }
 
+/// For payloads rejected before the handler runs — invalid `Phase`,
+/// unknown fields, missing required condition fields, etc. Axum's `Json`
+/// extractor emits HTTP 422 in those cases without a JSON body, so we
+/// can't use `pm_search`.
+async fn pm_search_expects_serde_error(ctx: &TestContext, body: serde_json::Value) {
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/v1/runs/search", ctx.base_url()))
+        .json(&body)
+        .send()
+        .await
+        .expect("search request");
+    assert!(
+        response.status().is_client_error(),
+        "expected 4xx client error, got {}",
+        response.status()
+    );
+}
+
 fn pm_run_ids(body: &serde_json::Value) -> Vec<String> {
     body["runs"]
         .as_array()
@@ -1475,7 +1494,7 @@ async fn pm_file_only_matches_when_file_present() {
 async fn pm_invalid_phase_returns_error() {
     let ctx = TestContext::new().await;
 
-    let body = pm_search(
+    pm_search_expects_serde_error(
         &ctx,
         json!({
             "vault": "v1",
@@ -1486,8 +1505,6 @@ async fn pm_invalid_phase_returns_error() {
         }),
     )
     .await;
-
-    assert_eq!(body["status"], "error", "body: {body}");
 }
 
 #[tokio::test]
@@ -1516,7 +1533,7 @@ async fn pm_outer_parameter_operator_value_rejected_as_unknown_fields() {
     // treating the payload as a file-only match.
     let ctx = TestContext::new().await;
 
-    let body = pm_search(
+    pm_search_expects_serde_error(
         &ctx,
         json!({
             "vault": "v1",
@@ -1530,8 +1547,6 @@ async fn pm_outer_parameter_operator_value_rejected_as_unknown_fields() {
         }),
     )
     .await;
-
-    assert_eq!(body["status"], "error", "body: {body}");
 }
 
 #[tokio::test]
@@ -1540,7 +1555,7 @@ async fn pm_condition_missing_value_is_rejected() {
     // Option wrapping, so serde rejects the payload at deserialize time.
     let ctx = TestContext::new().await;
 
-    let body = pm_search(
+    pm_search_expects_serde_error(
         &ctx,
         json!({
             "vault": "v1",
@@ -1556,8 +1571,6 @@ async fn pm_condition_missing_value_is_rejected() {
         }),
     )
     .await;
-
-    assert_eq!(body["status"], "error", "body: {body}");
 }
 
 #[tokio::test]
