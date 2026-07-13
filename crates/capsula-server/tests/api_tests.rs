@@ -1129,9 +1129,7 @@ async fn pm_finds_run_by_file_and_parameter() {
             "parameter_matches": [{
                 "phase": "pre",
                 "file": "config.json",
-                "parameter": "lr",
-                "operator": "ge",
-                "value": 0.01,
+                "conditions": [{ "parameter": "lr", "operator": "ge", "value": 0.01 }],
             }]
         }),
     )
@@ -1175,9 +1173,7 @@ async fn pm_string_eq() {
             "parameter_matches": [{
                 "phase": "pre",
                 "file": "model.json",
-                "parameter": "architecture",
-                "operator": "eq",
-                "value": "transformer",
+                "conditions": [{ "parameter": "architecture", "operator": "eq", "value": "transformer" }],
             }]
         }),
     )
@@ -1220,9 +1216,7 @@ async fn pm_nested_dot_path() {
             "parameter_matches": [{
                 "phase": "pre",
                 "file": "sat1/orbit.json",
-                "parameter": "orbit.a",
-                "operator": "ge",
-                "value": 1.0,
+                "conditions": [{ "parameter": "orbit.a", "operator": "ge", "value": 1.0 }],
             }]
         }),
     )
@@ -1296,10 +1290,12 @@ async fn pm_multiple_matches_are_anded_across_files() {
         json!({
             "vault": "v1",
             "parameter_matches": [
-                { "phase": "pre", "file": "train.json", "parameter": "lr",
-                  "operator": "ge", "value": 0.001 },
-                { "phase": "pre", "file": "data.json", "parameter": "batch_size",
-                  "operator": "eq", "value": 32 }
+                { "phase": "pre", "file": "train.json",
+                  "conditions": [{ "parameter": "lr", "operator": "ge", "value": 0.001 }],
+              },
+                { "phase": "pre", "file": "data.json",
+                  "conditions": [{ "parameter": "batch_size", "operator": "eq", "value": 32 }],
+              }
             ]
         }),
     )
@@ -1344,16 +1340,22 @@ async fn pm_range_query_on_same_file() {
     )
     .await;
 
+    // Both bounds go in a single ParameterMatch's `conditions` list so
+    // they are evaluated as a per-row AND, not as two independent
+    // `EXISTS`. See `ParameterMatch::conditions` for the false positive
+    // this shape avoids.
     let body = pm_search(
         &ctx,
         json!({
             "vault": "v1",
-            "parameter_matches": [
-                { "phase": "pre", "file": "train.json", "parameter": "lr",
-                  "operator": "ge", "value": 0.005 },
-                { "phase": "pre", "file": "train.json", "parameter": "lr",
-                  "operator": "le", "value": 0.05 }
-            ]
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "train.json",
+                "conditions": [
+                    { "parameter": "lr", "operator": "ge", "value": 0.005 },
+                    { "parameter": "lr", "operator": "le", "value": 0.05 }
+                ]
+            }]
         }),
     )
     .await;
@@ -1386,9 +1388,7 @@ async fn pm_phase_pre_does_not_match_post_outputs() {
             "parameter_matches": [{
                 "phase": "pre",
                 "file": "config.json",
-                "parameter": "lr",
-                "operator": "eq",
-                "value": 0.01,
+                "conditions": [{ "parameter": "lr", "operator": "eq", "value": 0.01 }],
             }]
         }),
     )
@@ -1420,9 +1420,7 @@ async fn pm_does_not_match_non_parameter_hooks() {
             "vault": "v1",
             "parameter_matches": [{
                 "phase": "pre",
-                "parameter": "value",
-                "operator": "eq",
-                "value": "/usr/bin",
+                "conditions": [{ "parameter": "value", "operator": "eq", "value": "/usr/bin" }],
             }]
         }),
     )
@@ -1511,7 +1509,11 @@ async fn pm_empty_match_returns_error() {
 }
 
 #[tokio::test]
-async fn pm_partial_triple_returns_error() {
+async fn pm_outer_parameter_operator_value_rejected_as_unknown_fields() {
+    // Old API took a flat `parameter`/`operator`/`value` triple on
+    // ParameterMatch itself. `deny_unknown_fields` on the new shape
+    // rejects any client still sending that form instead of silently
+    // treating the payload as a file-only match.
     let ctx = TestContext::new().await;
 
     let body = pm_search(
@@ -1522,14 +1524,109 @@ async fn pm_partial_triple_returns_error() {
                 "phase": "pre",
                 "file": "config.json",
                 "parameter": "lr",
-                "operator": "ge"
-                // value missing
+                "operator": "ge",
+                "value": 0.01,
             }]
         }),
     )
     .await;
 
     assert_eq!(body["status"], "error", "body: {body}");
+}
+
+#[tokio::test]
+async fn pm_condition_missing_value_is_rejected() {
+    // Inside a ParameterCondition, `value` has no default and no
+    // Option wrapping, so serde rejects the payload at deserialize time.
+    let ctx = TestContext::new().await;
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "config.json",
+                "conditions": [{
+                    "parameter": "lr",
+                    "operator": "ge"
+                    // value missing
+                }]
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(body["status"], "error", "body: {body}");
+}
+
+#[tokio::test]
+async fn pm_range_on_same_field_uses_per_row_semantics() {
+    // Adversarial fixture: one run with two rows on the same file
+    // (disambiguated by hook_index), lr=0.001 and lr=0.1. Under the
+    // old "one condition per entry" API, sending `lr >= 0.005` and
+    // `lr <= 0.05` as two `parameter_matches` entries would satisfy
+    // both `EXISTS` clauses via different rows and falsely match the
+    // run. Wrapping both bounds in one entry's `conditions` list
+    // compiles them into a single per-row predicate, so no row
+    // satisfies both bounds and the run does not match.
+    let ctx = TestContext::new().await;
+    let run_id = "01PMI005ADVEROWRANGEROW";
+
+    pm_create_run(&ctx, run_id, "v1").await;
+    let pre_run_hooks = json!([
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "train.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.001 }
+        },
+        {
+            "__meta": {
+                "id": "capture-json",
+                "config": { "path": "train.json" },
+                "success": true,
+                "error": null
+            },
+            "content": { "lr": 0.1 }
+        }
+    ]);
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id.to_string())
+        .text("pre_run", pre_run_hooks.to_string());
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("upload two rows same file");
+    assert_eq!(response.status(), 200);
+
+    let body = pm_search(
+        &ctx,
+        json!({
+            "vault": "v1",
+            "parameter_matches": [{
+                "phase": "pre",
+                "file": "train.json",
+                "conditions": [
+                    { "parameter": "lr", "operator": "ge", "value": 0.005 },
+                    { "parameter": "lr", "operator": "le", "value": 0.05 }
+                ]
+            }]
+        }),
+    )
+    .await;
+
+    assert_eq!(
+        body["total"], 0,
+        "per-row AND must not match a run whose two rows separately \
+         satisfy each bound; body: {body}"
+    );
 }
 
 // Uploads a phase whose array contains multiple parameter-capturing hooks
@@ -1616,9 +1713,7 @@ async fn pm_hook_index_pins_to_specific_row() {
             "parameter_matches": [{
                 "phase": "pre",
                 "hook_index": 1,
-                "parameter": "lr",
-                "operator": "eq",
-                "value": 0.1,
+                "conditions": [{ "parameter": "lr", "operator": "eq", "value": 0.1 }],
             }]
         }),
     )
@@ -1673,9 +1768,7 @@ async fn pm_hook_index_out_of_range_returns_no_match() {
             "parameter_matches": [{
                 "phase": "pre",
                 "hook_index": 5,
-                "parameter": "lr",
-                "operator": "eq",
-                "value": 0.01,
+                "conditions": [{ "parameter": "lr", "operator": "eq", "value": 0.01 }],
             }]
         }),
     )
