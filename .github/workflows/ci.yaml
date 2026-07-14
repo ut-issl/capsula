@@ -39,7 +39,7 @@ jobs:
       DATABASE_URL: postgresql://capsula:capsula@localhost:5432/capsula
     services:
       postgres:
-        image: postgres:18@sha256:b076a8bcd593cf79cc6a72d66ee600740de46242ce09efbc04b459bbb7daaed5
+        image: postgres:18@sha256:b913fd5699b8bd23fa4b06d72ecdd939fad43b80fb8651bac06caa0e6d135cac
         env:
           POSTGRES_USER: capsula
           POSTGRES_PASSWORD: capsula
@@ -95,7 +95,7 @@ jobs:
       DATABASE_URL: postgresql://capsula:capsula@localhost:5432/capsula
     services:
       postgres:
-        image: postgres:18@sha256:b076a8bcd593cf79cc6a72d66ee600740de46242ce09efbc04b459bbb7daaed5
+        image: postgres:18@sha256:b913fd5699b8bd23fa4b06d72ecdd939fad43b80fb8651bac06caa0e6d135cac
         env:
           POSTGRES_USER: capsula
           POSTGRES_PASSWORD: capsula
