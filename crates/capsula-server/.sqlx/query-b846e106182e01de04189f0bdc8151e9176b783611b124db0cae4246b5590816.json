@@ -6,17 +6,35 @@
       {
         "ordinal": 0,
         "name": "storage_path",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "captured_files",
+            "name": "storage_path"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "content_type",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "captured_files",
+            "name": "content_type"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "file_path",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "captured_files",
+            "name": "path"
+          }
+        }
       }
     ],
     "parameters": {

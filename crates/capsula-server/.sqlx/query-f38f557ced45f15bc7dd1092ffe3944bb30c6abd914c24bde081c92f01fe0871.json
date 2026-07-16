@@ -6,27 +6,57 @@
       {
         "ordinal": 0,
         "name": "path",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "captured_files",
+            "name": "path"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "size",
-        "type_info": "Int8"
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "captured_files",
+            "name": "size"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "hash",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "captured_files",
+            "name": "hash"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "storage_path",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "captured_files",
+            "name": "storage_path"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "content_type",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "captured_files",
+            "name": "content_type"
+          }
+        }
       }
     ],
     "parameters": {
