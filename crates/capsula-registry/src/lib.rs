@@ -180,6 +180,7 @@ where
 fn standard_hook_registry<P: PhaseMarker>() -> Result<HookRegistry<P>, RegistryError>
 where
     capsula_capture_cwd::CwdHook: capsula_core::hook::Hook<P>,
+    capsula_capture_dir::DirHook: capsula_core::hook::Hook<P>,
     capsula_capture_git_repo::GitHook: capsula_core::hook::Hook<P>,
     capsula_capture_file::FileHook: capsula_core::hook::Hook<P>,
     capsula_capture_env::EnvVarHook: capsula_core::hook::Hook<P>,
@@ -191,6 +192,7 @@ where
 {
     Ok(RegistryBuilder::new()
         .with_hook::<capsula_capture_cwd::CwdHook>()?
+        .with_hook::<capsula_capture_dir::DirHook>()?
         .with_hook::<capsula_capture_git_repo::GitHook>()?
         .with_hook::<capsula_capture_file::FileHook>()?
         .with_hook::<capsula_capture_env::EnvVarHook>()?
@@ -210,4 +212,16 @@ pub fn standard_pre_run_hook_registry() -> Result<HookRegistry<PreRun>, Registry
 /// Create a standard registry with all built-in hook types for post-run phase
 pub fn standard_post_run_hook_registry() -> Result<HookRegistry<PostRun>, RegistryError> {
     standard_hook_registry::<PostRun>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RegistryError, standard_pre_run_hook_registry};
+
+    #[test]
+    fn standard_registry_includes_capture_dir() -> Result<(), RegistryError> {
+        let registry = standard_pre_run_hook_registry()?;
+        assert!(registry.registered_types().contains(&"capture-dir"));
+        Ok(())
+    }
 }

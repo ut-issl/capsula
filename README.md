@@ -58,7 +58,7 @@ Capsula creates an organized directory:
     └── output.txt              # Your output file
 ```
 
-Hooks that produce file artifacts (e.g., `capture-file`, `capture-git-repo`) each
+Hooks that produce file artifacts (e.g., `capture-file`, `capture-dir`, `capture-git-repo`) each
 get a dedicated subdirectory named `{phase}-{index}-{hook_id}/`, which prevents
 filename collisions between hooks.
 

@@ -13,6 +13,7 @@ categories = ["development-tools"]
 [dependencies]
 capsula-capture-command = { workspace = true }
 capsula-capture-cwd = { workspace = true }
+capsula-capture-dir = { workspace = true }
 capsula-capture-env = { workspace = true }
 capsula-capture-file = { workspace = true }
 capsula-capture-git-repo = { workspace = true }
