@@ -122,7 +122,8 @@ jobs:
           sqlx database create
           sqlx migrate run
       - name: Check if sqlx prepared queries are up-to-date
-        run: cargo sqlx prepare --workspace --check
+        working-directory: crates/capsula-server
+        run: cargo sqlx prepare --check
 
   msrv:
     # Verify that the crate builds with the declared MSRV (rust-version in Cargo.toml).

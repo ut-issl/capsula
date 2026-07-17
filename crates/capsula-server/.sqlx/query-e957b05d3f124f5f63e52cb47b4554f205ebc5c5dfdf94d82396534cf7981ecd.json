@@ -6,62 +6,134 @@
       {
         "ordinal": 0,
         "name": "id",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "name",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "name"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "timestamp",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "timestamp"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "command",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "command"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "vault",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "vault"
+          }
+        }
       },
       {
         "ordinal": 5,
         "name": "project_root",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "project_root"
+          }
+        }
       },
       {
         "ordinal": 6,
         "name": "exit_code",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "exit_code"
+          }
+        }
       },
       {
         "ordinal": 7,
         "name": "duration_ms",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "duration_ms"
+          }
+        }
       },
       {
         "ordinal": 8,
         "name": "stdout",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "stdout"
+          }
+        }
       },
       {
         "ordinal": 9,
         "name": "stderr",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "stderr"
+          }
+        }
       },
       {
         "ordinal": 10,
         "name": "created_at",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "created_at"
+          }
+        }
       },
       {
         "ordinal": 11,
         "name": "updated_at",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "runs",
+            "name": "updated_at"
+          }
+        }
       }
     ],
     "parameters": {
