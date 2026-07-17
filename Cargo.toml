@@ -10,7 +10,7 @@ version = "0.13.0"
 edition = "2024"
 rust-version = "1.95"
 readme = "README.md"
-repository = "https://github.com/shunichironomura/capsula"
+repository = "https://github.com/ut-issl/capsula"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
