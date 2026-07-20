@@ -26,4 +26,4 @@ This disclosure is intended to help reviewers understand how the change was prod
 - [ ] The code follows the repository's conventions.
 - [ ] Tests have been added or updated where appropriate.
 - [ ] Documentation has been updated where appropriate.
-- [ ] Breaking changes are clearly described above.
+- [ ] If this PR contains breaking changes, it has been labeled `breaking change`.
