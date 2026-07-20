@@ -187,6 +187,15 @@ Run uploads include run metadata, command output, hook outputs, and captured fil
 
 The registry is compile-time wired through `RegistryBuilder::with_hook::<YourHook>()`; no CLI or config-parser changes are needed for a normal hook.
 
+## GitHub Issues and Pull Requests
+
+When an agent files a GitHub Issue or opens a GitHub Pull Request, put this alert note at the very top of the description. Add the same note at the beginning of any issue or pull request comment written by an agent:
+
+> [!WARNING]
+> This content was written by an AI agent and must be verified by a human developer.
+
+The human developer must remove this note after verifying the description or comment's contents.
+
 ## Error Handling and Code Style
 
 - Use `Result` for fallible operations; do not use `None` as an error signal.
