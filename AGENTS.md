@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Capsula is a CLI tool for capturing and preserving the context of command executions. It records the state of a project environment before and after running commands for reproducibility and auditing. The project is written in Rust and organized as a workspace with multiple crates.
 
-**Important:** The Python version of Capsula is deprecated and found on the main branch. The current Rust implementation is the active development branch.
-
 ## Development Commands
 
 ### Building
