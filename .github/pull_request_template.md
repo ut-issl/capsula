@@ -1,29 +1,15 @@
 ## Summary
 
-<!-- What changed, and why? Link related issues when applicable. -->
+<!-- What changed and why? -->
 
 ## AI assistance
 
-This disclosure is intended to help reviewers understand how the change was produced. AI use is allowed; please describe it openly.
+<!-- This disclosure is intended to help reviewers understand how the change was produced. AI use is allowed; please describe it openly. -->
 
-- AI assistance: <!-- none / brainstorming / code generation / refactoring / tests / documentation / other -->
-- AI tool or model (optional):
-- Parts of this PR written or substantially edited by AI:
+- AI used: <!-- no / yes — briefly describe how -->
+- Human review of AI-assisted code: <!-- complete / partial / pending -->
 
-## Human review of AI-assisted code
+## Breaking changes
 
-- [ ] I reviewed all AI-written or AI-assisted code for correctness, security, and maintainability.
-- [ ] I reviewed some AI-written or AI-assisted code; the remaining areas are:
-- [ ] Human review is still pending.
-- Review notes or areas needing particular attention:
-
-## Testing
-
-<!-- Describe the tests run and any manual verification performed. -->
-
-## Checklist
-
-- [ ] The code follows the repository's conventions.
-- [ ] Tests have been added or updated where appropriate.
-- [ ] Documentation has been updated where appropriate.
-- [ ] If this PR contains breaking changes, it has been labeled `breaking change`.
+- [ ] No breaking changes
+- [ ] Breaking changes; the `breaking change` label is applied
