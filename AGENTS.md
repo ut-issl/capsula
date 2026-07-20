@@ -192,7 +192,7 @@ The registry is compile-time wired through `RegistryBuilder::with_hook::<YourHoo
 When an agent files a GitHub Issue or opens a GitHub Pull Request, put this alert note at the very top of the description. Add the same note at the beginning of any issue or pull request comment written by an agent:
 
 > [!WARNING]
-> This content was written by an AI agent and must be verified by a human developer.
+> This content was written by an AI agent and must be verified by a human developer. After human verification, this alert may be removed.
 
 The human developer must remove this note after verifying the description or comment's contents.
 
