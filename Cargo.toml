@@ -65,7 +65,7 @@ tokio-util = { version = "0.7", features = ["io"] }
 toml = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-ulid = { version = "1", features = ["serde"] }
+ulid = { version = "2", features = ["serde"] }
 wiremock = "0.6"
 
 [workspace.lints.clippy]
