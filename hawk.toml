@@ -1,0 +1,9 @@
+[[production]]
+package = "capsula"
+bin = "capsula"
+reason = "shipped application binary"
+
+[[production]]
+package = "capsula-server"
+bin = "capsula-server"
+reason = "shipped server binary"
