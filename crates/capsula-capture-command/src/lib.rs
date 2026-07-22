@@ -4,6 +4,7 @@ use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
+use capsula_core::project_path::ResolvedProjectPath;
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -26,7 +27,7 @@ pub struct CommandHookConfig {
 #[derive(Debug)]
 pub struct CommandHook {
     config: CommandHookConfig,
-    working_dir: PathBuf,
+    working_dir: ResolvedProjectPath,
 }
 
 #[derive(Debug, Serialize)]
@@ -58,8 +59,8 @@ where
         }
 
         let working_dir = match &config.cwd {
-            Some(cwd) => capsula_core::util::resolve_relative(cwd, project_root)?,
-            None => project_root.to_path_buf(),
+            Some(cwd) => ResolvedProjectPath::resolve_existing(cwd, project_root)?,
+            None => ResolvedProjectPath::resolve_existing(project_root, project_root)?,
         };
 
         Ok(Self {
@@ -86,10 +87,10 @@ where
         debug!(
             "CommandHook: Executing command: {:?} in {}",
             self.config.command,
-            self.working_dir.display()
+            self.working_dir.as_path().display()
         );
         let mut cmd = Command::new(&self.config.command[0]);
-        cmd.current_dir(&self.working_dir);
+        cmd.current_dir(self.working_dir.as_path());
         if self.config.command.len() > 1 {
             cmd.args(&self.config.command[1..]);
         }

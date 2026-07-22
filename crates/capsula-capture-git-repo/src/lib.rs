@@ -4,6 +4,7 @@ use crate::error::GitHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
+use capsula_core::project_path::ResolvedProjectPath;
 use capsula_core::run::PreparedRun;
 use git2::Repository;
 use serde::{Deserialize, Serialize};
@@ -36,7 +37,7 @@ pub struct GitHookConfig {
 #[derive(Debug)]
 pub struct GitHook {
     config: GitHookConfig,
-    working_dir: PathBuf,
+    working_dir: ResolvedProjectPath,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,7 +70,7 @@ where
     ) -> CapsulaResult<Self> {
         let config: GitHookConfig = serde_json::from_value(config.clone())?;
 
-        let working_dir = capsula_core::util::resolve_relative(&config.path, project_root)?;
+        let working_dir = ResolvedProjectPath::resolve_existing(&config.path, project_root)?;
 
         Ok(Self {
             config,
@@ -91,17 +92,13 @@ where
         metadata: &PreparedRun,
         params: &RuntimeParams<P>,
     ) -> CapsulaResult<HookOutcome<Self::Output>> {
-        let repo_path = if self.working_dir.as_os_str().is_empty() {
-            std::env::current_dir()?
-        } else {
-            self.working_dir.clone()
-        };
+        let repo_path = self.working_dir.as_path();
 
         debug!(
             "GitHook: Discovering repository at: {}",
             repo_path.display()
         );
-        let repo = Repository::discover(&repo_path).map_err(|e| {
+        let repo = Repository::discover(repo_path).map_err(|e| {
             if e.code() == git2::ErrorCode::NotFound {
                 GitHookError::NotARepository
             } else {
@@ -177,7 +174,7 @@ where
         };
 
         let captured = GitCaptured {
-            working_dir: repo_path,
+            working_dir: repo_path.to_path_buf(),
             sha: oid.to_string(),
             is_dirty,
             is_pushed,

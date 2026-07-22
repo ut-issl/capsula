@@ -6,6 +6,7 @@ use capsula_core::captured::Captured;
 use capsula_core::hook::{Hook, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde_json::json;
+use std::fs;
 use std::path::PathBuf;
 use ulid::Ulid;
 
@@ -193,4 +194,24 @@ fn command_hook_rejects_conflicting_status_policy() {
         result.is_err(),
         "success_codes and abort_on_failure should not be combined"
     );
+}
+
+#[test]
+fn command_hook_rejects_cwd_that_escapes_project_root() {
+    let parent = std::env::temp_dir().join(format!("capsula_command_test_{}", Ulid::new()));
+    let project_root = parent.join("project");
+    let outside = parent.join("outside");
+    fs::create_dir_all(&project_root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+
+    let config = json!({
+        "command": ["true"],
+        "cwd": "../outside"
+    });
+
+    let result = <CommandHook as Hook<PreRun>>::from_config(&config, &project_root);
+
+    assert!(result.is_err(), "cwd must stay within the project root");
+
+    fs::remove_dir_all(parent).ok();
 }

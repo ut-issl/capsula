@@ -1,5 +1,6 @@
 //! Small pure-helper utilities shared across Capsula crates.
 
+use crate::project_path::ResolvedProjectPath;
 use std::path::{Path, PathBuf};
 
 /// Encode bytes as a lowercase hexadecimal string.
@@ -16,14 +17,13 @@ pub fn hex_encode(bytes: &[u8]) -> String {
 
 /// Resolve a path that may be absolute or relative to `project_root`.
 ///
-/// For absolute paths, returns a clone. For relative paths, joins against
-/// `project_root` and canonicalizes (which requires the path to exist).
+/// Both absolute and relative paths are canonicalized, and the result must stay
+/// within the canonical project root. Prefer using [`ResolvedProjectPath`] when
+/// the containment invariant matters beyond a single helper call.
 pub fn resolve_relative(path: &Path, project_root: &Path) -> std::io::Result<PathBuf> {
-    if path.is_absolute() {
-        Ok(path.to_path_buf())
-    } else {
-        project_root.join(path).canonicalize()
-    }
+    ResolvedProjectPath::resolve_existing(path, project_root)
+        .map(ResolvedProjectPath::into_path_buf)
+        .map_err(std::io::Error::other)
 }
 
 #[cfg(test)]
@@ -44,10 +44,10 @@ mod tests {
     }
 
     #[test]
-    fn resolve_relative_passes_absolute_through() {
-        let abs = Path::new("/does/not/exist/absolute");
-        let resolved = resolve_relative(abs, Path::new("/tmp")).unwrap();
-        assert_eq!(resolved, abs);
+    fn resolve_relative_canonicalizes_absolute_path_inside_project() {
+        let cwd = std::env::current_dir().unwrap();
+        let resolved = resolve_relative(&cwd, &cwd).unwrap();
+        assert_eq!(resolved, cwd.canonicalize().unwrap());
     }
 
     #[test]
@@ -57,5 +57,16 @@ mod tests {
         let resolved = resolve_relative(Path::new("."), &cwd).unwrap();
         // canonicalize resolves symlinks; on macOS this is /private/var/... etc.
         assert_eq!(resolved, cwd.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn resolve_relative_rejects_absolute_path_outside_project() {
+        let cwd = std::env::current_dir().unwrap();
+        let outside = cwd.parent().unwrap_or(&cwd);
+
+        if outside != cwd {
+            let result = resolve_relative(outside, &cwd);
+            assert!(result.is_err());
+        }
     }
 }

@@ -18,6 +18,10 @@ pub enum CapsulaError {
     #[error("Serialization failed: {0}")]
     Serialization(#[from] serde_json::Error),
 
+    /// Project-root-aware path resolution failed
+    #[error(transparent)]
+    ProjectPath(#[from] crate::project_path::ProjectPathError),
+
     /// Configuration-related error
     #[error("Configuration error: {message}")]
     Configuration { message: String },

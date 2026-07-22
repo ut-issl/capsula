@@ -180,6 +180,29 @@ fn push_to_remote(working_dir: &std::path::Path, remote_name: &str) {
 }
 
 #[test]
+fn git_hook_rejects_path_that_escapes_project_root() {
+    let parent = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
+    let project_root = parent.join("project");
+    let outside = parent.join("outside");
+    fs::create_dir_all(&project_root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+
+    let config = json!({
+        "name": "escaped-repo",
+        "path": "../outside"
+    });
+
+    let result = <GitHook as Hook<PreRun>>::from_config(&config, &project_root);
+
+    assert!(
+        result.is_err(),
+        "git path must stay within the project root"
+    );
+
+    fs::remove_dir_all(parent).ok();
+}
+
+#[test]
 fn git_hook_detects_pushed_commit() {
     // Arrange
     let temp_dir = init_git_repo();
