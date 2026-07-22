@@ -59,6 +59,7 @@ pub struct HookMetaUpload {
     pub config: Option<JsonValue>,
     pub success: bool,
     pub error: Option<String>,
+    pub failure_reason: Option<String>,
 }
 
 /// A hook output as returned by the server in run-detail / search responses.
@@ -81,6 +82,7 @@ pub struct HookMetaResponse {
     pub config: Option<JsonValue>,
     pub success: bool,
     pub error: Option<String>,
+    pub failure_reason: Option<String>,
     /// 0-based position of this hook in capsula.toml's `pre_run` /
     /// `post_run` array, matching the DB `run_outputs.hook_index` column.
     pub hook_index: i32,
@@ -95,6 +97,7 @@ pub struct RunOutputRow {
     pub output: JsonValue,
     pub success: bool,
     pub error: Option<String>,
+    pub failure_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
