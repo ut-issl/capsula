@@ -28,6 +28,26 @@ Captures files by copying them, moving them, or computing their hash.
 | `mode` | string | `"copy"` | How to handle files: `"copy"`, `"move"`, or `"none"` |
 | `hash` | string | `"sha256"` | Hash algorithm: `"sha256"` or `"none"` |
 
+### Glob Path Rules
+
+Glob patterns are always relative to the project root (the directory containing
+`capsula.toml`). Absolute patterns and patterns containing a `..` path component
+are rejected.
+
+- `*.txt` matches files at the project root.
+- `results/*.csv` matches files directly under `results/`.
+- `**/*.txt` matches files recursively.
+- Use `/` as the portable path separator. On Unix, `\` remains a legal,
+  literal filename character.
+
+Symbolic links are not followed. A symbolic link that directly matches the glob
+causes the hook to fail, and symbolic-link directories are not traversed.
+
+!!! warning "Project containment"
+    A `capture-file` hook cannot read, hash, copy, or move files outside the
+    project root. Use an explicit project-local path instead of an absolute or
+    parent-relative path.
+
 ### Mode Options
 
 - `"copy"` - Copies files to the hook's artifact directory, leaves originals
