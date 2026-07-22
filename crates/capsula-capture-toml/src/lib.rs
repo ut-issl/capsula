@@ -119,7 +119,7 @@ mod tests {
 
     use super::*;
     use capsula_core::hook::PreRun;
-    use capsula_core::run::Run;
+    use capsula_core::run::PreparedRun;
     use std::fs;
     use tempfile::TempDir;
     use ulid::Ulid;
@@ -130,7 +130,7 @@ mod tests {
     }
 
     fn make_run(project_root: &Path) -> PreparedRun {
-        Run {
+        PreparedRun {
             id: Ulid::new(),
             name: "test-run".into(),
             command: vec![],

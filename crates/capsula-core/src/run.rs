@@ -46,12 +46,12 @@ impl<Dir> Run<Dir> {
     }
 }
 
-impl Run<()> {
+impl UnpreparedRun {
     pub fn setup_run_dir(
         &self,
         vault_dir: impl AsRef<std::path::Path>,
         max_retries: usize,
-    ) -> io::Result<Run<PathBuf>> {
+    ) -> io::Result<PreparedRun> {
         debug!(
             "Setting up vault directory: {}",
             vault_dir.as_ref().display()
@@ -90,7 +90,7 @@ impl Run<()> {
         std::fs::create_dir_all(&run_dir)?;
         debug!("Run directory created successfully");
 
-        Ok(Run {
+        Ok(PreparedRun {
             id: self.id,
             name: self.name.clone(),
             command: self.command.clone(),
@@ -100,7 +100,7 @@ impl Run<()> {
     }
 }
 
-impl Serialize for Run<()> {
+impl Serialize for UnpreparedRun {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -115,7 +115,7 @@ impl Serialize for Run<()> {
     }
 }
 
-impl Serialize for Run<PathBuf> {
+impl Serialize for PreparedRun {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -154,7 +154,7 @@ fn exit_code_from_status(status: ExitStatus) -> i32 {
     })
 }
 
-impl Run<PathBuf> {
+impl PreparedRun {
     pub fn exec(&self) -> std::io::Result<RunOutput> {
         if self.command.is_empty() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "empty command"));
