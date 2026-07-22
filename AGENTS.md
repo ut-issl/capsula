@@ -189,6 +189,8 @@ The registry is compile-time wired through `RegistryBuilder::with_hook::<YourHoo
 
 ## GitHub Issues and Pull Requests
 
+When opening or updating a GitHub Pull Request, comply with `.github/pull_request_template.md`.
+
 When an agent files a GitHub Issue or opens a GitHub Pull Request, put this alert note at the very top of the description. Add the same note at the beginning of any issue or pull request comment written by an agent:
 
 > [!WARNING]
