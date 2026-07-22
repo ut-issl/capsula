@@ -1,0 +1,125 @@
+---
+icon: material/hook
+---
+
+# capture-yaml
+
+Parses a single YAML file and embeds its parsed content in the run output
+under the `content` field.
+
+## Use Cases
+
+- Make experiment hyperparameters queryable across runs
+- Record the exact config used by a script in a structured, indexable form
+- Compose multiple `capture-yaml` entries to capture several config files
+
+## Configuration
+
+### Required Options
+
+| Option | Type   | Description                                                |
+| ------ | ------ | ---------------------------------------------------------- |
+| `path` | string | Path to the YAML file to parse, relative to project root.  |
+
+### Example
+
+```toml
+[[pre-run.hooks]]
+id = "capture-yaml"
+path = "config/sat1/orbit.yaml"
+```
+
+## Output Example
+
+The `content` field contains the parsed YAML, converted to JSON. The
+configured path is not duplicated in the output body — it is already
+preserved in the standard `__meta.config.path` field injected by the
+orchestrator.
+
+Given `config/sat1/orbit.yaml`:
+
+```yaml
+orbit:
+  a: 1.42
+  b: LEO
+```
+
+The hook output is:
+
+```json
+{
+  "__meta": {
+    "id": "capture-yaml",
+    "config": {
+      "path": "config/sat1/orbit.yaml"
+    },
+    "success": true
+  },
+  "content": {
+    "orbit": {
+      "a": 1.42,
+      "b": "LEO"
+    }
+  }
+}
+```
+
+To distinguish multiple `capture-yaml` outputs, filter on
+`__meta.config.path`.
+
+## Composing Multiple Files
+
+This hook captures exactly one file per instance. Register one entry per
+config file to capture them all:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-yaml"
+path = "config/sat1/orbit.yaml"
+
+[[pre-run.hooks]]
+id = "capture-yaml"
+path = "config/sat2/orbit.yaml"
+```
+
+Each entry produces its own row in `pre-run.json` with its own `content`
+field; the configured path is available under `__meta.config.path`.
+
+## Supported YAML Subset
+
+The hook supports fairly flat/simple YAML: a single document whose values
+map directly onto JSON.
+
+| YAML                          | JSON                                           |
+| ----------------------------- | ---------------------------------------------- |
+| String / Integer / Boolean    | matching JSON type                             |
+| Float                         | JSON number (NaN / ±Inf become `null`)         |
+| Null (`~`, `null`, empty)     | JSON `null`                                    |
+| Sequence (`- item`)           | JSON array                                     |
+| Mapping (`key: value`)        | JSON object                                    |
+
+YAML-specific features without a JSON equivalent are **out of scope** and
+are rejected as parse errors:
+
+- Multi-document streams (`---` separators)
+- Tagged values (`!!binary`, custom tags)
+- Non-string mapping keys that cannot be represented as JSON object keys
+
+Note that unlike TOML, YAML has no dedicated datetime type; timestamps
+written as plain scalars are captured as strings.
+
+## Error Behaviour
+
+The hook fails (recorded with `__meta.success: false`) when:
+
+- The file does not exist or is unreadable (`Io` error)
+- The file content is not valid YAML, or uses an unsupported YAML feature
+  (`Yaml` error)
+
+A failing `capture-yaml` does not stop other hooks from running.
+
+## See Also
+
+- [`capture-file`](capture-file.md) — byte-exact archival of any file
+- [`capture-json`](capture-json.md) — same shape, for JSON inputs
+- [`capture-toml`](capture-toml.md) — same shape, for TOML inputs

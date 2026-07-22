@@ -85,3 +85,4 @@ A failing `capture-json` does not stop other hooks from running.
 
 - [`capture-file`](capture-file.md) — byte-exact archival of any file
 - [`capture-toml`](capture-toml.md) — same shape, for TOML inputs
+- [`capture-yaml`](capture-yaml.md) — same shape, for YAML inputs

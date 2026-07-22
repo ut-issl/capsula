@@ -19,6 +19,7 @@ capsula-capture-git-repo = { workspace = true }
 capsula-capture-json = { workspace = true }
 capsula-capture-machine = { workspace = true }
 capsula-capture-toml = { workspace = true }
+capsula-capture-yaml = { workspace = true }
 capsula-core = { workspace = true }
 capsula-notify-slack = { workspace = true }
 serde = { workspace = true }

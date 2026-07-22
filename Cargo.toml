@@ -27,6 +27,7 @@ capsula-capture-git-repo = { path = "crates/capsula-capture-git-repo", version =
 capsula-capture-json = { path = "crates/capsula-capture-json", version = "0.13.0" }
 capsula-capture-machine = { path = "crates/capsula-capture-machine", version = "0.13.0" }
 capsula-capture-toml = { path = "crates/capsula-capture-toml", version = "0.13.0" }
+capsula-capture-yaml = { path = "crates/capsula-capture-yaml", version = "0.13.0" }
 capsula-client = { path = "crates/capsula-client", version = "0.13.0" }
 capsula-config = { path = "crates/capsula-config", version = "0.13.0" }
 capsula-core = { path = "crates/capsula-core", version = "0.13.0" }
@@ -67,6 +68,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = { version = "1", features = ["serde"] }
 wiremock = "0.6"
+yaml_serde = "0.10"
 
 [workspace.lints.clippy]
 all = "warn"

@@ -187,6 +187,7 @@ where
     capsula_capture_machine::MachineHook: capsula_core::hook::Hook<P>,
     capsula_capture_json::JsonHook: capsula_core::hook::Hook<P>,
     capsula_capture_toml::TomlHook: capsula_core::hook::Hook<P>,
+    capsula_capture_yaml::YamlHook: capsula_core::hook::Hook<P>,
     capsula_notify_slack::SlackNotifyHook: capsula_core::hook::Hook<P>,
 {
     Ok(RegistryBuilder::new()
@@ -198,6 +199,7 @@ where
         .with_hook::<capsula_capture_machine::MachineHook>()?
         .with_hook::<capsula_capture_json::JsonHook>()?
         .with_hook::<capsula_capture_toml::TomlHook>()?
+        .with_hook::<capsula_capture_yaml::YamlHook>()?
         .with_hook::<capsula_notify_slack::SlackNotifyHook>()?
         .build())
 }
