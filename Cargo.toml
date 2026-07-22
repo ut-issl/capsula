@@ -66,6 +66,7 @@ toml = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = { version = "1", features = ["serde"] }
+walkdir = "2"
 wiremock = "0.6"
 
 [workspace.lints.clippy]
