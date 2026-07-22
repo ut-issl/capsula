@@ -35,7 +35,7 @@ pub struct RuntimeParams<P: PhaseMarker> {
 impl<P: PhaseMarker> RuntimeParams<P> {
     /// Create `RuntimeParams` with no artifact directory.
     #[must_use]
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self {
             phase_marker: PhantomData,
             artifact_dir: None,

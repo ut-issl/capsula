@@ -6,7 +6,7 @@
 
 use anyhow::{Context, Result};
 use capsula_core::hook::{PostRun, PreRun};
-use capsula_core::run::Run;
+use capsula_core::run::PreparedRun;
 use capsula_orchestration::push::push_single_run;
 use capsula_orchestration::resolve::resolve_server_url;
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
@@ -369,7 +369,7 @@ path = \".\"
 
             let metadata = capsula_orchestration::vault::read_run_metadata(&run_dir)?;
 
-            let run = Run {
+            let run = PreparedRun {
                 id: metadata.id,
                 name: metadata.name,
                 command: metadata.command,

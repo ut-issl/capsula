@@ -75,8 +75,8 @@ const RFC5987_ATTR_CHAR: &AsciiSet = &NON_ALPHANUMERIC
 
 #[derive(Clone)]
 pub struct AppState {
-    pub pool: PgPool,
-    pub storage_path: PathBuf,
+    pool: PgPool,
+    storage_path: PathBuf,
 }
 
 mod models;

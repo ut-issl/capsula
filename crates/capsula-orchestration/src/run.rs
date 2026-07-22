@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use capsula_config::HookPhaseConfig;
 use capsula_core::hook::{PostRun, PreRun};
-use capsula_core::run::{PreparedRun, Run};
+use capsula_core::run::{PreparedRun, UnpreparedRun};
 use names::Generator;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
@@ -18,7 +18,7 @@ pub fn create_and_setup_run(
     vault_dir: &Path,
 ) -> Result<(PreparedRun, PathBuf)> {
     debug!("Creating run metadata");
-    let run = Run::<()> {
+    let run = UnpreparedRun {
         id: Ulid::new(),
         name: Generator::default()
             .next()

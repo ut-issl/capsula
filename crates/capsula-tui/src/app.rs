@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use anyhow::Result;
 use capsula_core::hook::{PostRun, PreRun};
-use capsula_core::run::Run;
+use capsula_core::run::PreparedRun;
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::find_run_dir_by_name;
@@ -202,7 +202,7 @@ impl App {
 
         let metadata = capsula_orchestration::vault::read_run_metadata(&run_dir)?;
 
-        let run = Run {
+        let run = PreparedRun {
             id: metadata.id,
             name: metadata.name,
             command: metadata.command,
