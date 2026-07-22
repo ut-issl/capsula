@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -63,7 +63,7 @@ where
         &self,
         metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         let full_path = metadata.project_root.join(&self.config.path);
         debug!("TomlHook: reading {}", full_path.display());
 
@@ -75,7 +75,7 @@ where
         let toml_value: toml::Value = toml::from_str(&raw).map_err(TomlHookError::from)?;
         let content = toml_value_to_json(toml_value);
 
-        Ok(TomlCaptured { content })
+        Ok(HookOutcome::success(TomlCaptured { content }))
     }
 }
 
@@ -142,6 +142,7 @@ mod tests {
     fn run_hook(hook: &TomlHook, project_root: &Path) -> CapsulaResult<TomlCaptured> {
         let run = make_run(project_root);
         <TomlHook as Hook<PreRun>>::run(hook, &run, &RuntimeParams::default())
+            .map(HookOutcome::into_output)
     }
 
     #[test]

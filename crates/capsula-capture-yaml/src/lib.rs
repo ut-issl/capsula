@@ -32,7 +32,7 @@ use std::path::{Path, PathBuf};
 
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -81,7 +81,7 @@ where
         &self,
         metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         let full_path = metadata.project_root.join(&self.config.path);
         debug!("YamlHook: reading {}", full_path.display());
 
@@ -92,7 +92,7 @@ where
 
         let content: serde_json::Value = yaml_serde::from_str(&raw).map_err(YamlHookError::from)?;
 
-        Ok(YamlCaptured { content })
+        Ok(HookOutcome::success(YamlCaptured { content }))
     }
 }
 
@@ -135,6 +135,7 @@ mod tests {
     fn run_hook(hook: &YamlHook, project_root: &Path) -> CapsulaResult<YamlCaptured> {
         let run = make_run(project_root);
         <YamlHook as Hook<PreRun>>::run(hook, &run, &RuntimeParams::default())
+            .map(HookOutcome::into_output)
     }
 
     #[test]
