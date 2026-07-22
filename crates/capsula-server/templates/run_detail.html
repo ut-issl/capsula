@@ -17,16 +17,16 @@
         <dl class="detail-list">
             <dt>ID</dt>
             <dd><code>{{ run.id }}</code></dd>
-            
+
             <dt>Name</dt>
             <dd>{{ run.name }}</dd>
-            
+
             <dt>Timestamp</dt>
             <dd>{{ run.timestamp.format("%Y-%m-%d %H:%M:%S") }}</dd>
-            
+
             <dt>Vault</dt>
             <dd><a href="/runs?vault={{ run.vault }}">{{ run.vault }}</a></dd>
-            
+
             <dt>Project Root</dt>
             <dd><code>{{ run.project_root }}</code></dd>
         </dl>
@@ -37,7 +37,7 @@
         <dl class="detail-list">
             <dt>Command</dt>
             <dd><code>{{ run.command|format_command }}</code></dd>
-            
+
             <dt>Exit Code</dt>
             <dd>
                 {% match run.exit_code %}
@@ -47,7 +47,7 @@
                 <span class="badge badge-warning">N/A</span>
                 {% endmatch %}
             </dd>
-            
+
             <dt>Duration</dt>
             <dd>
                 {% match run.duration_ms %}
@@ -58,7 +58,7 @@
                 {% endmatch %}
             </dd>
         </dl>
-        
+
         <div class="output-section">
             <h4>Standard Output</h4>
             {% match run.stdout %}
@@ -72,7 +72,7 @@
             <pre class="output-box empty-output">(not captured)</pre>
             {% endmatch %}
         </div>
-        
+
         <div class="output-section">
             <h4>Standard Error</h4>
             {% match run.stderr %}
@@ -106,6 +106,13 @@
                 {% when Some with (error_msg) %}
                 <div class="hook-error">
                     <strong>Error:</strong> {{ error_msg }}
+                </div>
+                {% when None %}
+                {% endmatch %}
+                {% match hook.meta.failure_reason %}
+                {% when Some with (reason) %}
+                <div class="hook-error">
+                    <strong>Failure reason:</strong> {{ reason }}
                 </div>
                 {% when None %}
                 {% endmatch %}
@@ -145,6 +152,13 @@
                 {% when Some with (error_msg) %}
                 <div class="hook-error">
                     <strong>Error:</strong> {{ error_msg }}
+                </div>
+                {% when None %}
+                {% endmatch %}
+                {% match hook.meta.failure_reason %}
+                {% when Some with (reason) %}
+                <div class="hook-error">
+                    <strong>Failure reason:</strong> {{ reason }}
                 </div>
                 {% when None %}
                 {% endmatch %}
