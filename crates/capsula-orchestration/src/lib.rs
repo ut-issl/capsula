@@ -1,4 +1,4 @@
-pub mod hooks;
+pub(crate) mod hooks;
 pub mod push;
 pub mod resolve;
 pub mod run;

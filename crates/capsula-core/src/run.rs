@@ -29,7 +29,7 @@ impl<Dir> Run<Dir> {
         dt
     }
 
-    pub fn gen_run_dir(&self, vault_dir: impl AsRef<Path>) -> PathBuf {
+    fn gen_run_dir(&self, vault_dir: impl AsRef<Path>) -> PathBuf {
         let timestamp = self.timestamp();
         let date_str = timestamp.format("%Y-%m-%d").to_string();
         let time_str = timestamp.format("%H%M%S").to_string();
@@ -134,9 +134,9 @@ impl Serialize for Run<PathBuf> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunOutput {
     pub exit_code: i32,
-    pub stdout: String,
-    pub stderr: String,
-    pub duration: Duration,
+    stdout: String,
+    stderr: String,
+    duration: Duration,
 }
 
 fn exit_code_from_status(status: ExitStatus) -> i32 {

@@ -5,7 +5,7 @@ use tracing::debug;
 ///
 /// The `override_path` parameter corresponds to CLI arguments or other explicit overrides.
 /// Environment variables are read at call time, so dotenv should be loaded before calling.
-pub fn resolve_vault_path(
+pub(crate) fn resolve_vault_path(
     override_path: Option<PathBuf>,
     config_vault_path: &Path,
     project_root: &Path,

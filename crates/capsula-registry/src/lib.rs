@@ -47,7 +47,7 @@ pub struct HookRegistry<P: PhaseMarker> {
 impl<P: PhaseMarker> HookRegistry<P> {
     /// Create a new empty registry
     #[must_use]
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             creators: HashMap::new(),
         }
@@ -63,7 +63,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
     /// let mut registry = HookRegistry::<PreRun>::new();
     /// registry.register::<CwdHook>()?;
     /// ```
-    pub fn register<H>(&mut self) -> Result<(), RegistryError>
+    fn register<H>(&mut self) -> Result<(), RegistryError>
     where
         H: capsula_core::hook::Hook<P> + 'static,
     {
@@ -114,7 +114,7 @@ impl<P: PhaseMarker> HookRegistry<P> {
 
     /// Get list of registered hook types
     #[must_use]
-    pub fn registered_types(&self) -> Vec<&'static str> {
+    fn registered_types(&self) -> Vec<&'static str> {
         self.creators.keys().copied().collect()
     }
 }
@@ -135,7 +135,7 @@ pub struct RegistryBuilder<P: PhaseMarker> {
 
 impl<P: PhaseMarker> RegistryBuilder<P> {
     #[must_use]
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             registry: HookRegistry::new(),
         }
@@ -149,7 +149,7 @@ impl<P: PhaseMarker> RegistryBuilder<P> {
     ///     .with_hook::<CwdHook>()?
     ///     .build()
     /// ```
-    pub fn with_hook<H>(mut self) -> Result<Self, RegistryError>
+    fn with_hook<H>(mut self) -> Result<Self, RegistryError>
     where
         H: capsula_core::hook::Hook<P> + 'static,
     {
@@ -158,7 +158,7 @@ impl<P: PhaseMarker> RegistryBuilder<P> {
     }
 
     #[must_use]
-    pub fn build(self) -> HookRegistry<P> {
+    fn build(self) -> HookRegistry<P> {
         self.registry
     }
 }

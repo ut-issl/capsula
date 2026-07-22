@@ -97,11 +97,11 @@ pub struct HookPhaseConfig {
 pub struct HookEnvelope {
     pub id: String,
     #[serde(flatten)]
-    pub rest: serde_json::Value,
+    rest: serde_json::Value,
 }
 
 impl CapsulaConfig {
-    pub fn from_toml_str(content: &str) -> ConfigResult<Self> {
+    fn from_toml_str(content: &str) -> ConfigResult<Self> {
         debug!("Parsing TOML configuration ({} bytes)", content.len());
         let config = toml::from_str(content)?;
         debug!("TOML configuration parsed successfully");
