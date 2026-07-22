@@ -376,7 +376,7 @@ async fn run_detail_page(
     let hook_outputs_result = sqlx::query_as!(
         models::RunOutputRow,
         r#"
-        SELECT phase, hook_index, hook_id, config, output, success, error
+        SELECT phase, hook_index, hook_id, config, output, success, error, failure_reason
         FROM run_outputs
         WHERE run_id = $1
         ORDER BY phase, hook_index
@@ -398,6 +398,7 @@ async fn run_detail_page(
                         config: row.config,
                         success: row.success,
                         error: row.error,
+                        failure_reason: row.failure_reason,
                         hook_index: row.hook_index,
                     },
                     output: row.output,
@@ -698,7 +699,7 @@ async fn search_runs(
 
         let (pre_run_hooks, post_run_hooks) = if include_hooks {
             match sqlx::query_as::<_, models::RunOutputRow>(
-                "SELECT phase, hook_index, hook_id, config, output, success, error \
+                "SELECT phase, hook_index, hook_id, config, output, success, error, failure_reason \
                  FROM run_outputs WHERE run_id = $1 ORDER BY phase, hook_index",
             )
             .bind(&run.id)
@@ -715,6 +716,7 @@ async fn search_runs(
                                 config: row.config,
                                 success: row.success,
                                 error: row.error,
+                                failure_reason: row.failure_reason,
                                 hook_index: row.hook_index,
                             },
                             output: row.output,
@@ -836,7 +838,7 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
             let hook_outputs_result = sqlx::query_as!(
                 models::RunOutputRow,
                 r#"
-                SELECT phase, hook_index, hook_id, config, output, success, error
+                SELECT phase, hook_index, hook_id, config, output, success, error, failure_reason
                 FROM run_outputs
                 WHERE run_id = $1
                 ORDER BY phase, hook_index
@@ -858,6 +860,7 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
                                 config: row.config,
                                 success: row.success,
                                 error: row.error,
+                                failure_reason: row.failure_reason,
                                 hook_index: row.hook_index,
                             },
                             output: row.output,
@@ -1182,14 +1185,25 @@ async fn upload_files(
 
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error, hook_index)
-                    VALUES ($1, 'pre', $2, $3, $4, $5, $6, $7)
+                    INSERT INTO run_outputs (
+                        run_id,
+                        phase,
+                        hook_id,
+                        config,
+                        output,
+                        success,
+                        error,
+                        failure_reason,
+                        hook_index
+                    )
+                    VALUES ($1, 'pre', $2, $3, $4, $5, $6, $7, $8)
                     ON CONFLICT (run_id, phase, hook_index) DO UPDATE
                     SET hook_id = EXCLUDED.hook_id,
                         config = EXCLUDED.config,
                         output = EXCLUDED.output,
                         success = EXCLUDED.success,
-                        error = EXCLUDED.error
+                        error = EXCLUDED.error,
+                        failure_reason = EXCLUDED.failure_reason
                     "#,
                     rid,
                     hook.meta.id,
@@ -1197,6 +1211,7 @@ async fn upload_files(
                     hook.output,
                     hook.meta.success,
                     hook.meta.error,
+                    hook.meta.failure_reason,
                     hook_index
                 )
                 .execute(&state.pool)
@@ -1224,14 +1239,25 @@ async fn upload_files(
 
                 let result = sqlx::query!(
                     r#"
-                    INSERT INTO run_outputs (run_id, phase, hook_id, config, output, success, error, hook_index)
-                    VALUES ($1, 'post', $2, $3, $4, $5, $6, $7)
+                    INSERT INTO run_outputs (
+                        run_id,
+                        phase,
+                        hook_id,
+                        config,
+                        output,
+                        success,
+                        error,
+                        failure_reason,
+                        hook_index
+                    )
+                    VALUES ($1, 'post', $2, $3, $4, $5, $6, $7, $8)
                     ON CONFLICT (run_id, phase, hook_index) DO UPDATE
                     SET hook_id = EXCLUDED.hook_id,
                         config = EXCLUDED.config,
                         output = EXCLUDED.output,
                         success = EXCLUDED.success,
-                        error = EXCLUDED.error
+                        error = EXCLUDED.error,
+                        failure_reason = EXCLUDED.failure_reason
                     "#,
                     rid,
                     hook.meta.id,
@@ -1239,6 +1265,7 @@ async fn upload_files(
                     hook.output,
                     hook.meta.success,
                     hook.meta.error,
+                    hook.meta.failure_reason,
                     hook_index
                 )
                 .execute(&state.pool)

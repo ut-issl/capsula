@@ -506,6 +506,18 @@ async fn test_file_download() {
     assert_eq!(response.status(), 404);
 }
 
+fn assert_git_policy_failure(hook: &serde_json::Value) {
+    assert_eq!(hook["__meta"]["id"], "git");
+    assert_eq!(hook["__meta"]["success"], false);
+    assert_eq!(
+        hook["__meta"]["failure_reason"],
+        "repository has uncommitted changes"
+    );
+    assert_eq!(hook["commit"], "abc123");
+    assert_eq!(hook["branch"], "main");
+    assert_eq!(hook["dirty"], true);
+}
+
 #[tokio::test]
 async fn test_hook_outputs_storage() {
     let ctx = TestContext::new().await;
@@ -539,12 +551,13 @@ async fn test_hook_outputs_storage() {
             "__meta": {
                 "id": "git",
                 "config": {"allow_dirty": false},
-                "success": true,
-                "error": null
+                "success": false,
+                "error": null,
+                "failure_reason": "repository has uncommitted changes"
             },
             "commit": "abc123",
             "branch": "main",
-            "dirty": false
+            "dirty": true
         },
         {
             "__meta": {
@@ -608,10 +621,7 @@ async fn test_hook_outputs_storage() {
         .as_array()
         .expect("pre_run_hooks should be array");
     assert_eq!(pre_hooks.len(), 2);
-    assert_eq!(pre_hooks[0]["__meta"]["id"], "git");
-    assert_eq!(pre_hooks[0]["__meta"]["success"], true);
-    assert_eq!(pre_hooks[0]["commit"], "abc123");
-    assert_eq!(pre_hooks[0]["branch"], "main");
+    assert_git_policy_failure(&pre_hooks[0]);
     assert_eq!(pre_hooks[1]["__meta"]["id"], "env");
     assert_eq!(pre_hooks[1]["__meta"]["success"], true);
 

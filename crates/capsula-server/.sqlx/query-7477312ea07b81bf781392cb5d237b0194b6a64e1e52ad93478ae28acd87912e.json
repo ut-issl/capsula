@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO run_outputs (\n                        run_id,\n                        phase,\n                        hook_id,\n                        config,\n                        output,\n                        success,\n                        error,\n                        failure_reason,\n                        hook_index\n                    )\n                    VALUES ($1, 'pre', $2, $3, $4, $5, $6, $7, $8)\n                    ON CONFLICT (run_id, phase, hook_index) DO UPDATE\n                    SET hook_id = EXCLUDED.hook_id,\n                        config = EXCLUDED.config,\n                        output = EXCLUDED.output,\n                        success = EXCLUDED.success,\n                        error = EXCLUDED.error,\n                        failure_reason = EXCLUDED.failure_reason\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Bool",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7477312ea07b81bf781392cb5d237b0194b6a64e1e52ad93478ae28acd87912e"
+}
