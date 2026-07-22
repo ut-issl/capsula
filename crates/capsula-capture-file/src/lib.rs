@@ -302,13 +302,19 @@ impl FileHook {
                     "FileHook: {:?} file to artifact directory",
                     self.config.mode
                 );
-                let file_name = path
-                    .file_name()
-                    .ok_or_else(|| FileHookError::InvalidRunDir {
-                        path: path.to_path_buf(),
-                    })?
-                    .to_os_string();
-                let dest_path = artifact_dir.join(file_name);
+                let relative_path =
+                    path.strip_prefix(self.project_root.as_path())
+                        .map_err(|_| FileHookError::WalkedPathOutsideProject {
+                            path: path.to_path_buf(),
+                            project_root: self.project_root.to_path_buf(),
+                        })?;
+                let dest_path = artifact_dir.join(relative_path);
+                let parent = dest_path.parent().ok_or_else(|| {
+                    FileHookError::InvalidArtifactDestination {
+                        path: dest_path.clone(),
+                    }
+                })?;
+                std::fs::create_dir_all(parent)?;
                 match self.config.mode {
                     CaptureMode::Copy => std::fs::copy(path, &dest_path).map(|_| ())?,
                     CaptureMode::Move => {

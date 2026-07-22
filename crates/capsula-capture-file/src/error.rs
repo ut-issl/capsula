@@ -59,6 +59,9 @@ pub enum FileHookError {
     #[error("Invalid run directory: {path}")]
     InvalidRunDir { path: PathBuf },
 
+    #[error("Artifact destination has no parent directory: {path}")]
+    InvalidArtifactDestination { path: PathBuf },
+
     #[error("capture-file hook requires an artifact directory but none was provided")]
     ArtifactDirMissing,
 
