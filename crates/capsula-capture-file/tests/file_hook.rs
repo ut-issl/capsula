@@ -413,3 +413,224 @@ fn file_hook_rejects_unknown_config_fields() {
 
     assert!(result.is_err(), "unknown config fields should be rejected");
 }
+
+#[test]
+fn file_hook_rejects_absolute_glob() {
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    fs::create_dir_all(&temp_dir).unwrap();
+    let absolute_glob = temp_dir.join("*.txt").to_string_lossy().into_owned();
+    let config = json!({
+        "glob": absolute_glob,
+        "mode": "move",
+        "hash": "none"
+    });
+
+    let result = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir);
+
+    assert!(result.is_err(), "absolute globs should be rejected");
+    fs::remove_dir_all(temp_dir).ok();
+}
+
+#[test]
+fn file_hook_rejects_parent_traversal_glob() {
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    fs::create_dir_all(&temp_dir).unwrap();
+    let config = json!({
+        "glob": "../outside/*.txt",
+        "mode": "move",
+        "hash": "none"
+    });
+
+    let result = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir);
+
+    assert!(result.is_err(), "parent traversal should be rejected");
+    fs::remove_dir_all(temp_dir).ok();
+}
+
+#[test]
+fn file_hook_recursive_glob_preserves_double_star_semantics() {
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
+    let nested_dir = temp_dir.join("nested").join("deep");
+    fs::create_dir_all(&artifact_dir).unwrap();
+    fs::create_dir_all(&nested_dir).unwrap();
+    fs::write(temp_dir.join("root.txt"), b"root").unwrap();
+    fs::write(nested_dir.join("nested.txt"), b"nested").unwrap();
+
+    let config = json!({
+        "glob": "**/*.txt",
+        "mode": "none",
+        "hash": "none"
+    });
+    let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir,
+        project_root: temp_dir.clone(),
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
+
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
+        .serialize_json()
+        .expect("serialization should succeed");
+    let files = json
+        .get("files")
+        .and_then(|value| value.as_array())
+        .unwrap();
+
+    assert_eq!(files.len(), 2, "double-star glob should match recursively");
+    fs::remove_dir_all(temp_dir).ok();
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_rejects_symlink_before_moving_any_matches() {
+    use std::os::unix::fs::symlink;
+
+    let parent = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let project_root = parent.join("project");
+    let run_dir = project_root.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
+    let safe_file = project_root.join("a-safe.txt");
+    let outside_file = parent.join("outside-secret.txt");
+    let symlink_path = project_root.join("z-secret.txt");
+    fs::create_dir_all(&artifact_dir).unwrap();
+    fs::write(&safe_file, b"safe").unwrap();
+    fs::write(&outside_file, b"secret").unwrap();
+    symlink(&outside_file, &symlink_path).unwrap();
+
+    let config = json!({
+        "glob": "*.txt",
+        "mode": "move",
+        "hash": "sha256"
+    });
+    let hook =
+        <FileHook as Hook<PreRun>>::from_config(&config, &project_root).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir,
+        project_root,
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
+
+    let result = hook.run(&run_metadata, &params);
+
+    assert!(result.is_err(), "a matching symlink should fail the hook");
+    assert!(safe_file.exists(), "safe files must not be partially moved");
+    assert!(
+        outside_file.exists(),
+        "the symlink target must remain untouched"
+    );
+    assert!(symlink_path.exists(), "the symlink must remain untouched");
+    assert!(
+        fs::read_dir(&artifact_dir).unwrap().next().is_none(),
+        "the artifact directory must remain empty"
+    );
+    fs::remove_dir_all(parent).ok();
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_does_not_descend_into_symlinked_directory() {
+    use std::os::unix::fs::symlink;
+
+    let parent = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let project_root = parent.join("project");
+    let outside_dir = parent.join("outside");
+    let outside_file = outside_dir.join("secret.txt");
+    let symlink_path = project_root.join("external");
+    let run_dir = project_root.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
+    fs::create_dir_all(&artifact_dir).unwrap();
+    fs::create_dir_all(&outside_dir).unwrap();
+    fs::write(&outside_file, b"secret").unwrap();
+    symlink(&outside_dir, &symlink_path).unwrap();
+
+    let config = json!({
+        "glob": "external/*.txt",
+        "mode": "move",
+        "hash": "sha256"
+    });
+    let hook =
+        <FileHook as Hook<PreRun>>::from_config(&config, &project_root).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir,
+        project_root,
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
+
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
+        .serialize_json()
+        .expect("serialization should succeed");
+    let files = json
+        .get("files")
+        .and_then(|value| value.as_array())
+        .unwrap();
+
+    assert!(files.is_empty(), "files behind symlinks must not match");
+    assert!(
+        outside_file.exists(),
+        "the outside file must remain untouched"
+    );
+    assert!(symlink_path.exists(), "the symlink must remain untouched");
+    assert!(
+        fs::read_dir(&artifact_dir).unwrap().next().is_none(),
+        "the artifact directory must remain empty"
+    );
+    fs::remove_dir_all(parent).ok();
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_preserves_backslashes_in_unix_globs() {
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
+    let file_name = r"report\2026.txt";
+    fs::create_dir_all(&artifact_dir).unwrap();
+    fs::write(temp_dir.join(file_name), b"report").unwrap();
+
+    let config = json!({
+        "glob": file_name,
+        "mode": "copy",
+        "hash": "none"
+    });
+    let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir,
+        project_root: temp_dir.clone(),
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
+
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
+        .serialize_json()
+        .expect("serialization should succeed");
+    let files = json
+        .get("files")
+        .and_then(|value| value.as_array())
+        .unwrap();
+
+    assert_eq!(files.len(), 1, "the backslash should remain literal");
+    assert!(
+        artifact_dir.join(file_name).exists(),
+        "the backslash-named file should be copied"
+    );
+    fs::remove_dir_all(temp_dir).ok();
+}
