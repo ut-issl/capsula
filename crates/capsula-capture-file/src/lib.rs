@@ -10,9 +10,12 @@ use capsula_core::project_path::ResolvedProjectPath;
 use capsula_core::run::PreparedRun;
 use glob::{MatchOptions, Pattern};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::ffi::OsStr;
+use std::fs::{File, OpenOptions};
+use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
-use tracing::debug;
+use tracing::{debug, warn};
 use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -110,6 +113,12 @@ pub struct FileHook {
     glob: ProjectRelativeGlob,
 }
 
+#[derive(Debug)]
+struct PlannedFileCapture {
+    source: ResolvedProjectPath,
+    destination: Option<PathBuf>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct FileCapturedPerFile {
     path: PathBuf,
@@ -191,11 +200,15 @@ impl FileHook {
         // Validate the complete match set before copy or move operations can
         // mutate the project or populate the artifact directory.
         let matching_files = self.matching_files()?;
-        let files = matching_files
+        let capture_plan = self.plan_captures(matching_files, artifact_dir)?;
+        let files = capture_plan
             .iter()
-            .map(|path| {
-                debug!("FileHook: Processing file: {}", path.as_path().display());
-                self.capture_file(path, artifact_dir)
+            .map(|planned| {
+                debug!(
+                    "FileHook: Processing file: {}",
+                    planned.source.as_path().display()
+                );
+                self.capture_file(planned)
             })
             .collect::<Result<Vec<_>, FileHookError>>()?;
 
@@ -254,6 +267,55 @@ impl FileHook {
             })
     }
 
+    fn plan_captures(
+        &self,
+        matching_files: Vec<ResolvedProjectPath>,
+        artifact_dir: &Path,
+    ) -> Result<Vec<PlannedFileCapture>, FileHookError> {
+        let mut destinations = HashSet::new();
+
+        matching_files
+            .into_iter()
+            .map(|source| {
+                let destination = match self.config.mode {
+                    CaptureMode::Copy | CaptureMode::Move => {
+                        let path = source.as_path();
+                        let relative_path = path
+                            .strip_prefix(self.project_root.as_path())
+                            .map_err(|_| FileHookError::WalkedPathOutsideProject {
+                                path: path.to_path_buf(),
+                                project_root: self.project_root.to_path_buf(),
+                            })?;
+                        let destination = artifact_dir.join(relative_path);
+                        if !destinations.insert(destination.clone()) {
+                            return Err(FileHookError::ArtifactDestinationExists {
+                                path: destination,
+                            });
+                        }
+                        Self::ensure_artifact_destination_available(&destination)?;
+                        Some(destination)
+                    }
+                    CaptureMode::None => None,
+                };
+
+                Ok(PlannedFileCapture {
+                    source,
+                    destination,
+                })
+            })
+            .collect()
+    }
+
+    fn ensure_artifact_destination_available(path: &Path) -> Result<(), FileHookError> {
+        match std::fs::symlink_metadata(path) {
+            Ok(_) => Err(FileHookError::ArtifactDestinationExists {
+                path: path.to_path_buf(),
+            }),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
+    }
+
     fn revalidate_source(source: &ResolvedProjectPath) -> Result<&Path, FileHookError> {
         let path = source.as_path();
         let metadata = std::fs::symlink_metadata(path)?;
@@ -281,50 +343,102 @@ impl FileHook {
 
     fn capture_file(
         &self,
-        source: &ResolvedProjectPath,
-        artifact_dir: &Path,
+        planned: &PlannedFileCapture,
     ) -> Result<FileCapturedPerFile, FileHookError> {
-        let path = Self::revalidate_source(source)?;
-
-        // Compute hash if needed
-        let hash = match self.config.hash {
-            HashAlgorithm::Sha256 => {
-                debug!("FileHook: Computing SHA256 hash for: {}", path.display());
-                Some(format!("sha256:{}", file_digest_sha256(path)?))
-            }
-            HashAlgorithm::None => None,
-        };
-
-        // Copy or move file if needed
-        let copied_path = match self.config.mode {
-            CaptureMode::Copy | CaptureMode::Move => {
+        let path = Self::revalidate_source(&planned.source)?;
+        let copied_path = match planned.destination.as_deref() {
+            Some(destination) => {
                 debug!(
                     "FileHook: {:?} file to artifact directory",
                     self.config.mode
                 );
-                let file_name = path
-                    .file_name()
-                    .ok_or_else(|| FileHookError::InvalidRunDir {
-                        path: path.to_path_buf(),
-                    })?
-                    .to_os_string();
-                let dest_path = artifact_dir.join(file_name);
-                match self.config.mode {
-                    CaptureMode::Copy => std::fs::copy(path, &dest_path).map(|_| ())?,
-                    CaptureMode::Move => {
-                        std::fs::rename(path, &dest_path)?;
-                    }
-                    CaptureMode::None => unreachable!(),
-                }
-                Some(dest_path)
+                Self::copy_to_artifact(path, destination)?;
+                Some(destination.to_path_buf())
             }
-            CaptureMode::None => None,
+            None => None,
         };
+
+        let hash_target = copied_path.as_deref().unwrap_or(path);
+        let hash = match self.compute_hash(hash_target) {
+            Ok(hash) => hash,
+            Err(error) => {
+                if let Some(destination) = copied_path.as_deref() {
+                    Self::remove_partial_artifact(destination);
+                }
+                return Err(error);
+            }
+        };
+
+        if matches!(&self.config.mode, CaptureMode::Move) {
+            std::fs::remove_file(path).map_err(|source| FileHookError::RemoveMovedSource {
+                path: path.to_path_buf(),
+                source,
+            })?;
+        }
 
         Ok(FileCapturedPerFile {
             path: path.to_path_buf(),
             copied_path,
             hash,
         })
+    }
+
+    fn copy_to_artifact(source: &Path, destination: &Path) -> Result<(), FileHookError> {
+        let parent =
+            destination
+                .parent()
+                .ok_or_else(|| FileHookError::InvalidArtifactDestination {
+                    path: destination.to_path_buf(),
+                })?;
+        std::fs::create_dir_all(parent)?;
+
+        let mut source_file = File::open(source)?;
+        let source_permissions = source_file.metadata()?.permissions();
+        let mut destination_file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(destination)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+                return Err(FileHookError::ArtifactDestinationExists {
+                    path: destination.to_path_buf(),
+                });
+            }
+            Err(error) => return Err(error.into()),
+        };
+
+        let copy_result = std::io::copy(&mut source_file, &mut destination_file)
+            .and_then(|_| destination_file.set_permissions(source_permissions));
+        drop(destination_file);
+
+        match copy_result {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                Self::remove_partial_artifact(destination);
+                Err(error.into())
+            }
+        }
+    }
+
+    fn compute_hash(&self, path: &Path) -> Result<Option<String>, FileHookError> {
+        match self.config.hash {
+            HashAlgorithm::Sha256 => {
+                debug!("FileHook: Computing SHA256 hash for: {}", path.display());
+                Ok(Some(format!("sha256:{}", file_digest_sha256(path)?)))
+            }
+            HashAlgorithm::None => Ok(None),
+        }
+    }
+
+    fn remove_partial_artifact(path: &Path) {
+        match std::fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => warn!(
+                "Failed to remove partial capture-file artifact {}: {error}",
+                path.display()
+            ),
+        }
     }
 }

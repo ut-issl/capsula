@@ -51,14 +51,22 @@ causes the hook to fail, and symbolic-link directories are not traversed.
 ### Mode Options
 
 - `"copy"` - Copies files to the hook's artifact directory, leaves originals
-- `"move"` - Moves files to the hook's artifact directory, removes originals
-- `"none"` - Only computes hash, doesn't copy or move
+- `"move"` - Copies files to the hook's artifact directory, then removes the originals
+- `"none"` - Only computes hashes, without copying or moving files
+
+When hashing is enabled for `"copy"` or `"move"`, each hash is computed from
+the completed artifact rather than reading the source again. In `"move"` mode,
+the source is removed only after the artifact has been successfully copied and
+any configured hash has been computed. In `"none"` mode, the source itself is
+hashed.
 
 !!! note "Per-hook artifact directory"
     When `mode` is `"copy"` or `"move"`, files are placed in a per-hook
     artifact directory named `{phase}-{index}-capture-file/` under the run
-    directory (e.g., `post-0-capture-file/`). This prevents filename
-    collisions between different `capture-file` hooks.
+    directory (e.g., `post-0-capture-file/`). Each file retains its path
+    relative to the project root: `results/a/data.csv` is stored as
+    `post-0-capture-file/results/a/data.csv`. Existing destinations are rejected
+    rather than overwritten.
 
 ### Example
 
@@ -85,16 +93,14 @@ hash = "sha256"
   },
   "files": [
     {
-      "src": "results/data.csv",
-      "dst": ".capsula/my-vault/2025-01-09/143022-happy-river/post-0-capture-file/data.csv",
-      "hash": "a1b2c3d4e5f6...",
-      "copied": true
+      "path": "/project/results/data.csv",
+      "copied_path": "/project/.capsula/my-vault/2025-01-09/143022-happy-river/post-0-capture-file/results/data.csv",
+      "hash": "sha256:a1b2c3d4e5f6..."
     },
     {
-      "src": "results/summary.csv",
-      "dst": ".capsula/my-vault/2025-01-09/143022-happy-river/post-0-capture-file/summary.csv",
-      "hash": "b2c3d4e5f6g7...",
-      "copied": true
+      "path": "/project/results/summary.csv",
+      "copied_path": "/project/.capsula/my-vault/2025-01-09/143022-happy-river/post-0-capture-file/results/summary.csv",
+      "hash": "sha256:b2c3d4e5f6g7..."
     }
   ]
 }

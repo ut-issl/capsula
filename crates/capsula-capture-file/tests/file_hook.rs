@@ -5,9 +5,15 @@ use capsula_capture_file::FileHook;
 use capsula_core::captured::Captured;
 use capsula_core::hook::{Hook, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
+use capsula_core::util::hex_encode;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::fs;
 use ulid::Ulid;
+
+fn sha256(bytes: &[u8]) -> String {
+    format!("sha256:{}", hex_encode(Sha256::digest(bytes).as_ref()))
+}
 
 #[test]
 fn file_hook_captures_files_with_copy_mode() {
@@ -61,6 +67,13 @@ fn file_hook_captures_files_with_copy_mode() {
     assert!(
         copied_path.exists(),
         "File should be copied to artifact dir"
+    );
+    let copied_bytes = fs::read(&copied_path).unwrap();
+    let expected_hash = sha256(&copied_bytes);
+    assert_eq!(
+        file_info.get("hash").and_then(|value| value.as_str()),
+        Some(expected_hash.as_str()),
+        "Recorded hash should describe the archived bytes"
     );
 
     // Verify original file still exists
@@ -122,8 +135,8 @@ fn file_hook_captures_files_in_subdirectories() {
     );
     assert!(file_info.get("hash").is_some(), "Should have hash");
 
-    // Verify file was copied (by filename, flat)
-    let copied_path = artifact_dir.join("input.txt");
+    // Verify the project-relative path was preserved
+    let copied_path = artifact_dir.join("data").join("input.txt");
     assert!(
         copied_path.exists(),
         "File should be copied to artifact dir"
@@ -184,8 +197,12 @@ fn file_hook_captures_files_in_nested_subdirectories() {
         "Should capture the file in deeply nested subdirectory"
     );
 
-    // Verify file was copied (by filename, flat)
-    let copied_path = artifact_dir.join("config.json");
+    // Verify the project-relative path was preserved
+    let copied_path = artifact_dir
+        .join("data")
+        .join("deep")
+        .join("nested")
+        .join("config.json");
     assert!(
         copied_path.exists(),
         "File should be copied to artifact dir"
@@ -193,6 +210,99 @@ fn file_hook_captures_files_in_nested_subdirectories() {
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
+}
+
+#[test]
+fn file_hook_preserves_paths_for_files_with_the_same_name() {
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
+    let first_dir = temp_dir.join("a");
+    let second_dir = temp_dir.join("b");
+    fs::create_dir_all(&artifact_dir).unwrap();
+    fs::create_dir_all(&first_dir).unwrap();
+    fs::create_dir_all(&second_dir).unwrap();
+    fs::write(first_dir.join("config.json"), b"first").unwrap();
+    fs::write(second_dir.join("config.json"), b"second").unwrap();
+
+    let config = json!({
+        "glob": "**/config.json",
+        "mode": "copy",
+        "hash": "none"
+    });
+    let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir,
+        project_root: temp_dir.clone(),
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
+
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
+        .serialize_json()
+        .expect("serialization should succeed");
+    let files = json
+        .get("files")
+        .and_then(|value| value.as_array())
+        .unwrap();
+
+    assert_eq!(files.len(), 2);
+    assert_eq!(
+        fs::read(artifact_dir.join("a/config.json")).unwrap(),
+        b"first"
+    );
+    assert_eq!(
+        fs::read(artifact_dir.join("b/config.json")).unwrap(),
+        b"second"
+    );
+    assert_ne!(files[0].get("copied_path"), files[1].get("copied_path"));
+
+    fs::remove_dir_all(temp_dir).ok();
+}
+
+#[test]
+fn file_hook_rejects_existing_destinations_before_moving_files() {
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
+    let first_source = temp_dir.join("a/config.json");
+    let second_source = temp_dir.join("b/config.json");
+    let existing_destination = artifact_dir.join("b/config.json");
+    fs::create_dir_all(first_source.parent().unwrap()).unwrap();
+    fs::create_dir_all(second_source.parent().unwrap()).unwrap();
+    fs::create_dir_all(existing_destination.parent().unwrap()).unwrap();
+    fs::write(&first_source, b"first").unwrap();
+    fs::write(&second_source, b"second").unwrap();
+    fs::write(&existing_destination, b"existing").unwrap();
+
+    let config = json!({
+        "glob": "*/config.json",
+        "mode": "move",
+        "hash": "none"
+    });
+    let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir,
+        project_root: temp_dir.clone(),
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
+
+    let result = hook.run(&run_metadata, &params);
+
+    assert!(result.is_err(), "existing destinations should be rejected");
+    assert!(first_source.exists(), "capture must be validated first");
+    assert!(second_source.exists(), "capture must be validated first");
+    assert!(!artifact_dir.join("a/config.json").exists());
+    assert_eq!(fs::read(existing_destination).unwrap(), b"existing");
+
+    fs::remove_dir_all(temp_dir).ok();
 }
 
 #[test]
@@ -294,6 +404,58 @@ fn file_hook_captures_files_with_move_mode() {
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
+}
+
+#[test]
+fn file_hook_move_creates_an_independent_hashed_artifact() {
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let run_dir = temp_dir.join("run");
+    let artifact_dir = run_dir.join("pre-0-capture-file");
+    fs::create_dir_all(&artifact_dir).unwrap();
+
+    let source = temp_dir.join("moveme.txt");
+    let writer_link = temp_dir.join("writer.txt");
+    fs::write(&source, b"captured").unwrap();
+    fs::hard_link(&source, &writer_link).unwrap();
+
+    let config = json!({
+        "glob": "moveme.txt",
+        "mode": "move",
+        "hash": "sha256"
+    });
+    let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::new(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir,
+        project_root: temp_dir.clone(),
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
+
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
+        .serialize_json()
+        .expect("serialization should succeed");
+    let file = &json
+        .get("files")
+        .and_then(|value| value.as_array())
+        .unwrap()[0];
+    let moved_path = artifact_dir.join("moveme.txt");
+
+    fs::write(writer_link, b"modified after capture").unwrap();
+
+    let moved_bytes = fs::read(moved_path).unwrap();
+    let expected_hash = sha256(&moved_bytes);
+    assert_eq!(moved_bytes, b"captured");
+    assert_eq!(
+        file.get("hash").and_then(|value| value.as_str()),
+        Some(expected_hash.as_str())
+    );
+    assert!(!source.exists());
+
+    fs::remove_dir_all(temp_dir).ok();
 }
 
 #[test]
