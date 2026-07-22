@@ -1,4 +1,5 @@
 use capsula_core::error::CapsulaError;
+use capsula_core::project_path::ProjectPathError;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -17,9 +18,40 @@ pub enum FileHookError {
     #[error("Invalid glob pattern: {0}")]
     InvalidPattern(#[from] glob::PatternError),
 
-    /// Glob traversal error
-    #[error("Glob traversal error: {0}")]
-    GlobError(#[from] glob::GlobError),
+    /// The glob is absolute or has a platform path prefix.
+    #[error("Glob pattern must be relative to the project root: {pattern}")]
+    NonRelativePattern { pattern: String },
+
+    /// The glob contains an explicit parent-directory traversal.
+    #[error("Glob pattern cannot contain parent traversal ('..'): {pattern}")]
+    ParentTraversalPattern { pattern: String },
+
+    /// Walking the project unexpectedly produced an out-of-project path.
+    #[error("Walked path '{path}' is outside project root '{project_root}'")]
+    WalkedPathOutsideProject {
+        path: PathBuf,
+        project_root: PathBuf,
+    },
+
+    /// A path matched the glob but is a symbolic link.
+    #[error("Refusing to capture symbolic link: {path}")]
+    SymlinkNotAllowed { path: PathBuf },
+
+    /// A matched source stopped being a regular file before capture.
+    #[error("Capture source is no longer a regular file: {path}")]
+    SourceNotRegularFile { path: PathBuf },
+
+    /// A matched source resolved differently when it was revalidated.
+    #[error("Capture source '{path}' changed to resolve as '{resolved}'")]
+    SourcePathChanged { path: PathBuf, resolved: PathBuf },
+
+    /// Project-root-aware path validation failed.
+    #[error(transparent)]
+    ProjectPath(#[from] ProjectPathError),
+
+    /// Project traversal failed.
+    #[error("Failed to walk project files: {0}")]
+    Walk(#[from] walkdir::Error),
 
     #[error("Run directory is not set")]
     RunDirNotSet,
