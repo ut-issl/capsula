@@ -7,11 +7,24 @@
 //! standard `__meta.config.path`, so the captured value does not need
 //! to duplicate it.
 //!
-//! Only fairly flat/simple YAML is supported: a single document whose
-//! values map directly onto JSON (mappings, sequences, strings, numbers,
-//! booleans, null). YAML-specific features without a JSON equivalent —
-//! multi-document streams, tagged values, and the like — are rejected as
-//! parse errors.
+//! The capture contract is intentionally minimal: the output is exactly
+//! what `yaml_serde`'s untyped deserialization into `serde_json::Value`
+//! produces, no more and no less. The behaviors at the YAML/JSON
+//! boundary are pinned by the tests in this crate and documented in
+//! `docs/hooks/capture-yaml.md`:
+//!
+//! - Multi-document streams are rejected as parse errors.
+//! - Anchors and aliases are expanded; merge keys (`<<`) are NOT
+//!   applied and are captured as literal `"<<"` entries.
+//! - Non-string scalar mapping keys are stringified; keys that collide
+//!   after stringification (e.g. `1` and `"1"`) follow last-write-wins,
+//!   silently dropping one value.
+//! - `!!binary` values are captured as their raw base64 strings; custom
+//!   tags (e.g. `!Custom`) and non-scalar mapping keys are rejected.
+//! - Non-finite floats (`.nan`, `.inf`) become JSON `null`.
+//!
+//! Keep captured files to plain, JSON-representable YAML to stay clear
+//! of these edge cases.
 
 mod error;
 
@@ -206,6 +219,101 @@ sat1:
 
         let hook = make_hook(tmp.path(), "multi.yaml");
         assert!(run_hook(&hook, tmp.path()).is_err());
+    }
+
+    // The tests below pin the yaml_serde edge-case behaviors that define
+    // this hook's capture contract (see the crate docs and
+    // docs/hooks/capture-yaml.md). If a yaml_serde upgrade changes any of
+    // these, the docs must be updated in the same PR.
+
+    #[test]
+    fn anchors_and_aliases_are_expanded() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("alias.yaml"),
+            "base: &b\n  x: 1\ncopy: *b\n",
+        )
+        .unwrap();
+
+        let hook = make_hook(tmp.path(), "alias.yaml");
+        let captured = run_hook(&hook, tmp.path()).unwrap();
+
+        assert_eq!(captured.content["copy"]["x"], 1);
+    }
+
+    #[test]
+    fn merge_keys_are_captured_literally_not_applied() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join("merge.yaml"),
+            "defaults: &defaults\n  retries: 3\njob:\n  <<: *defaults\n  timeout: 5\n",
+        )
+        .unwrap();
+
+        let hook = make_hook(tmp.path(), "merge.yaml");
+        let captured = run_hook(&hook, tmp.path()).unwrap();
+
+        // Merge semantics are NOT applied: `<<` stays as an ordinary key
+        // and `retries` is not merged into `job`.
+        assert_eq!(captured.content["job"]["<<"]["retries"], 3);
+        assert!(captured.content["job"].get("retries").is_none());
+        assert_eq!(captured.content["job"]["timeout"], 5);
+    }
+
+    #[test]
+    fn non_string_scalar_keys_are_stringified_last_write_wins() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("keys.yaml"), "1: numeric\n\"1\": string\n").unwrap();
+
+        let hook = make_hook(tmp.path(), "keys.yaml");
+        let captured = run_hook(&hook, tmp.path()).unwrap();
+
+        // The integer key `1` is stringified and then overwritten by the
+        // explicit string key `"1"`: last write wins, one value is lost.
+        assert_eq!(captured.content, serde_json::json!({"1": "string"}));
+    }
+
+    #[test]
+    fn binary_tags_are_captured_as_base64_strings() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("bin.yaml"), "payload: !!binary SGVsbG8=\n").unwrap();
+
+        let hook = make_hook(tmp.path(), "bin.yaml");
+        let captured = run_hook(&hook, tmp.path()).unwrap();
+
+        // The base64 payload is captured as-is, without the tag or any
+        // decoding.
+        assert_eq!(captured.content["payload"], "SGVsbG8=");
+    }
+
+    #[test]
+    fn custom_tags_are_rejected() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("tag.yaml"), "value: !Custom 1\n").unwrap();
+
+        let hook = make_hook(tmp.path(), "tag.yaml");
+        assert!(run_hook(&hook, tmp.path()).is_err());
+    }
+
+    #[test]
+    fn non_scalar_mapping_keys_are_rejected() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("seqkey.yaml"), "[1, 2]: value\n").unwrap();
+
+        let hook = make_hook(tmp.path(), "seqkey.yaml");
+        assert!(run_hook(&hook, tmp.path()).is_err());
+    }
+
+    #[test]
+    fn non_finite_floats_become_null() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("floats.yaml"), "a: .nan\nb: .inf\n").unwrap();
+
+        let hook = make_hook(tmp.path(), "floats.yaml");
+        let captured = run_hook(&hook, tmp.path()).unwrap();
+
+        assert_eq!(captured.content["a"], serde_json::Value::Null);
+        assert_eq!(captured.content["b"], serde_json::Value::Null);
     }
 
     #[test]

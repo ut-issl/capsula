@@ -85,36 +85,52 @@ path = "config/sat2/orbit.yaml"
 Each entry produces its own row in `pre-run.json` with its own `content`
 field; the configured path is available under `__meta.config.path`.
 
-## Supported YAML Subset
+## YAML → JSON Conversion
 
-The hook supports fairly flat/simple YAML: a single document whose values
-map directly onto JSON.
+The capture contract is intentionally minimal: the output is exactly what
+[`yaml_serde`](https://crates.io/crates/yaml_serde)'s untyped
+deserialization into JSON produces — the hook adds no validation layer of
+its own. Plain, JSON-representable YAML maps as expected:
 
 | YAML                          | JSON                                           |
 | ----------------------------- | ---------------------------------------------- |
 | String / Integer / Boolean    | matching JSON type                             |
-| Float                         | JSON number (NaN / ±Inf become `null`)         |
+| Float                         | JSON number (`.nan` / `±.inf` become `null`)   |
 | Null (`~`, `null`, empty)     | JSON `null`                                    |
 | Sequence (`- item`)           | JSON array                                     |
 | Mapping (`key: value`)        | JSON object                                    |
 
-YAML-specific features without a JSON equivalent are **out of scope** and
-are rejected as parse errors:
-
-- Multi-document streams (`---` separators)
-- Tagged values (`!!binary`, custom tags)
-- Non-string mapping keys that cannot be represented as JSON object keys
-
 Note that unlike TOML, YAML has no dedicated datetime type; timestamps
 written as plain scalars are captured as strings.
+
+### Edge-Case Behaviour
+
+YAML features without a JSON equivalent follow `yaml_serde`'s behavior.
+Each row below is pinned by a regression test in the
+`capsula-capture-yaml` crate:
+
+| YAML input                             | Behaviour                                            |
+| -------------------------------------- | ---------------------------------------------------- |
+| Multi-document stream (`---`)          | Parse error                                          |
+| Anchors / aliases (`&a` / `*a`)        | Expanded into the referenced value                   |
+| Merge keys (`<<: *a`)                  | **Not applied** — captured as a literal `"<<"` key   |
+| Non-string scalar keys (`1:`, `true:`) | Stringified (`"1"`, `"true"`)                        |
+| Key collision after stringification    | **Last write wins** — the other value is dropped     |
+| `!!binary` values                      | Captured as the raw base64 string                    |
+| Custom tags (`!Custom`)                | Parse error                                          |
+| Non-scalar mapping keys (`[1, 2]:`)    | Parse error                                          |
+
+If your YAML relies on merge keys, non-string keys, or tags, the captured
+JSON may not match the effective YAML semantics. Keep captured files to
+plain, JSON-representable YAML to stay clear of these edge cases.
 
 ## Error Behaviour
 
 The hook fails (recorded with `__meta.success: false`) when:
 
 - The file does not exist or is unreadable (`Io` error)
-- The file content is not valid YAML, or uses an unsupported YAML feature
-  (`Yaml` error)
+- The file content is not valid YAML, or uses a YAML feature listed as a
+  parse error above (`Yaml` error)
 
 A failing `capture-yaml` does not stop other hooks from running.
 
