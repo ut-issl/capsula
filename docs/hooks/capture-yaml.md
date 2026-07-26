@@ -17,9 +17,9 @@ under the `content` field.
 
 ### Required Options
 
-| Option | Type   | Description                                                |
-| ------ | ------ | ---------------------------------------------------------- |
-| `path` | string | Path to the YAML file to parse, relative to project root.  |
+| Option | Type   | Description                                                                               |
+| ------ | ------ | ----------------------------------------------------------------------------------------- |
+| `path` | string | Path to the YAML file to parse, relative to project root. Absolute paths are also accepted. |
 
 ### Example
 
@@ -105,9 +105,9 @@ written as plain scalars are captured as strings.
 
 ### Edge-Case Behaviour
 
-YAML features without a JSON equivalent follow `yaml_serde`'s behavior.
-Each row below is pinned by a regression test in the
-`capsula-capture-yaml` crate:
+The table below illustrates some notable behaviors of the parser provided
+by the `yaml_serde` crate. It is not exhaustive and these behaviors are
+not guaranteed by Capsula.
 
 | YAML input                             | Behaviour                                            |
 | -------------------------------------- | ---------------------------------------------------- |
