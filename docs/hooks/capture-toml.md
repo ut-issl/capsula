@@ -115,3 +115,4 @@ A failing `capture-toml` does not stop other hooks from running.
 
 - [`capture-file`](capture-file.md) — byte-exact archival of any file
 - [`capture-json`](capture-json.md) — same shape, for JSON inputs
+- [`capture-yaml`](capture-yaml.md) — same shape, for YAML inputs
