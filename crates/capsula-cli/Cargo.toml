@@ -17,6 +17,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 capsula-client = { workspace = true }
+capsula-config = { workspace = true }
 capsula-tui = { workspace = true }
 capsula-core = { workspace = true }
 capsula-orchestration = { workspace = true }

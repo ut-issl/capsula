@@ -3,6 +3,7 @@ use capsula_core::{
     hook::PhaseMarker,
 };
 use serde::{Deserialize, Deserializer};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::debug;
@@ -50,11 +51,84 @@ pub struct CapsulaConfig {
     #[serde(default)]
     pub dotenv: Option<PathBuf>,
     #[serde(default)]
-    pub server: Option<String>,
+    pub server: Option<ServerConfig>,
     #[serde(default)]
     pub pre_run: HookPhaseConfig,
     #[serde(default)]
     pub post_run: HookPhaseConfig,
+}
+
+/// Server connection settings.
+///
+/// Accepts either a plain URL string (`server = "https://..."`) or a table
+/// with a `url` and optional `headers` attached to every request:
+///
+/// ```toml
+/// [server]
+/// url = "https://capsula.example.com"
+///
+/// [server.headers]
+/// Authorization = { env = "CAPSULA_TOKEN", prefix = "Bearer " }
+/// ```
+#[derive(Debug, Clone)]
+pub struct ServerConfig {
+    pub url: String,
+    pub headers: BTreeMap<String, HeaderValueSource>,
+}
+
+impl<'de> Deserialize<'de> for ServerConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum ServerConfigHelper {
+            Url(String),
+            Detailed {
+                url: String,
+                #[serde(default)]
+                headers: BTreeMap<String, HeaderValueSource>,
+            },
+        }
+
+        Ok(match ServerConfigHelper::deserialize(deserializer)? {
+            ServerConfigHelper::Url(url) => Self {
+                url,
+                headers: BTreeMap::new(),
+            },
+            ServerConfigHelper::Detailed { url, headers } => Self { url, headers },
+        })
+    }
+}
+
+/// Source of an HTTP header value sent with server requests.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum HeaderValueSource {
+    /// The string is used as the header value verbatim.
+    Literal(String),
+    /// The value is read from an environment variable.
+    Env(EnvHeaderSource),
+    /// The value is the trimmed stdout of a command.
+    Command(CommandHeaderSource),
+}
+
+/// Header value read from an environment variable.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct EnvHeaderSource {
+    pub env: String,
+    /// Prepended to the variable's value (e.g. `"Bearer "`).
+    #[serde(default)]
+    pub prefix: Option<String>,
+}
+
+/// Header value produced by running a command and capturing its stdout.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CommandHeaderSource {
+    pub command: String,
 }
 
 #[derive(Debug, Clone)]
@@ -209,6 +283,109 @@ id = "capture-cwd"
 
         assert_eq!(config.vault.name, "my_vault");
         assert_eq!(config.vault.path, PathBuf::from("/custom/path/to/vault"));
+    }
+
+    #[test]
+    fn parses_server_as_plain_url_string() {
+        let config_str = r#"
+server = "https://capsula.example.com"
+
+[vault]
+name = "v"
+"#;
+
+        let config = CapsulaConfig::from_toml_str(config_str).unwrap();
+
+        let server = config.server.unwrap();
+        assert_eq!(server.url, "https://capsula.example.com");
+        assert!(server.headers.is_empty());
+    }
+
+    #[test]
+    fn server_defaults_to_none_when_absent() {
+        let config_str = r#"
+[vault]
+name = "v"
+"#;
+
+        let config = CapsulaConfig::from_toml_str(config_str).unwrap();
+
+        assert!(config.server.is_none());
+    }
+
+    #[test]
+    fn parses_server_table_with_all_header_source_kinds() {
+        let config_str = r#"
+[vault]
+name = "v"
+
+[server]
+url = "https://capsula.example.com"
+
+[server.headers]
+x-literal = "fixed-value"
+Authorization = { env = "CAPSULA_TOKEN", prefix = "Bearer " }
+cf-access-token = { command = "cloudflared access token --app=https://capsula.example.com" }
+CF-Access-Client-Id = { env = "CF_ACCESS_CLIENT_ID" }
+"#;
+
+        let config = CapsulaConfig::from_toml_str(config_str).unwrap();
+
+        let server = config.server.unwrap();
+        assert_eq!(server.url, "https://capsula.example.com");
+        assert_eq!(
+            server.headers["x-literal"],
+            HeaderValueSource::Literal("fixed-value".to_string())
+        );
+        assert_eq!(
+            server.headers["Authorization"],
+            HeaderValueSource::Env(EnvHeaderSource {
+                env: "CAPSULA_TOKEN".to_string(),
+                prefix: Some("Bearer ".to_string()),
+            })
+        );
+        assert_eq!(
+            server.headers["cf-access-token"],
+            HeaderValueSource::Command(CommandHeaderSource {
+                command: "cloudflared access token --app=https://capsula.example.com".to_string(),
+            })
+        );
+        assert_eq!(
+            server.headers["CF-Access-Client-Id"],
+            HeaderValueSource::Env(EnvHeaderSource {
+                env: "CF_ACCESS_CLIENT_ID".to_string(),
+                prefix: None,
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_header_source_mixing_env_and_command() {
+        let config_str = r#"
+[vault]
+name = "v"
+
+[server]
+url = "https://capsula.example.com"
+
+[server.headers]
+Authorization = { env = "CAPSULA_TOKEN", command = "echo x" }
+"#;
+
+        assert!(CapsulaConfig::from_toml_str(config_str).is_err());
+    }
+
+    #[test]
+    fn rejects_server_table_without_url() {
+        let config_str = r#"
+[vault]
+name = "v"
+
+[server]
+headers = {}
+"#;
+
+        assert!(CapsulaConfig::from_toml_str(config_str).is_err());
     }
 
     #[test]

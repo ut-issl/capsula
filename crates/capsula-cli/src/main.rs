@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::PreparedRun;
 use capsula_orchestration::push::push_single_run;
-use capsula_orchestration::resolve::resolve_server_url;
+use capsula_orchestration::resolve::{resolve_server_headers, resolve_server_url};
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::{find_run_dir, find_run_dir_by_name, list_runs};
@@ -394,14 +394,7 @@ path = \".\"
             all,
             server,
         } => {
-            let server_url =
-                resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
-                    )
-                })?;
-
-            let client = capsula_client::CapsulaClient::new(&server_url);
+            let (server_url, client) = build_server_client(server, config.server.as_ref())?;
             let vault_name = &config.vault.name;
 
             match client.vault_exists(vault_name) {
@@ -488,16 +481,10 @@ path = \".\"
         Commands::Tui => unreachable!("Handled above"),
         Commands::Vaults { command } => match command {
             VaultsCommands::List { server } => {
-                let server_url =
-                    resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
-                        )
-                    })?;
+                let (server_url, client) = build_server_client(server, config.server.as_ref())?;
 
                 info!("Fetching vaults from server {}", server_url);
 
-                let client = capsula_client::CapsulaClient::new(&server_url);
                 let vaults = client.list_vaults().context("Failed to list vaults")?;
 
                 if vaults.is_empty() {
@@ -516,6 +503,30 @@ path = \".\"
         },
     }
     Ok(())
+}
+
+/// Resolve the server URL and configured headers, and build an HTTP client.
+fn build_server_client(
+    server_override: Option<String>,
+    config_server: Option<&capsula_config::ServerConfig>,
+) -> Result<(String, capsula_client::CapsulaClient)> {
+    let server_url = resolve_server_url(server_override, config_server.map(|s| s.url.as_str()))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
+            )
+        })?;
+
+    let headers = config_server
+        .map(|s| resolve_server_headers(&s.headers))
+        .transpose()
+        .context("Failed to resolve server headers")?
+        .unwrap_or_default();
+
+    let client = capsula_client::CapsulaClient::with_headers(&server_url, &headers)
+        .context("Failed to build server client")?;
+
+    Ok((server_url, client))
 }
 
 fn read_json_if_exists(path: &std::path::Path) -> Result<Option<serde_json::Value>> {
