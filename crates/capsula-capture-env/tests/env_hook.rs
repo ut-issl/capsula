@@ -43,8 +43,9 @@ fn env_hook_captures_existing_variable() {
     let params = RuntimeParams::<PreRun>::default();
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -89,8 +90,9 @@ fn env_hook_captures_missing_variable() {
     let params = RuntimeParams::<PreRun>::default();
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 

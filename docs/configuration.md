@@ -76,7 +76,7 @@ For the configuration of each hook, refer to its specific documentation.
 
 ### Pre-Run Hooks
 
-Pre-run hooks are executed **before** your command, in the order listed.
+Pre-run hooks are executed **before** your command, in the order listed. If any pre-run hook fails or errors, Capsula still runs the remaining pre-run hooks, writes `pre-run.json`, and then stops before running your command.
 
 ```toml
 [[pre-run.hooks]]
@@ -90,7 +90,7 @@ id = "capture-cwd"
 
 ### Post-Run Hooks
 
-Post-run hooks are executed **after** your command, in the order listed.
+Post-run hooks are executed **after** your command, in the order listed. If any post-run hook fails or errors, Capsula still runs the remaining post-run hooks and writes `post-run.json`. For `capsula run`, a post-run failure makes the CLI fail when the wrapped command succeeded; if the wrapped command already failed, Capsula preserves the command's exit code. For `capsula run-end`, a post-run failure makes the command fail after recording `post-run.json`.
 
 ```toml
 [[post-run.hooks]]
