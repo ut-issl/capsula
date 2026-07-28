@@ -13,7 +13,7 @@ use ulid::Ulid;
 #[test]
 fn git_hook_captures_clean_repo() {
     // Arrange - create a temporary git repository
-    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -64,7 +64,7 @@ fn git_hook_captures_clean_repo() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -102,7 +102,7 @@ fn git_hook_captures_clean_repo() {
 /// Helper to initialize a git repo in a temp directory with one committed file.
 /// Returns the temp directory path.
 fn init_git_repo() -> std::path::PathBuf {
-    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::generate()));
     fs::create_dir_all(&temp_dir).unwrap();
 
     Command::new("git")
@@ -150,7 +150,7 @@ fn init_git_repo() -> std::path::PathBuf {
 /// Helper to create a bare remote repo and add it as a remote to the working repo.
 /// Returns the bare repo path.
 fn add_bare_remote(working_dir: &std::path::Path, remote_name: &str) -> std::path::PathBuf {
-    let bare_dir = std::env::temp_dir().join(format!("capsula_git_bare_{}", Ulid::new()));
+    let bare_dir = std::env::temp_dir().join(format!("capsula_git_bare_{}", Ulid::generate()));
     Command::new("git")
         .args(["init", "--bare"])
         .arg(&bare_dir)
@@ -201,7 +201,7 @@ fn git_hook_detects_pushed_commit() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -249,7 +249,7 @@ fn git_hook_detects_unpushed_commit() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -299,7 +299,7 @@ fn git_hook_aborts_on_unpushed_when_required() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -362,7 +362,7 @@ fn git_hook_pushed_commit_behind_remote() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -413,7 +413,7 @@ fn git_hook_custom_remote() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -448,7 +448,7 @@ fn git_hook_custom_remote() {
     let artifact_dir2 = run_dir2.join("pre-0-capture-git-repo");
     fs::create_dir_all(&artifact_dir2).unwrap();
     let run_metadata2 = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run-2".to_string(),
         command: vec![],
         run_dir: run_dir2,
@@ -477,7 +477,7 @@ fn git_hook_custom_remote() {
 #[test]
 fn git_hook_captures_dirty_repo_with_allow_dirty() {
     // Arrange - create a git repository with uncommitted changes
-    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -530,7 +530,7 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -569,7 +569,7 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
 #[test]
 fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
     // Arrange
-    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -622,7 +622,7 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -646,7 +646,7 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
 #[test]
 fn git_hook_ignores_git_ignored_files() {
     // Arrange - create a git repository with ignored files (like .capsula directory)
-    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -717,7 +717,7 @@ fn git_hook_ignores_git_ignored_files() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -763,7 +763,7 @@ fn git_hook_tag_head_creates_lightweight_tag() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "chubby-back".to_string(),
         command: vec![],
         run_dir,
@@ -831,7 +831,7 @@ fn git_hook_no_tag_when_tag_head_is_false() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "quiet-hill".to_string(),
         command: vec![],
         run_dir,
@@ -870,7 +870,7 @@ fn git_hook_no_tag_when_tag_head_is_false() {
 #[test]
 fn git_hook_detects_untracked_files_as_dirty() {
     // Arrange - create a git repository with untracked (non-ignored) files
-    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-git-repo");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -935,7 +935,7 @@ fn git_hook_detects_untracked_files_as_dirty() {
     let hook = <GitHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,

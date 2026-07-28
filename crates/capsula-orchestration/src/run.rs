@@ -19,7 +19,7 @@ pub fn create_and_setup_run(
 ) -> Result<(PreparedRun, PathBuf)> {
     debug!("Creating run metadata");
     let run = UnpreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: Generator::default()
             .next()
             .with_context(|| "Failed to generate a random name for the run")?,

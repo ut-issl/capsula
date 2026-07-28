@@ -12,7 +12,7 @@ use ulid::Ulid;
 #[test]
 fn file_hook_captures_files_with_copy_mode() {
     // Arrange - create a temporary directory and file
-    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-file");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -29,7 +29,7 @@ fn file_hook_captures_files_with_copy_mode() {
     let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -75,7 +75,7 @@ fn file_hook_captures_files_with_copy_mode() {
 #[test]
 fn file_hook_captures_files_in_subdirectories() {
     // Arrange - create a subdirectory structure
-    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-file");
     let data_dir = temp_dir.join("data");
@@ -94,7 +94,7 @@ fn file_hook_captures_files_in_subdirectories() {
     let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -140,7 +140,7 @@ fn file_hook_captures_files_in_subdirectories() {
 #[test]
 fn file_hook_captures_files_in_nested_subdirectories() {
     // Arrange - create a deeply nested directory structure
-    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-file");
     let nested_dir = temp_dir.join("data").join("deep").join("nested");
@@ -159,7 +159,7 @@ fn file_hook_captures_files_in_nested_subdirectories() {
     let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -195,7 +195,7 @@ fn file_hook_captures_files_in_nested_subdirectories() {
 #[test]
 fn file_hook_wildcard_in_subdirectory() {
     // Arrange - create subdirectory with multiple files
-    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-file");
     let data_dir = temp_dir.join("data");
@@ -215,7 +215,7 @@ fn file_hook_wildcard_in_subdirectory() {
     let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -244,7 +244,7 @@ fn file_hook_wildcard_in_subdirectory() {
 #[test]
 fn file_hook_captures_files_with_move_mode() {
     // Arrange
-    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-file");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -261,7 +261,7 @@ fn file_hook_captures_files_with_move_mode() {
     let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -294,7 +294,7 @@ fn file_hook_captures_files_with_move_mode() {
 #[test]
 fn file_hook_captures_files_with_none_mode() {
     // Arrange
-    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-file");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -311,7 +311,7 @@ fn file_hook_captures_files_with_none_mode() {
     let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
@@ -354,7 +354,7 @@ fn file_hook_captures_files_with_none_mode() {
 #[test]
 fn file_hook_matches_glob_pattern() {
     // Arrange - create multiple files
-    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::new()));
+    let temp_dir = std::env::temp_dir().join(format!("capsula_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
     let artifact_dir = run_dir.join("pre-0-capture-file");
     fs::create_dir_all(&temp_dir).unwrap();
@@ -372,7 +372,7 @@ fn file_hook_matches_glob_pattern() {
     let hook = <FileHook as Hook<PreRun>>::from_config(&config, &temp_dir).expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir,
