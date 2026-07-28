@@ -17,7 +17,7 @@ fn machine_hook_captures_system_info() {
         .expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),
@@ -66,7 +66,7 @@ fn machine_hook_default_config() {
     // Test that default config works
     let hook = MachineHook::default();
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),

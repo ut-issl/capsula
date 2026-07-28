@@ -131,7 +131,7 @@ mod tests {
 
     fn make_run(project_root: &Path) -> PreparedRun {
         PreparedRun {
-            id: Ulid::new(),
+            id: Ulid::generate(),
             name: "test-run".into(),
             command: vec![],
             run_dir: project_root.to_path_buf(),

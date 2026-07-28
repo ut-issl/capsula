@@ -34,7 +34,7 @@ fn env_hook_captures_existing_variable() {
         .expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),
@@ -80,7 +80,7 @@ fn env_hook_captures_missing_variable() {
         .expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),

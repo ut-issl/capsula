@@ -15,7 +15,7 @@ fn cwd_hook_captures_current_dir_and_json() {
     let expected = std::env::current_dir().expect("current_dir");
     let hook = CwdHook::default();
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: expected.clone(),

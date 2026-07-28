@@ -20,7 +20,7 @@ fn command_hook_executes_successful_command() {
         .expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),
@@ -58,7 +58,7 @@ fn command_hook_captures_failing_command() {
         .expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),
@@ -94,7 +94,7 @@ fn command_hook_aborts_on_failure_when_configured() {
         .expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),
@@ -123,7 +123,7 @@ fn command_hook_captures_stderr() {
         .expect("from_config ok");
 
     let run_metadata = PreparedRun {
-        id: Ulid::new(),
+        id: Ulid::generate(),
         name: "test-run".to_string(),
         command: vec![],
         run_dir: PathBuf::from("."),
