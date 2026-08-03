@@ -2,6 +2,7 @@ use capsula_api_types::{UploadResponse, VaultExistsResponse, VaultInfo, VaultsRe
 use reqwest::StatusCode;
 use reqwest::blocking::multipart;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::redirect::Policy;
 use serde_json::Value as JsonValue;
 use std::path::Path;
 use thiserror::Error;
@@ -26,6 +27,15 @@ pub enum ClientError {
 
 pub type Result<T> = std::result::Result<T, ClientError>;
 
+/// Outcome of registering a run on the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreateRunOutcome {
+    /// The run was newly created.
+    Created,
+    /// A run with the same ID already exists on the server.
+    AlreadyExists,
+}
+
 #[derive(Debug, Clone)]
 pub struct CapsulaClient {
     base_url: String,
@@ -35,9 +45,17 @@ pub struct CapsulaClient {
 impl CapsulaClient {
     /// Create a new Capsula client
     pub fn new(base_url: impl Into<String>) -> Self {
+        #[expect(
+            clippy::expect_used,
+            reason = "mirrors reqwest::blocking::Client::new(), which panics if the client cannot be initialized"
+        )]
+        let client = reqwest::blocking::Client::builder()
+            .redirect(Policy::none())
+            .build()
+            .expect("failed to initialize HTTP client");
         Self {
             base_url: base_url.into(),
-            client: reqwest::blocking::Client::new(),
+            client,
         }
     }
 
@@ -61,8 +79,11 @@ impl CapsulaClient {
             header_map.insert(header_name, header_value);
         }
 
+        // Never follow redirects: a cross-origin redirect would forward the
+        // configured credential headers to the redirect target
         let client = reqwest::blocking::Client::builder()
             .default_headers(header_map)
+            .redirect(Policy::none())
             .build()?;
 
         Ok(Self {
@@ -72,12 +93,14 @@ impl CapsulaClient {
     }
 
     fn server_error(action: &str, status: StatusCode) -> ClientError {
-        let auth_hint = if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
+        let hint = if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
             " (authentication may be missing or expired; check [server.headers] in capsula.toml)"
+        } else if status.is_redirection() {
+            " (the server redirected the request, possibly to a login page; redirects are not followed — check the server URL and authentication configuration)"
         } else {
             ""
         };
-        ClientError::ServerError(format!("{action}: {status}{auth_hint}"))
+        ClientError::ServerError(format!("{action}: {status}{hint}"))
     }
 
     /// List all vaults on the server
@@ -110,6 +133,18 @@ impl CapsulaClient {
 
         let vault_response: VaultExistsResponse = response.json()?;
         Ok(vault_response.vault)
+    }
+
+    /// Register a run's metadata on the server.
+    pub fn create_run(&self, run: &JsonValue) -> Result<CreateRunOutcome> {
+        let url = format!("{}/api/v1/runs", self.base_url);
+        let response = self.client.post(&url).json(run).send()?;
+
+        match response.status() {
+            StatusCode::CONFLICT => Ok(CreateRunOutcome::AlreadyExists),
+            status if status.is_success() => Ok(CreateRunOutcome::Created),
+            status => Err(Self::server_error("Failed to create run on server", status)),
+        }
     }
 
     /// Upload a run's data and files to the server
@@ -224,6 +259,112 @@ mod tests {
         .unwrap();
 
         assert!(vaults.is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn create_run_sends_headers_and_maps_conflict_to_already_exists() {
+        use wiremock::matchers::{body_json, header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let created = MockServer::start().await;
+        let payload = serde_json::json!({ "id": "01RUN", "vault": "v" });
+        Mock::given(method("POST"))
+            .and(path("/api/v1/runs"))
+            .and(header("x-auth", "secret"))
+            .and(body_json(payload.clone()))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&created)
+            .await;
+
+        let conflicting = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/runs"))
+            .respond_with(ResponseTemplate::new(409))
+            .mount(&conflicting)
+            .await;
+
+        let created_uri = created.uri();
+        let conflicting_uri = conflicting.uri();
+        let (first, second) = tokio::task::spawn_blocking(move || {
+            let auth = [("x-auth".to_string(), "secret".to_string())];
+            let first = CapsulaClient::with_headers(created_uri, &auth)
+                .unwrap()
+                .create_run(&payload);
+            let second = CapsulaClient::with_headers(conflicting_uri, &auth)
+                .unwrap()
+                .create_run(&payload);
+            (first, second)
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(first.unwrap(), CreateRunOutcome::Created);
+        assert_eq!(second.unwrap(), CreateRunOutcome::AlreadyExists);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn vault_exists_sends_configured_headers() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/vaults/my-vault"))
+            .and(header("x-auth", "secret"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({ "status": "ok", "exists": false, "vault": null }),
+            ))
+            .mount(&server)
+            .await;
+
+        let uri = server.uri();
+        let vault = tokio::task::spawn_blocking(move || {
+            CapsulaClient::with_headers(uri, &[("x-auth".to_string(), "secret".to_string())])
+                .unwrap()
+                .vault_exists("my-vault")
+        })
+        .await
+        .unwrap()
+        .unwrap();
+
+        assert!(vault.is_none());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn does_not_follow_redirects_and_reports_them() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let target = MockServer::start().await;
+        let origin = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/vaults"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("location", format!("{}/api/v1/vaults", target.uri())),
+            )
+            .mount(&origin)
+            .await;
+
+        let uri = origin.uri();
+        let error = tokio::task::spawn_blocking(move || {
+            CapsulaClient::with_headers(
+                uri,
+                &[(
+                    "cf-access-client-secret".to_string(),
+                    "top-secret".to_string(),
+                )],
+            )
+            .unwrap()
+            .list_vaults()
+        })
+        .await
+        .unwrap()
+        .unwrap_err();
+
+        assert!(error.to_string().contains("redirects are not followed"));
+        // The credential header must never reach the redirect target
+        assert!(target.received_requests().await.unwrap().is_empty());
     }
 
     #[tokio::test(flavor = "multi_thread")]

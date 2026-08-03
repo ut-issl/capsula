@@ -82,14 +82,18 @@ impl<'de> Deserialize<'de> for ServerConfig {
         D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct DetailedServerConfigHelper {
+            url: String,
+            #[serde(default)]
+            headers: BTreeMap<String, HeaderValueSource>,
+        }
+
+        #[derive(Deserialize)]
         #[serde(untagged)]
         enum ServerConfigHelper {
             Url(String),
-            Detailed {
-                url: String,
-                #[serde(default)]
-                headers: BTreeMap<String, HeaderValueSource>,
-            },
+            Detailed(DetailedServerConfigHelper),
         }
 
         Ok(match ServerConfigHelper::deserialize(deserializer)? {
@@ -97,7 +101,10 @@ impl<'de> Deserialize<'de> for ServerConfig {
                 url,
                 headers: BTreeMap::new(),
             },
-            ServerConfigHelper::Detailed { url, headers } => Self { url, headers },
+            ServerConfigHelper::Detailed(detailed) => Self {
+                url: detailed.url,
+                headers: detailed.headers,
+            },
         })
     }
 }
@@ -370,6 +377,22 @@ url = "https://capsula.example.com"
 
 [server.headers]
 Authorization = { env = "CAPSULA_TOKEN", command = "echo x" }
+"#;
+
+        assert!(CapsulaConfig::from_toml_str(config_str).is_err());
+    }
+
+    #[test]
+    fn rejects_unknown_field_in_server_table() {
+        let config_str = r#"
+[vault]
+name = "v"
+
+[server]
+url = "https://capsula.example.com"
+
+[server.header]
+Authorization = "typo-should-fail"
 "#;
 
         assert!(CapsulaConfig::from_toml_str(config_str).is_err());

@@ -75,24 +75,38 @@ pub fn resolve_server_url(
     None
 }
 
+/// Check whether two URLs share the same origin (scheme, host, and effective port).
+pub fn is_same_origin(a: &str, b: &str) -> anyhow::Result<bool> {
+    let parse = |input: &str| {
+        reqwest::Url::parse(input).with_context(|| format!("Invalid server URL: {input}"))
+    };
+    Ok(parse(a)?.origin() == parse(b)?.origin())
+}
+
 /// Resolve configured server headers into concrete `(name, value)` pairs.
 ///
 /// Environment variables and commands are evaluated at call time, so dotenv
-/// should be loaded before calling.
+/// should be loaded before calling. Commands run with `project_root` as their
+/// working directory, matching the `capture-command` hook.
 pub fn resolve_server_headers(
     headers: &BTreeMap<String, HeaderValueSource>,
+    project_root: &Path,
 ) -> anyhow::Result<Vec<(String, String)>> {
     headers
         .iter()
         .map(|(name, source)| {
-            let value = resolve_header_value(name, source)?;
+            let value = resolve_header_value(name, source, project_root)?;
             debug!("Resolved server header: {}", name);
             Ok((name.clone(), value))
         })
         .collect()
 }
 
-fn resolve_header_value(name: &str, source: &HeaderValueSource) -> anyhow::Result<String> {
+fn resolve_header_value(
+    name: &str,
+    source: &HeaderValueSource,
+    project_root: &Path,
+) -> anyhow::Result<String> {
     match source {
         HeaderValueSource::Literal(value) => Ok(value.clone()),
         HeaderValueSource::Env(env_source) => {
@@ -108,12 +122,12 @@ fn resolve_header_value(name: &str, source: &HeaderValueSource) -> anyhow::Resul
             })
         }
         HeaderValueSource::Command(command_source) => {
-            run_header_command(name, &command_source.command)
+            run_header_command(name, &command_source.command, project_root)
         }
     }
 }
 
-fn run_header_command(name: &str, command: &str) -> anyhow::Result<String> {
+fn run_header_command(name: &str, command: &str, project_root: &Path) -> anyhow::Result<String> {
     let tokens = shlex::split(command)
         .ok_or_else(|| anyhow::anyhow!("Header '{name}': failed to parse command: {command}"))?;
     let [program, args @ ..] = tokens.as_slice() else {
@@ -122,6 +136,7 @@ fn run_header_command(name: &str, command: &str) -> anyhow::Result<String> {
 
     let output = std::process::Command::new(program)
         .args(args)
+        .current_dir(project_root)
         .output()
         .with_context(|| format!("Header '{name}': failed to execute command '{command}'"))?;
 
@@ -163,7 +178,7 @@ mod tests {
             HeaderValueSource::Literal("fixed".to_string()),
         )]);
 
-        let resolved = resolve_server_headers(&headers).unwrap();
+        let resolved = resolve_server_headers(&headers, Path::new(".")).unwrap();
 
         assert_eq!(
             resolved,
@@ -180,7 +195,7 @@ mod tests {
             env_source("PATH", Some("Bearer ")),
         )]);
 
-        let resolved = resolve_server_headers(&headers).unwrap();
+        let resolved = resolve_server_headers(&headers, Path::new(".")).unwrap();
 
         assert_eq!(resolved[0].1, format!("Bearer {path_value}"));
     }
@@ -192,7 +207,7 @@ mod tests {
             env_source("CAPSULA_TEST_UNSET_VAR_1153", None),
         )]);
 
-        let error = resolve_server_headers(&headers).unwrap_err();
+        let error = resolve_server_headers(&headers, Path::new(".")).unwrap_err();
 
         assert!(error.to_string().contains("CAPSULA_TEST_UNSET_VAR_1153"));
     }
@@ -201,7 +216,7 @@ mod tests {
     fn resolves_command_stdout_with_trailing_newline_trimmed() {
         let headers = BTreeMap::from([("x-token".to_string(), command_source("echo token-value"))]);
 
-        let resolved = resolve_server_headers(&headers).unwrap();
+        let resolved = resolve_server_headers(&headers, Path::new(".")).unwrap();
 
         assert_eq!(
             resolved,
@@ -216,11 +231,44 @@ mod tests {
             command_source("sh -c 'echo session-expired >&2; exit 1'"),
         )]);
 
-        let error = resolve_server_headers(&headers).unwrap_err();
+        let error = resolve_server_headers(&headers, Path::new(".")).unwrap_err();
 
         let message = error.to_string();
         assert!(message.contains("x-token"));
         assert!(message.contains("session-expired"));
+    }
+
+    #[test]
+    fn runs_command_from_project_root() {
+        let project_root = tempfile::tempdir().unwrap();
+        std::fs::write(project_root.path().join("marker.txt"), "from-root\n").unwrap();
+        let headers = BTreeMap::from([("x-token".to_string(), command_source("cat marker.txt"))]);
+
+        let resolved = resolve_server_headers(&headers, project_root.path()).unwrap();
+
+        assert_eq!(resolved[0].1, "from-root");
+    }
+
+    #[test]
+    fn same_origin_ignores_paths_and_default_ports() {
+        assert!(is_same_origin("http://capsula.example", "http://capsula.example:80/api").unwrap());
+        assert!(
+            is_same_origin("https://capsula.example:443/x", "https://capsula.example").unwrap()
+        );
+    }
+
+    #[test]
+    fn different_scheme_host_or_port_is_cross_origin() {
+        assert!(!is_same_origin("http://capsula.example", "https://capsula.example").unwrap());
+        assert!(!is_same_origin("https://a.example", "https://b.example").unwrap());
+        assert!(
+            !is_same_origin("https://capsula.example", "https://capsula.example:8443").unwrap()
+        );
+    }
+
+    #[test]
+    fn invalid_url_is_an_error_not_a_match() {
+        assert!(is_same_origin("not a url", "https://capsula.example").is_err());
     }
 
     #[test]
@@ -230,7 +278,7 @@ mod tests {
             command_source("capsula-test-nonexistent-binary-1153"),
         )]);
 
-        let error = resolve_server_headers(&headers).unwrap_err();
+        let error = resolve_server_headers(&headers, Path::new(".")).unwrap_err();
 
         assert!(error.to_string().contains("failed to execute"));
     }

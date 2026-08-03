@@ -6,7 +6,6 @@ use tracing::{debug, info};
 pub fn push_single_run(
     run_dir: &Path,
     vault_name: &str,
-    server_url: &str,
     client: &capsula_client::CapsulaClient,
 ) -> Result<()> {
     let capsula_dir = run_dir.join("_capsula");
@@ -63,17 +62,12 @@ pub fn push_single_run(
         "stderr": command_output.get("stderr"),
     });
 
-    // Post the run metadata
-    let url = format!("{server_url}/api/v1/runs");
-    let http_client = reqwest::blocking::Client::new();
-    let response = http_client.post(&url).json(&create_run_payload).send()?;
-
-    if !response.status().is_success() {
-        if response.status().as_u16() == 409 {
+    // Post the run metadata through the authenticated client
+    match client.create_run(&create_run_payload)? {
+        capsula_client::CreateRunOutcome::AlreadyExists => {
             info!("Run already registered on server, re-uploading files: {run_name}");
-        } else {
-            anyhow::bail!("Failed to create run on server: {}", response.status());
         }
+        capsula_client::CreateRunOutcome::Created => {}
     }
 
     // Collect files to upload

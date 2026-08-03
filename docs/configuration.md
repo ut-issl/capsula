@@ -52,7 +52,7 @@ The Capsula server used by `capsula push` and `capsula vaults`. The simplest for
 server = "https://capsula.example.com"
 ```
 
-The URL can also be set with the `--server` flag or the `CAPSULA_SERVER_URL` environment variable, which take priority over the config file (in that order).
+The URL can also be set with the `--server` flag or the `CAPSULA_SERVER_URL` environment variable, which take priority over the config file (in that order). When `[server.headers]` is configured, an override must point at the same origin (scheme, host, and port) as the configured `url` — credentials are never sent to a different origin, and a cross-origin override is rejected with an error.
 
 #### `server.headers` (optional)
 
@@ -91,7 +91,9 @@ CF-Access-Client-Id = { env = "CF_ACCESS_CLIENT_ID" }
 CF-Access-Client-Secret = { env = "CF_ACCESS_CLIENT_SECRET" }
 ```
 
-Commands are split with shell-like word splitting and executed directly (no shell), and their stdout is trimmed of trailing newlines. If a command fails (e.g. an expired login session), the push aborts with the command's stderr.
+Commands are split with shell-like word splitting and executed directly (no shell) from the project root (the directory containing `capsula.toml`), and their stdout is trimmed of trailing newlines. If a command fails (e.g. an expired login session), the push aborts with the command's stderr.
+
+HTTP redirects are never followed: a redirect (e.g. to a login page) is reported as an error instead of forwarding credentials to the redirect target.
 
 !!! warning "Trust model"
     `command` entries execute arbitrary commands when you run `capsula push` or `capsula vaults`. Only use them with a trusted `capsula.toml` — the same caution that already applies to the `capture-command` hook.
