@@ -233,6 +233,47 @@ capsula push --all
 capsula push happy-river --server https://capsula.example.com
 ```
 
+## `capsula pull`
+
+Download a run from a capsula server and restore it under the local vault.
+
+The run directory is restored at `{YYYY-MM-DD}/{HHMMSS}-{name}` (derived
+from the run's ID and name, like locally created runs). Captured files are
+verified against the server-recorded SHA-256 hashes, and only files with
+relative paths that stay inside the run directory are restored — absolute
+paths and paths containing `..` are rejected as errors. The `_capsula`
+metadata files are reconstructed from the server's structured data —
+best-effort, not byte-identical to the originals — and a
+`_capsula/pulled.json` marker records the origin server and pull time so
+pulled runs can be told apart from locally produced ones.
+
+### Usage
+
+```bash
+capsula pull <RUN_ID>
+```
+
+### Options
+
+| Option | Description |
+| -------- | ------------- |
+| `--vault <NAME>` | Expected vault of the run (defaults to the vault in `capsula.toml`). The pull fails if the run belongs to a different vault. |
+| `--server <URL>` | Server URL (can also be set via `CAPSULA_SERVER_URL` env var or `server` field in `capsula.toml`) |
+| `--force` | Replace the local run directory if it already exists |
+
+### Examples
+
+```bash
+# Pull a run by ID
+capsula pull 01K8WSYC91YAE21R7CWHQ4KYN2
+
+# Pull a run that belongs to another vault
+capsula pull 01K8WSYC91YAE21R7CWHQ4KYN2 --vault other-vault
+
+# Pull from a specific server, replacing a previously pulled copy
+capsula pull 01K8WSYC91YAE21R7CWHQ4KYN2 --server https://capsula.example.com --force
+```
+
 ## `capsula tui`
 
 Launch an interactive terminal UI for starting and ending runs.

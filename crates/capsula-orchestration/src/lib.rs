@@ -1,4 +1,5 @@
 pub(crate) mod hooks;
+pub mod pull;
 pub mod push;
 pub mod resolve;
 pub mod run;

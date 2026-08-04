@@ -30,20 +30,33 @@ impl<Dir> Run<Dir> {
     }
 
     fn gen_run_dir(&self, vault_dir: impl AsRef<Path>) -> PathBuf {
-        let timestamp = self.timestamp();
-        let date_str = timestamp.format("%Y-%m-%d").to_string();
-        let time_str = timestamp.format("%H%M%S").to_string();
-
-        // Prefix the run directory with time because
-        // folders are sorted in natural order, not in lexicographical order,
-        // For example, on macOS Finder, the order is:
-        // 1. 01K5K478KNQ2ZXZG68MWM1Z9X6
-        // 2. 01K5K4571FGKBFTTRJCG1J3DCZ
-        // which is not the correct chronological order.
-        // By adding time prefix, it will be sorted correctly.
-        let run_dir_name = format!("{}-{}", time_str, self.name);
-        vault_dir.as_ref().join(date_str).join(&run_dir_name)
+        vault_dir
+            .as_ref()
+            .join(run_dir_relative_path(&self.id, &self.name))
     }
+}
+
+/// Relative path of a run directory within its vault:
+/// `{YYYY-MM-DD}/{HHMMSS}-{name}`.
+///
+/// Both components derive from the ULID's embedded timestamp (UTC), so the
+/// location is reproducible from `id` and `name` alone (e.g. when restoring
+/// a run pulled from a server).
+///
+/// The directory is prefixed with the time because folders are sorted in
+/// natural order, not in lexicographical order. For example, on macOS
+/// Finder, the order is:
+/// 1. `01K5K478KNQ2ZXZG68MWM1Z9X6`
+/// 2. `01K5K4571FGKBFTTRJCG1J3DCZ`
+///
+/// which is not the correct chronological order. By adding the time
+/// prefix, it will be sorted correctly.
+#[must_use]
+pub fn run_dir_relative_path(id: &Ulid, name: &str) -> PathBuf {
+    let timestamp: DateTime<Utc> = id.datetime().into();
+    let date_str = timestamp.format("%Y-%m-%d").to_string();
+    let time_str = timestamp.format("%H%M%S").to_string();
+    PathBuf::from(date_str).join(format!("{time_str}-{name}"))
 }
 
 impl UnpreparedRun {
@@ -273,7 +286,8 @@ impl PreparedRun {
     }
 }
 
-fn setup_vault(path: impl AsRef<std::path::Path>) -> io::Result<()> {
+/// Create the vault directory (and its `.gitignore`) if it does not exist.
+pub fn setup_vault(path: impl AsRef<std::path::Path>) -> io::Result<()> {
     let path = path.as_ref();
     if path.exists() {
         debug!("Vault directory already exists: {}", path.display());

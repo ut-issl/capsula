@@ -12,6 +12,7 @@ categories = ["development-tools"]
 
 [dependencies]
 anyhow = { workspace = true }
+capsula-api-types = { workspace = true }
 capsula-client = { workspace = true }
 capsula-config = { workspace = true }
 capsula-core = { workspace = true }
@@ -22,9 +23,16 @@ names = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
+shlex = { workspace = true }
+tempfile = { workspace = true }
 tracing = { workspace = true }
 ulid = { workspace = true }
 walkdir = "2"
+
+[dev-dependencies]
+tokio = { workspace = true }
+wiremock = { workspace = true }
 
 [lints]
 workspace = true

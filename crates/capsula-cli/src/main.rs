@@ -7,6 +7,7 @@
 use anyhow::{Context, Result};
 use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::PreparedRun;
+use capsula_orchestration::pull::pull_single_run;
 use capsula_orchestration::push::push_single_run;
 use capsula_orchestration::resolve::resolve_server_url;
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
@@ -94,6 +95,23 @@ enum Commands {
         /// Server URL (can also be set via `CAPSULA_SERVER_URL` env var after dotenv loading)
         #[arg(long)]
         server: Option<String>,
+    },
+    /// Download a run from a Capsula server into the local vault
+    Pull {
+        /// Run ID (ULID) to pull (e.g., 01HQXYZ...)
+        run_id: String,
+
+        /// Expected vault of the run (defaults to the vault in capsula.toml)
+        #[arg(long)]
+        vault: Option<String>,
+
+        /// Server URL (can also be set via `CAPSULA_SERVER_URL` env var after dotenv loading)
+        #[arg(long)]
+        server: Option<String>,
+
+        /// Replace the local run directory if it already exists
+        #[arg(long)]
+        force: bool,
     },
     /// Launch interactive terminal UI for starting and ending runs
     Tui,
@@ -484,6 +502,46 @@ path = \".\"
                 }
                 (false, None) => anyhow::bail!("Either provide a run ID/name or use --all flag"),
             }
+        }
+        Commands::Pull {
+            run_id,
+            vault,
+            server,
+            force,
+        } => {
+            let server_url =
+                resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
+                    )
+                })?;
+
+            let client = capsula_client::CapsulaClient::new(&server_url);
+            let vault_name = vault.unwrap_or_else(|| config.vault.name.clone());
+
+            // The configured vault maps to vault_dir (which may be a custom
+            // path); runs pulled from other vaults are placed in a sibling
+            // directory named after their vault.
+            let target_vault_dir = if vault_name == config.vault.name {
+                vault_dir
+            } else {
+                vault_dir
+                    .parent()
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Cannot determine a location for vault '{}': the configured vault directory {} has no parent",
+                            vault_name,
+                            vault_dir.display()
+                        )
+                    })?
+                    .join(&vault_name)
+            };
+
+            info!("Pulling run {} from server {}", run_id, server_url);
+
+            let run_dir = pull_single_run(&run_id, &vault_name, &target_vault_dir, &client, force)?;
+
+            info!("Pulled run into {}", run_dir.display());
         }
         Commands::Tui => unreachable!("Handled above"),
         Commands::Vaults { command } => match command {

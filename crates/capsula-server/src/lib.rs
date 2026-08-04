@@ -823,6 +823,40 @@ async fn create_run(
     }
 }
 
+/// Fetch a run's captured files as JSON objects exposing only
+/// client-relevant fields (`storage_path` is a server-internal location).
+async fn fetch_run_files_json(pool: &PgPool, id: &str) -> Vec<serde_json::Value> {
+    let files_result = sqlx::query_as!(
+        models::CapturedFile,
+        r#"
+        SELECT path, size, hash, storage_path, content_type
+        FROM captured_files
+        WHERE run_id = $1
+        ORDER BY path
+        "#,
+        id
+    )
+    .fetch_all(pool)
+    .await;
+
+    match files_result {
+        Ok(files) => files
+            .into_iter()
+            .map(|f| {
+                json!({
+                    "path": f.path,
+                    "size": f.size,
+                    "hash": f.hash,
+                })
+            })
+            .collect(),
+        Err(e) => {
+            error!("Failed to fetch captured files: {}", e);
+            Vec::new()
+        }
+    }
+}
+
 async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     info!("Getting run: {}", id);
 
@@ -885,11 +919,14 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
                 }
             };
 
+            let files = fetch_run_files_json(&state.pool, &id).await;
+
             Json(json!({
                 "status": "ok",
                 "run": run,
                 "pre_run_hooks": pre_run_hooks,
-                "post_run_hooks": post_run_hooks
+                "post_run_hooks": post_run_hooks,
+                "files": files
             }))
         }
         Ok(None) => {
