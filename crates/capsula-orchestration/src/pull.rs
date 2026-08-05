@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use capsula_api_types::{RunDetailResponse, RunRecord};
 use capsula_core::run::{run_dir_relative_path, setup_vault};
+use capsula_core::util::hex_encode;
 use sha2::{Digest, Sha256};
 use std::path::{Component, Path, PathBuf};
 use tracing::{debug, info, warn};
@@ -10,11 +11,18 @@ use ulid::Ulid;
 ///
 /// The run directory is reconstructed at `{YYYY-MM-DD}/{HHMMSS}-{name}`
 /// (derived from the run's ULID and name, like locally created runs).
-/// Captured files are verified against the server-recorded SHA-256 hashes;
-/// the `_capsula` metadata files are reconstructed best-effort from the
-/// server's structured data and a `_capsula/pulled.json` marker records the
-/// origin. Everything is downloaded into a temporary directory and renamed
-/// into place, so an interrupted pull never leaves a half-restored run.
+/// Captured files are verified against the server-recorded sizes and
+/// SHA-256 hashes; the `_capsula` metadata files are reconstructed
+/// best-effort from the server's structured data and a
+/// `_capsula/pulled.json` marker records the origin. Everything is
+/// downloaded into a temporary directory directly under the vault root
+/// (outside the `vault/*/*` depth that the vault scanners walk) and
+/// renamed into place, so an interrupted pull never leaves a
+/// half-restored or phantom run.
+///
+/// A pulled run is a lossy reconstruction of the original, so `--force`
+/// only replaces run directories that carry the `pulled.json` marker;
+/// locally produced runs are never replaced.
 ///
 /// Returns the path of the restored run directory.
 pub fn pull_single_run(
@@ -24,6 +32,15 @@ pub fn pull_single_run(
     client: &capsula_client::CapsulaClient,
     force: bool,
 ) -> Result<PathBuf> {
+    // Fail fast on non-ULID arguments (e.g. a run *name*): the server
+    // would answer not_found, which misleadingly reads as "never pushed".
+    if Ulid::from_string(run_id).is_err() {
+        anyhow::bail!(
+            "'{run_id}' is not a run ID (ULID). `capsula pull` requires the run ID; \
+             run names cannot be resolved on the server. Find the ID with `capsula show <name>`."
+        );
+    }
+
     let detail = client.get_run(run_id)?;
     let run = match detail.status.as_str() {
         "ok" => detail
@@ -48,13 +65,37 @@ pub fn pull_single_run(
 
     let ulid = Ulid::from_string(&run.id)
         .with_context(|| format!("Server returned a non-ULID run id: '{}'", run.id))?;
+    // The name becomes part of the run directory name; a separator or
+    // `..` inside it would place the run outside the vault.
+    ensure_single_path_component(&run.name, "run name")?;
     let target_dir = target_vault_dir.join(run_dir_relative_path(&ulid, &run.name));
 
-    if target_dir.exists() && !force {
-        anyhow::bail!(
-            "Run directory already exists: {}. Use --force to replace it.",
-            target_dir.display()
-        );
+    if target_dir.exists() {
+        let is_pulled = is_pulled_run(&target_dir);
+        if !force {
+            if is_pulled {
+                anyhow::bail!(
+                    "A previously pulled copy of this run already exists: {}. \
+                     Use --force to replace it.",
+                    target_dir.display()
+                );
+            }
+            anyhow::bail!(
+                "Run directory already exists and appears locally produced \
+                 (no _capsula/pulled.json marker): {}. Refusing to replace it: \
+                 a pulled run is a lossy reconstruction of the original.",
+                target_dir.display()
+            );
+        }
+        if !is_pulled {
+            anyhow::bail!(
+                "--force only replaces previously pulled runs, but {} has no \
+                 _capsula/pulled.json marker and appears locally produced. \
+                 A pulled run is a lossy reconstruction of the original; \
+                 delete the directory manually if you really intend to replace it.",
+                target_dir.display()
+            );
+        }
     }
 
     setup_vault(target_vault_dir)?;
@@ -64,18 +105,30 @@ pub fn pull_single_run(
     std::fs::create_dir_all(date_dir)
         .with_context(|| format!("Failed to create {}", date_dir.display()))?;
 
-    // Download into a temporary sibling directory (same filesystem) first,
-    // then rename into place.
+    // Download into a temporary directory directly under the vault root:
+    // the same filesystem (so the rename below stays atomic), but one
+    // level above the `vault/*/*` depth that list_runs / find_run_dir /
+    // `push --all` walk — an interrupted pull leaves at worst an inert
+    // `.pull-tmp-*` directory that no scanner mistakes for a run.
     let temp = tempfile::Builder::new()
         .prefix(".pull-tmp-")
-        .tempdir_in(date_dir)
+        .tempdir_in(target_vault_dir)
         .context("Failed to create temporary download directory")?;
 
     download_captured_files(client, &detail, &run.id, temp.path())?;
     write_capsula_dir(&detail, run, &target_dir, temp.path(), client.base_url())?;
 
+    // Re-check at replacement time: the directory may have appeared (or
+    // changed) while we were downloading, e.g. through a concurrent pull
+    // or a local run landing in the same slot.
     if target_dir.exists() {
-        // Only reachable with --force (checked above).
+        if !force || !is_pulled_run(&target_dir) {
+            anyhow::bail!(
+                "Run directory {} appeared or changed during the download; \
+                 refusing to replace it",
+                target_dir.display()
+            );
+        }
         std::fs::remove_dir_all(&target_dir)
             .with_context(|| format!("Failed to remove {}", target_dir.display()))?;
     }
@@ -91,8 +144,28 @@ pub fn pull_single_run(
     Ok(target_dir)
 }
 
+/// A run directory restored by `pull` carries this marker (written by
+/// [`write_capsula_dir`]); locally produced runs do not.
+fn is_pulled_run(run_dir: &Path) -> bool {
+    run_dir.join("_capsula").join("pulled.json").is_file()
+}
+
+/// Assert that `value` is usable as a single, normal path component —
+/// no separators, no `..`, not absolute, not empty.
+pub fn ensure_single_path_component(value: &str, what: &str) -> Result<()> {
+    let mut components = Path::new(value).components();
+    let is_single = matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    );
+    if !is_single {
+        anyhow::bail!("{what} '{value}' is not a single path component");
+    }
+    Ok(())
+}
+
 /// Download all captured files listed in the run detail into `dest`,
-/// verifying each against its server-recorded SHA-256 hash.
+/// verifying each against its server-recorded size and SHA-256 hash.
 fn download_captured_files(
     client: &capsula_client::CapsulaClient,
     detail: &RunDetailResponse,
@@ -100,10 +173,19 @@ fn download_captured_files(
     dest: &Path,
 ) -> Result<()> {
     for file in &detail.files {
-        let relative_path = sanitize_relative_path(&file.path)?;
+        let relative_path = checked_run_relative_path(&file.path)?;
         let bytes = client
             .download_file(run_id, &file.path)
             .with_context(|| format!("Failed to download '{}'", file.path))?;
+
+        if i64::try_from(bytes.len()).ok() != Some(file.size) {
+            anyhow::bail!(
+                "Size mismatch for '{}': server recorded {} bytes, downloaded {}",
+                file.path,
+                file.size,
+                bytes.len()
+            );
+        }
 
         if let Some(expected) = &file.hash {
             let actual = hex_encode(Sha256::digest(&bytes).as_ref());
@@ -133,9 +215,11 @@ fn download_captured_files(
 }
 
 /// Minimal containment check for server-provided file paths: reject
-/// anything that is absolute or steps outside the run directory. (Broader
-/// hardening against malicious server responses is tracked separately.)
-fn sanitize_relative_path(path: &str) -> Result<PathBuf> {
+/// anything that is absolute or steps outside the run directory.
+/// (Distinct from the server's upload-side `sanitize_relative_path`,
+/// which normalizes instead of rejecting; broader hardening is tracked
+/// separately.)
+fn checked_run_relative_path(path: &str) -> Result<PathBuf> {
     let p = Path::new(path);
     if p.as_os_str().is_empty()
         || p.is_absolute()
@@ -191,7 +275,18 @@ fn write_capsula_dir(
     // The server stores the duration in milliseconds, so the restored
     // duration loses sub-millisecond precision.
     if let Some(exit_code) = run.exit_code {
-        let duration_ms = u64::try_from(run.duration_ms.unwrap_or(0)).unwrap_or(0);
+        let duration_ms: u64 = match run.duration_ms {
+            Some(ms) if ms < 0 => {
+                warn!(
+                    "Server recorded a negative duration_ms ({ms}) for run '{}'; \
+                     restoring duration as 0",
+                    run.id
+                );
+                0
+            }
+            Some(ms) => u64::try_from(ms).unwrap_or(0),
+            None => 0,
+        };
         let command_output = serde_json::json!({
             "exit_code": exit_code,
             "stdout": run.stdout.clone().unwrap_or_default(),
@@ -204,7 +299,8 @@ fn write_capsula_dir(
         write_pretty_json(&capsula_dir.join("command.json"), &command_output)?;
     }
 
-    // Marker distinguishing pulled runs from locally produced ones.
+    // Marker distinguishing pulled runs from locally produced ones; read
+    // back by pull's --force guard and by push's re-upload guard.
     let pulled = serde_json::json!({
         "server_url": server_url,
         "pulled_at": chrono::Utc::now().to_rfc3339(),
@@ -226,14 +322,6 @@ fn parse_command(raw: &str) -> Vec<String> {
 fn write_pretty_json(path: &Path, value: &serde_json::Value) -> Result<()> {
     std::fs::write(path, serde_json::to_string_pretty(value)?)
         .with_context(|| format!("Failed to write {}", path.display()))
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    use std::fmt::Write;
-    bytes.iter().fold(String::new(), |mut out, b| {
-        let _ = write!(out, "{b:02x}");
-        out
-    })
 }
 
 #[cfg(test)]
@@ -263,18 +351,33 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_rejects_escaping_paths() {
-        assert!(sanitize_relative_path("../evil.txt").is_err());
-        assert!(sanitize_relative_path("/etc/passwd").is_err());
-        assert!(sanitize_relative_path("a/../../evil.txt").is_err());
-        assert!(sanitize_relative_path("").is_err());
+    fn checked_run_relative_path_rejects_escaping_paths() {
+        assert!(checked_run_relative_path("../evil.txt").is_err());
+        assert!(checked_run_relative_path("/etc/passwd").is_err());
+        assert!(checked_run_relative_path("a/../../evil.txt").is_err());
+        assert!(checked_run_relative_path("").is_err());
     }
 
     #[test]
-    fn sanitize_accepts_nested_relative_paths() {
+    fn checked_run_relative_path_accepts_nested_relative_paths() {
         assert_eq!(
-            sanitize_relative_path("output/result.txt").unwrap(),
+            checked_run_relative_path("output/result.txt").unwrap(),
             PathBuf::from("output/result.txt")
         );
+    }
+
+    #[test]
+    fn ensure_single_path_component_accepts_plain_names() {
+        assert!(ensure_single_path_component("e2e-vault", "vault name").is_ok());
+        assert!(ensure_single_path_component("happy-river", "run name").is_ok());
+    }
+
+    #[test]
+    fn ensure_single_path_component_rejects_separators_and_traversal() {
+        assert!(ensure_single_path_component("a/b", "vault name").is_err());
+        assert!(ensure_single_path_component("..", "run name").is_err());
+        assert!(ensure_single_path_component("../evil", "run name").is_err());
+        assert!(ensure_single_path_component("/abs", "vault name").is_err());
+        assert!(ensure_single_path_component("", "vault name").is_err());
     }
 }

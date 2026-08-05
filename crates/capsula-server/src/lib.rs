@@ -421,20 +421,7 @@ async fn run_detail_page(
     };
 
     // Fetch captured files
-    let files_result = sqlx::query_as!(
-        models::CapturedFile,
-        r#"
-        SELECT path, size, hash, storage_path, content_type
-        FROM captured_files
-        WHERE run_id = $1
-        ORDER BY path
-        "#,
-        id
-    )
-    .fetch_all(&state.pool)
-    .await;
-
-    let files = match files_result {
+    let files = match fetch_run_files(&state.pool, &id).await {
         Ok(files) => files,
         Err(e) => {
             error!("Failed to fetch captured files: {}", e);
@@ -823,10 +810,13 @@ async fn create_run(
     }
 }
 
-/// Fetch a run's captured files as JSON objects exposing only
-/// client-relevant fields (`storage_path` is a server-internal location).
-async fn fetch_run_files_json(pool: &PgPool, id: &str) -> Vec<serde_json::Value> {
-    let files_result = sqlx::query_as!(
+/// Fetch a run's captured files, ordered by path. Shared by the HTML
+/// run-detail page and the JSON run-detail endpoint.
+async fn fetch_run_files(
+    pool: &PgPool,
+    id: &str,
+) -> Result<Vec<models::CapturedFile>, sqlx::Error> {
+    sqlx::query_as!(
         models::CapturedFile,
         r#"
         SELECT path, size, hash, storage_path, content_type
@@ -837,24 +827,7 @@ async fn fetch_run_files_json(pool: &PgPool, id: &str) -> Vec<serde_json::Value>
         id
     )
     .fetch_all(pool)
-    .await;
-
-    match files_result {
-        Ok(files) => files
-            .into_iter()
-            .map(|f| {
-                json!({
-                    "path": f.path,
-                    "size": f.size,
-                    "hash": f.hash,
-                })
-            })
-            .collect(),
-        Err(e) => {
-            error!("Failed to fetch captured files: {}", e);
-            Vec::new()
-        }
-    }
+    .await
 }
 
 async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
@@ -919,7 +892,24 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
                 }
             };
 
-            let files = fetch_run_files_json(&state.pool, &id).await;
+            // Expose only client-relevant fields (storage_path is a
+            // server-internal location).
+            let files: Vec<serde_json::Value> = match fetch_run_files(&state.pool, &id).await {
+                Ok(files) => files
+                    .into_iter()
+                    .map(|f| {
+                        json!({
+                            "path": f.path,
+                            "size": f.size,
+                            "hash": f.hash,
+                        })
+                    })
+                    .collect(),
+                Err(e) => {
+                    error!("Failed to fetch captured files: {}", e);
+                    Vec::new()
+                }
+            };
 
             Json(json!({
                 "status": "ok",

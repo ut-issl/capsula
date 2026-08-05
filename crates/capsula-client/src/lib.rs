@@ -1,24 +1,34 @@
 use capsula_api_types::{
     RunDetailResponse, UploadResponse, VaultExistsResponse, VaultInfo, VaultsResponse,
 };
-use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::blocking::multipart;
 use serde_json::Value as JsonValue;
 use std::path::Path;
 use thiserror::Error;
 
+/// `NON_ALPHANUMERIC` minus the RFC 3986 unreserved characters (`-`,
+/// `.`, `_`, `~`), whose escaped and unescaped forms are defined to be
+/// equivalent (§2.3: such escapes "should not be created").
+const PATH_SEGMENT_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~');
+
 /// Percent-encode a run-relative file path for use as a URL path suffix.
 ///
-/// Each `/`-separated segment is encoded with `NON_ALPHANUMERIC`
-/// (allowlist polarity: everything except `[0-9A-Za-z]` is encoded), so
-/// any byte round-trips through the server's `/files/{*path}` wildcard
-/// route without a curated character list. This notably covers `\`,
-/// which the WHATWG URL parser would otherwise rewrite to `/` in an
-/// http(s) path, silently changing the requested file.
+/// Each `/`-separated segment is encoded with allowlist polarity
+/// (everything except `[0-9A-Za-z]` and the RFC 3986 unreserved set is
+/// encoded), so any byte round-trips through the server's
+/// `/files/{*path}` wildcard route without a curated character list.
+/// This notably covers `\`, which the WHATWG URL parser would otherwise
+/// rewrite to `/` in an http(s) path, silently changing the requested
+/// file.
 fn encode_file_path(file_path: &str) -> String {
     file_path
         .split('/')
-        .map(|segment| utf8_percent_encode(segment, NON_ALPHANUMERIC).to_string())
+        .map(|segment| utf8_percent_encode(segment, PATH_SEGMENT_ENCODE_SET).to_string())
         .collect::<Vec<_>>()
         .join("/")
 }
@@ -203,8 +213,9 @@ mod tests {
     }
 
     #[test]
-    fn encode_file_path_keeps_segment_separators() {
-        assert_eq!(encode_file_path("output/result.txt"), "output/result%2Etxt");
+    fn encode_file_path_keeps_separators_and_unreserved_chars() {
+        assert_eq!(encode_file_path("output/result.txt"), "output/result.txt");
+        assert_eq!(encode_file_path("a-b_c~d.e/f"), "a-b_c~d.e/f");
     }
 
     #[test]
@@ -212,7 +223,7 @@ mod tests {
         assert_eq!(encode_file_path("a b?c#d%e"), "a%20b%3Fc%23d%25e");
         assert_eq!(
             encode_file_path("日本語.txt"),
-            "%E6%97%A5%E6%9C%AC%E8%AA%9E%2Etxt"
+            "%E6%97%A5%E6%9C%AC%E8%AA%9E.txt"
         );
     }
 }

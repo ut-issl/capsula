@@ -141,7 +141,7 @@ pub struct RunRecord {
     pub vault: String,
     pub project_root: String,
     pub exit_code: Option<i32>,
-    pub duration_ms: Option<i64>,
+    pub duration_ms: Option<i32>,
     pub stdout: Option<String>,
     pub stderr: Option<String>,
 }

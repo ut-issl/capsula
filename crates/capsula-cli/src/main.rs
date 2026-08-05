@@ -7,7 +7,7 @@
 use anyhow::{Context, Result};
 use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::PreparedRun;
-use capsula_orchestration::pull::pull_single_run;
+use capsula_orchestration::pull::{ensure_single_path_component, pull_single_run};
 use capsula_orchestration::push::push_single_run;
 use capsula_orchestration::resolve::resolve_server_url;
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
@@ -446,6 +446,7 @@ path = \".\"
 
                     let mut success_count = 0;
                     let mut skip_count = 0;
+                    let mut pulled_skip_count = 0;
                     let mut error_count = 0;
 
                     for entry in walkdir::WalkDir::new(&vault_dir)
@@ -470,6 +471,14 @@ path = \".\"
                             continue;
                         }
 
+                        // Pulled runs are lossy reconstructions; skip them
+                        // instead of degrading the server's copy.
+                        if capsula_dir.join("pulled.json").is_file() {
+                            debug!("Skipping pulled run at {}", run_dir.display());
+                            pulled_skip_count += 1;
+                            continue;
+                        }
+
                         match push_single_run(run_dir, vault_name, &server_url, &client) {
                             Ok(()) => success_count += 1,
                             Err(e) => {
@@ -484,8 +493,9 @@ path = \".\"
                     }
 
                     info!(
-                        "Push all completed: {} succeeded, {} skipped (already exist), {} failed",
-                        success_count, skip_count, error_count
+                        "Push all completed: {} succeeded, {} skipped (already exist), \
+                         {} skipped (pulled runs), {} failed",
+                        success_count, skip_count, pulled_skip_count, error_count
                     );
 
                     if error_count > 0 {
@@ -525,6 +535,9 @@ path = \".\"
             let target_vault_dir = if vault_name == config.vault.name {
                 vault_dir
             } else {
+                // The vault name becomes a directory name next to the
+                // configured vault; a separator or `..` would escape it.
+                ensure_single_path_component(&vault_name, "vault name")?;
                 vault_dir
                     .parent()
                     .ok_or_else(|| {

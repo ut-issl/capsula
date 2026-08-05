@@ -7,7 +7,10 @@
 )]
 
 use capsula_core::run::run_dir_relative_path;
+use capsula_core::util::hex_encode;
 use capsula_orchestration::pull::pull_single_run;
+use capsula_orchestration::push::push_single_run;
+use capsula_orchestration::vault::{find_run_dir, list_runs};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -21,13 +24,7 @@ const VAULT: &str = "test-vault";
 const FILE_CONTENT: &[u8] = b"hello from capsula";
 
 fn sha256_hex(data: &[u8]) -> String {
-    use std::fmt::Write;
-    Sha256::digest(data)
-        .iter()
-        .fold(String::new(), |mut out, b| {
-            let _ = write!(out, "{b:02x}");
-            out
-        })
+    hex_encode(Sha256::digest(data).as_ref())
 }
 
 fn run_record() -> serde_json::Value {
@@ -48,9 +45,16 @@ fn run_record() -> serde_json::Value {
 }
 
 fn detail_response(files: &serde_json::Value) -> serde_json::Value {
+    detail_response_with_run(&run_record(), files)
+}
+
+fn detail_response_with_run(
+    run: &serde_json::Value,
+    files: &serde_json::Value,
+) -> serde_json::Value {
     json!({
         "status": "ok",
-        "run": run_record(),
+        "run": run,
         "pre_run_hooks": [
             {
                 "__meta": {
@@ -111,7 +115,7 @@ fn pull_restores_run_with_files_and_metadata() {
     let files = json!([
         {"path": "output/result.txt", "size": FILE_CONTENT.len(), "hash": sha256_hex(FILE_CONTENT)}
     ]);
-    let (_rt, server) = start_server(detail_response(&files), Some("output/result%2Etxt"));
+    let (_rt, server) = start_server(detail_response(&files), Some("output/result.txt"));
     let client = capsula_client::CapsulaClient::new(server.uri());
     let tmp = tempfile::TempDir::new().unwrap();
     let vault_dir = tmp.path().join(VAULT);
@@ -158,7 +162,7 @@ fn pull_fails_on_hash_mismatch_without_leaving_partial_run() {
     let files = json!([
         {"path": "output/result.txt", "size": FILE_CONTENT.len(), "hash": sha256_hex(b"different content")}
     ]);
-    let (_rt, server) = start_server(detail_response(&files), Some("output/result%2Etxt"));
+    let (_rt, server) = start_server(detail_response(&files), Some("output/result.txt"));
     let client = capsula_client::CapsulaClient::new(server.uri());
     let tmp = tempfile::TempDir::new().unwrap();
     let vault_dir = tmp.path().join(VAULT);
@@ -167,6 +171,42 @@ fn pull_fails_on_hash_mismatch_without_leaving_partial_run() {
 
     assert!(err.to_string().contains("Hash mismatch"), "got: {err}");
     assert!(!expected_run_dir(&vault_dir).exists());
+}
+
+#[test]
+fn pull_fails_on_size_mismatch() {
+    let files = json!([
+        {"path": "output/result.txt", "size": FILE_CONTENT.len() + 1, "hash": sha256_hex(FILE_CONTENT)}
+    ]);
+    let (_rt, server) = start_server(detail_response(&files), Some("output/result.txt"));
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+
+    let err = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap_err();
+
+    assert!(err.to_string().contains("Size mismatch"), "got: {err}");
+    assert!(!expected_run_dir(&vault_dir).exists());
+}
+
+#[test]
+fn pull_restores_file_without_recorded_hash() {
+    // Files without a stored hash are restored (with a warning) rather
+    // than rejected.
+    let files = json!([
+        {"path": "nohash.txt", "size": FILE_CONTENT.len(), "hash": null}
+    ]);
+    let (_rt, server) = start_server(detail_response(&files), Some("nohash.txt"));
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+
+    let run_dir = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap();
+
+    assert_eq!(
+        std::fs::read(run_dir.join("nohash.txt")).unwrap(),
+        FILE_CONTENT
+    );
 }
 
 #[test]
@@ -199,23 +239,177 @@ fn pull_rejects_unsafe_file_paths() {
 }
 
 #[test]
-fn pull_requires_force_to_replace_existing_run_dir() {
+fn pull_rejects_run_name_that_is_not_a_single_path_component() {
+    let mut run = run_record();
+    run["name"] = json!("../evil");
+    let (_rt, server) = start_server(detail_response_with_run(&run, &json!([])), None);
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+
+    let err = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap_err();
+
+    assert!(
+        err.to_string().contains("single path component"),
+        "got: {err}"
+    );
+    assert!(!tmp.path().join("evil").exists());
+}
+
+#[test]
+fn pull_rejects_run_names_as_argument() {
+    // A run *name* must fail fast with a specific message instead of a
+    // misleading server-side not_found.
+    let (_rt, server) = start_server(detail_response(&json!([])), None);
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+
+    let err = pull_single_run(
+        "happy-river",
+        VAULT,
+        &tmp.path().join(VAULT),
+        &client,
+        false,
+    )
+    .unwrap_err();
+
+    assert!(err.to_string().contains("not a run ID"), "got: {err}");
+}
+
+#[test]
+fn pull_refuses_to_replace_locally_produced_run() {
+    let (_rt, server) = start_server(detail_response(&json!([])), None);
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+
+    // A locally produced run: has _capsula but no pulled.json marker.
+    let run_dir = expected_run_dir(&vault_dir);
+    std::fs::create_dir_all(run_dir.join("_capsula")).unwrap();
+    std::fs::write(run_dir.join("_capsula/metadata.json"), "{}").unwrap();
+    std::fs::write(run_dir.join("stale.txt"), "authoritative").unwrap();
+
+    let err = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap_err();
+    assert!(err.to_string().contains("locally produced"), "got: {err}");
+
+    // Even --force must not replace a locally produced run.
+    let err = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, true).unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("--force only replaces previously pulled runs"),
+        "got: {err}"
+    );
+    assert!(
+        run_dir.join("stale.txt").exists(),
+        "local run must be untouched"
+    );
+}
+
+#[test]
+fn pull_force_replaces_previously_pulled_run() {
+    let (_rt, server) = start_server(detail_response(&json!([])), None);
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+
+    let run_dir = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap();
+    std::fs::write(run_dir.join("extra.txt"), "local modification").unwrap();
+
+    let err = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap_err();
+    assert!(err.to_string().contains("Use --force"), "got: {err}");
+    assert!(run_dir.join("extra.txt").exists());
+
+    let pulled_dir = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, true).unwrap();
+    assert_eq!(pulled_dir, run_dir);
+    assert!(!run_dir.join("extra.txt").exists(), "--force replaces");
+    assert!(run_dir.join("_capsula/pulled.json").exists());
+}
+
+#[test]
+fn pull_force_refuses_when_target_is_a_file() {
     let (_rt, server) = start_server(detail_response(&json!([])), None);
     let client = capsula_client::CapsulaClient::new(server.uri());
     let tmp = tempfile::TempDir::new().unwrap();
     let vault_dir = tmp.path().join(VAULT);
 
     let run_dir = expected_run_dir(&vault_dir);
-    std::fs::create_dir_all(&run_dir).unwrap();
-    std::fs::write(run_dir.join("stale.txt"), "old").unwrap();
+    std::fs::create_dir_all(run_dir.parent().unwrap()).unwrap();
+    std::fs::write(&run_dir, "not a directory").unwrap();
 
-    let err = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap_err();
-    assert!(err.to_string().contains("already exists"), "got: {err}");
-    assert!(run_dir.join("stale.txt").exists(), "must not touch the dir");
+    let err = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, true).unwrap_err();
 
-    let pulled_dir = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, true).unwrap();
-    assert_eq!(pulled_dir, run_dir);
-    assert!(!run_dir.join("stale.txt").exists(), "--force replaces");
+    assert!(
+        err.to_string()
+            .contains("--force only replaces previously pulled runs"),
+        "got: {err}"
+    );
+    assert!(run_dir.is_file(), "existing file must be untouched");
+}
+
+#[test]
+fn push_refuses_pulled_runs() {
+    let (_rt, server) = start_server(detail_response(&json!([])), None);
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+
+    let run_dir = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap();
+
+    // The guard fires before any network access, so an unreachable
+    // server URL proves it.
+    let offline = capsula_client::CapsulaClient::new("http://127.0.0.1:9");
+    let err = push_single_run(&run_dir, VAULT, "http://127.0.0.1:9", &offline).unwrap_err();
+
+    assert!(err.to_string().contains("refusing to push"), "got: {err}");
+}
+
+#[test]
+fn abandoned_temp_dir_is_invisible_to_vault_scanners() {
+    // Simulates a pull interrupted after the _capsula reconstruction:
+    // the temp directory lives directly under the vault root, one level
+    // above the `vault/*/*` depth the scanners walk.
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+    let stale = vault_dir.join(".pull-tmp-abandoned");
+    std::fs::create_dir_all(stale.join("_capsula")).unwrap();
+    std::fs::write(
+        stale.join("_capsula/metadata.json"),
+        json!({
+            "id": RUN_ID,
+            "name": "ghost",
+            "command": [],
+            "timestamp": "2026-08-01T10:20:00Z"
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    assert!(
+        list_runs(&vault_dir).unwrap().is_empty(),
+        "abandoned temp dir must not be listed as a run"
+    );
+    assert!(
+        find_run_dir(&vault_dir, RUN_ID).is_err(),
+        "abandoned temp dir must not resolve as a run"
+    );
+}
+
+#[test]
+fn run_without_exit_code_produces_no_command_json() {
+    // A run created by `run-start` and never finalized has no command
+    // result on the server; the restored run must not invent one.
+    let mut run = run_record();
+    run["exit_code"] = json!(null);
+    run["duration_ms"] = json!(null);
+    run["stdout"] = json!(null);
+    run["stderr"] = json!(null);
+    let (_rt, server) = start_server(detail_response_with_run(&run, &json!([])), None);
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+
+    let run_dir = pull_single_run(RUN_ID, VAULT, &tmp.path().join(VAULT), &client, false).unwrap();
+
+    assert!(!run_dir.join("_capsula/command.json").exists());
     assert!(run_dir.join("_capsula/metadata.json").exists());
 }
 
@@ -230,7 +424,7 @@ fn pull_restores_file_with_url_significant_characters_in_name() {
     ]);
     let (_rt, server) = start_server(
         detail_response(&files),
-        Some("nested%20dir/file%20with%20space%2Etxt"),
+        Some("nested%20dir/file%20with%20space.txt"),
     );
     let client = capsula_client::CapsulaClient::new(server.uri());
     let tmp = tempfile::TempDir::new().unwrap();

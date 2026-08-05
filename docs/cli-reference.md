@@ -203,6 +203,10 @@ capsula run-dir happy-river
 
 Push run data to a capsula server.
 
+Runs restored by [`capsula pull`](#capsula-pull) (marked with
+`_capsula/pulled.json`) are lossy reconstructions: a direct push of one is
+refused, and `push --all` skips them.
+
 ### Usage
 
 ```bash
@@ -235,17 +239,13 @@ capsula push happy-river --server https://capsula.example.com
 
 ## `capsula pull`
 
-Download a run from a capsula server and restore it under the local vault.
+Download a run from a capsula server and restore it to the local vault.
 
-The run directory is restored at `{YYYY-MM-DD}/{HHMMSS}-{name}` (derived
-from the run's ID and name, like locally created runs). Captured files are
-verified against the server-recorded SHA-256 hashes, and only files with
-relative paths that stay inside the run directory are restored — absolute
-paths and paths containing `..` are rejected as errors. The `_capsula`
-metadata files are reconstructed from the server's structured data —
-best-effort, not byte-identical to the originals — and a
-`_capsula/pulled.json` marker records the origin server and pull time so
-pulled runs can be told apart from locally produced ones.
+The run is restored at {YYYY-MM-DD}/{HHMMSS}-{name}, using the same layout as a locally created run. Downloaded files are verified against their recorded sizes and SHA-256 hashes. Absolute paths and paths containing .. are rejected.
+
+The _capsula metadata is reconstructed from the server's structured data. A _capsula/pulled.json marker records the source server and pull time.
+
+--force only replaces runs previously created by capsula pull, as identified by _capsula/pulled.json. Locally produced runs are never overwritten. Pulled runs cannot be uploaded again with capsula push.
 
 ### Usage
 
@@ -259,7 +259,7 @@ capsula pull <RUN_ID>
 | -------- | ------------- |
 | `--vault <NAME>` | Expected vault of the run (defaults to the vault in `capsula.toml`). The pull fails if the run belongs to a different vault. |
 | `--server <URL>` | Server URL (can also be set via `CAPSULA_SERVER_URL` env var or `server` field in `capsula.toml`) |
-| `--force` | Replace the local run directory if it already exists |
+| `--force` | Replace a previously pulled copy of the run if it already exists. Locally produced runs are never replaced. |
 
 ### Examples
 
@@ -273,6 +273,18 @@ capsula pull 01K8WSYC91YAE21R7CWHQ4KYN2 --vault other-vault
 # Pull from a specific server, replacing a previously pulled copy
 capsula pull 01K8WSYC91YAE21R7CWHQ4KYN2 --server https://capsula.example.com --force
 ```
+
+### Limitations
+
+A pulled run is a subset of the original local run. Data that was not uploaded by capsula push cannot be restored, including:
+
+- symlinks
+- empty directories
+- files added after the push
+- the original _capsula/*.json file contents
+- sub-millisecond command duration
+
+The reconstructed metadata may therefore differ from the original files. Phases with no hook outputs do not produce pre-run.json or post-run.json. Command strings stored by older server versions are normalized to JSON arrays.
 
 ## `capsula tui`
 
