@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::PreparedRun;
 use capsula_orchestration::push::push_single_run;
-use capsula_orchestration::resolve::resolve_server_url;
+use capsula_orchestration::resolve::{is_same_origin, resolve_server_headers, resolve_server_url};
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::{find_run_dir, find_run_dir_by_name, list_runs};
@@ -83,6 +83,11 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    #[command(group(
+        clap::ArgGroup::new("push_target")
+            .required(true)
+            .args(["run_id", "all"])
+    ))]
     Push {
         /// Run ID or name to push (e.g., 01HQXYZ... or chubby-back)
         run_id: Option<String>,
@@ -394,14 +399,8 @@ path = \".\"
             all,
             server,
         } => {
-            let server_url =
-                resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
-                    )
-                })?;
-
-            let client = capsula_client::CapsulaClient::new(&server_url);
+            let (server_url, client) =
+                build_server_client(server, config.server.as_ref(), &project_root)?;
             let vault_name = &config.vault.name;
 
             match client.vault_exists(vault_name) {
@@ -452,7 +451,7 @@ path = \".\"
                             continue;
                         }
 
-                        match push_single_run(run_dir, vault_name, &server_url, &client) {
+                        match push_single_run(run_dir, vault_name, &client) {
                             Ok(()) => success_count += 1,
                             Err(e) => {
                                 if e.to_string().contains("already exists") {
@@ -478,26 +477,23 @@ path = \".\"
                     info!("Pushing run {} to server {}", run_id, server_url);
 
                     let run_dir = find_run_dir(&vault_dir, &run_id)?;
-                    push_single_run(&run_dir, vault_name, &server_url, &client)?;
+                    push_single_run(&run_dir, vault_name, &client)?;
 
                     info!("Push completed successfully");
                 }
-                (false, None) => anyhow::bail!("Either provide a run ID/name or use --all flag"),
+                (false, None) => {
+                    unreachable!("clap's push_target group requires a run ID or --all")
+                }
             }
         }
         Commands::Tui => unreachable!("Handled above"),
         Commands::Vaults { command } => match command {
             VaultsCommands::List { server } => {
-                let server_url =
-                    resolve_server_url(server, config.server.as_deref()).ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
-                        )
-                    })?;
+                let (server_url, client) =
+                    build_server_client(server, config.server.as_ref(), &project_root)?;
 
                 info!("Fetching vaults from server {}", server_url);
 
-                let client = capsula_client::CapsulaClient::new(&server_url);
                 let vaults = client.list_vaults().context("Failed to list vaults")?;
 
                 if vaults.is_empty() {
@@ -516,6 +512,45 @@ path = \".\"
         },
     }
     Ok(())
+}
+
+/// Resolve the server URL and configured headers, and build an HTTP client.
+///
+/// Configured `[server.headers]` credentials are bound to the configured
+/// server origin: a `--server` / `CAPSULA_SERVER_URL` override pointing at a
+/// different origin is rejected rather than silently receiving them.
+fn build_server_client(
+    server_override: Option<String>,
+    config_server: Option<&capsula_config::ServerConfig>,
+    project_root: &std::path::Path,
+) -> Result<(String, capsula_client::CapsulaClient)> {
+    let server_url = resolve_server_url(server_override, config_server.map(|s| s.url.as_str()))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Server URL not specified. Use --server <URL>, set CAPSULA_SERVER_URL environment variable, or add 'server = \"URL\"' to capsula.toml"
+            )
+        })?;
+
+    let headers = match config_server {
+        Some(config) if !config.headers.is_empty() => {
+            if !is_same_origin(&server_url, &config.url)? {
+                anyhow::bail!(
+                    "Server URL '{server_url}' has a different origin than the configured server '{}'. \
+                     [server.headers] credentials are only sent to the configured origin; \
+                     use the configured URL, or remove the override or the headers.",
+                    config.url
+                );
+            }
+            resolve_server_headers(&config.headers, project_root)
+                .context("Failed to resolve server headers")?
+        }
+        _ => Vec::new(),
+    };
+
+    let client = capsula_client::CapsulaClient::with_headers(&server_url, &headers)
+        .context("Failed to build server client")?;
+
+    Ok((server_url, client))
 }
 
 fn read_json_if_exists(path: &std::path::Path) -> Result<Option<serde_json::Value>> {

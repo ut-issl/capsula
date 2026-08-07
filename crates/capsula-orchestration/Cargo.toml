@@ -22,9 +22,15 @@ names = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+shlex = { workspace = true }
 tracing = { workspace = true }
 ulid = { workspace = true }
 walkdir = "2"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true }
+wiremock = { workspace = true }
 
 [lints]
 workspace = true

@@ -542,6 +542,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "capsula-client",
+ "capsula-config",
  "capsula-core",
  "capsula-orchestration",
  "capsula-registry",
@@ -692,6 +693,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.19",
+ "tokio",
  "wiremock",
 ]
 
@@ -753,9 +755,13 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "shlex",
+ "tempfile",
+ "tokio",
  "tracing",
  "ulid",
  "walkdir",
+ "wiremock",
 ]
 
 [[package]]
