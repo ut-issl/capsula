@@ -1,0 +1,6 @@
+[global]
+disable = ["link-fragments", "no-duplicate-heading", "no-alt-text", "line-length", "first-line-h1", "no-trailing-punctuation", "no-inline-html", "fenced-code-language", "ol-prefix", "code-block-style", "no-emphasis-as-heading", "heading-increment"]
+
+[ul-indent]
+indent = 2
+style = "fixed"
