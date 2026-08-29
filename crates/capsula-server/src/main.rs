@@ -15,7 +15,6 @@ struct Args {
     #[arg(short, long, env = "CAPSULA_PORT", default_value = "8500")]
     port: u16,
 
-    #[expect(clippy::doc_markdown, reason = "It is not a variable but a term")]
     /// PostgreSQL connection string
     #[arg(short, long, env = "DATABASE_URL")]
     database_url: String,
