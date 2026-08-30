@@ -16,6 +16,7 @@ lint:
     cargo fmt --check --all
     CARGO_BUILD_WARNINGS=deny cargo doc --workspace --no-deps
     CARGO_BUILD_WARNINGS=deny cargo check --workspace
+    cargo audit --deny warnings
 
 test:
     cargo test --workspace
