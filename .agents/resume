@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! sudo docker info >/dev/null 2>&1; then
+    printf 'Restarting Docker for Testcontainers...\n'
+    sudo systemctl start docker
+fi
+
+sudo docker info >/dev/null

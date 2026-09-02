@@ -29,4 +29,7 @@ lcov.info
 .env.keys
 .env
 
+# Generated Amp orb portal state
+.amp/portals/
+
 /site
