@@ -75,9 +75,9 @@ step 'Installing Rust coverage support' rustup component add llvm-tools-preview
 if ! command -v just >/dev/null 2>&1; then
     step 'Installing just' cargo install --locked just
 fi
-if ! sqlx --version 2>/dev/null | grep -Fq '0.8.6'; then
+if ! sqlx --version 2>/dev/null | grep -Fq '0.9.0'; then
     step 'Installing sqlx-cli' \
-        cargo install --locked sqlx-cli --version 0.8.6 \
+        cargo install --locked sqlx-cli --version 0.9.0 \
             --no-default-features --features postgres
 fi
 if ! cargo llvm-cov --version >/dev/null 2>&1; then
@@ -98,6 +98,7 @@ if ! id -nG "$USER" | tr ' ' '\n' | grep -Fxq docker; then
 fi
 step 'Enabling the Docker daemon for Testcontainers' sudo systemctl enable --now docker
 step 'Caching the PostgreSQL test image' \
-    sudo -u "$USER" -g docker docker compose --env-file .env.server pull postgres
+    sudo -u "$USER" -g docker docker compose --env-file .env.server \
+        pull --policy missing postgres
 
 printf 'Orb setup complete.\n'
