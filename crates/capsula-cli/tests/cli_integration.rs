@@ -337,6 +337,34 @@ fn test_capsula_list_shows_runs() {
 }
 
 #[test]
+fn test_capsula_list_handles_multibyte_command() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config(&temp_dir, "test-vault");
+    let multibyte_argument = "処".repeat(22);
+
+    let mut run_cmd = cargo_bin_cmd!("capsula");
+    run_cmd
+        .current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("echo")
+        .arg(&multibyte_argument);
+    run_cmd.assert().success();
+
+    let mut list_cmd = cargo_bin_cmd!("capsula");
+    list_cmd
+        .current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("list");
+    list_cmd
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(multibyte_argument));
+}
+
+#[test]
 fn test_capsula_show_displays_run_details() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = create_test_config(&temp_dir, "test-vault");
