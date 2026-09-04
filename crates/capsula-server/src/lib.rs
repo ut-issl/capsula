@@ -319,8 +319,8 @@ async fn runs_page(
     State(state): State<AppState>,
     Query(params): Query<models::ListRunsQuery>,
 ) -> impl IntoResponse {
-    let page = params.offset.unwrap_or(0) / params.limit.unwrap_or(50) + 1;
-    let limit = params.limit.unwrap_or(50);
+    let (limit, requested_offset) = params.pagination(50);
+    let page = requested_offset / limit + 1;
     let offset = (page - 1) * limit;
 
     info!(
@@ -541,8 +541,7 @@ async fn list_runs(
     State(state): State<AppState>,
     Query(params): Query<models::ListRunsQuery>,
 ) -> impl IntoResponse {
-    let limit = params.limit.unwrap_or(100);
-    let offset = params.offset.unwrap_or(0);
+    let (limit, offset) = params.pagination(100);
 
     if let Some(ref vault) = params.vault {
         info!(
