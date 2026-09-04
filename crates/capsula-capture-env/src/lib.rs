@@ -56,9 +56,8 @@ where
         let value = std::env::var(&self.config.name).ok();
         if let Some(ref val) = value {
             debug!(
-                "EnvVarHook: Variable '{}' = '{}' ({} bytes)",
+                "EnvVarHook: Variable '{}' found ({} bytes)",
                 self.config.name,
-                val,
                 val.len()
             );
         } else {
