@@ -253,6 +253,29 @@ fn upload_file_to_slack(
     Ok((file_id.to_string(), file_name))
 }
 
+fn parse_message_response(response_text: &str) -> Result<Option<String>, SlackNotifyError> {
+    let response_json: serde_json::Value = serde_json::from_str(response_text)?;
+
+    if !response_json
+        .get("ok")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+    {
+        let error_msg = response_json
+            .get("error")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown error");
+        return Err(SlackNotifyError::SlackApi {
+            message: format!("Failed to send Slack notification: {error_msg}"),
+        });
+    }
+
+    Ok(response_json
+        .get("ts")
+        .and_then(serde_json::Value::as_str)
+        .map(String::from))
+}
+
 /// Send a simple message to Slack without attachments using Block Kit
 /// Returns the response JSON and optionally the thread timestamp
 fn send_simple_message(
@@ -295,12 +318,8 @@ fn send_simple_message(
         });
     }
 
-    let response_text = res.text().unwrap_or_else(|_| String::from("{}"));
-
-    // Extract the timestamp from the response for threading
-    let ts = serde_json::from_str::<serde_json::Value>(&response_text)
-        .ok()
-        .and_then(|v| v.get("ts").and_then(|t| t.as_str()).map(String::from));
+    let response_text = res.text().map_err(SlackNotifyError::from)?;
+    let ts = parse_message_response(&response_text)?;
 
     Ok((response_text, ts))
 }
@@ -615,5 +634,27 @@ impl Hook<PostRun> for SlackNotifyHook {
             "✅ Capsula Run Completed",
             "has completed",
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_message_response;
+
+    #[test]
+    fn message_response_returns_timestamp_on_success() {
+        let timestamp = parse_message_response(r#"{"ok":true,"ts":"1234.5678"}"#).unwrap();
+
+        assert_eq!(timestamp.as_deref(), Some("1234.5678"));
+    }
+
+    #[test]
+    fn message_response_surfaces_slack_api_error() {
+        let error = parse_message_response(r#"{"ok":false,"error":"invalid_auth"}"#).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Slack API returned an error: Failed to send Slack notification: invalid_auth"
+        );
     }
 }
