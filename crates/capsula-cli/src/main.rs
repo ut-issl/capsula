@@ -182,8 +182,14 @@ path = \".\"
 
                 let command_display = shlex::try_join(run.command.iter().map(String::as_str))
                     .unwrap_or_else(|_| run.command.join(" "));
-                let command_truncated = if command_display.len() > command_width {
-                    format!("{}...", &command_display[..command_width - 3])
+                let command_truncated = if command_display.chars().count() > command_width {
+                    format!(
+                        "{}...",
+                        command_display
+                            .chars()
+                            .take(command_width - 3)
+                            .collect::<String>()
+                    )
                 } else {
                     command_display
                 };
