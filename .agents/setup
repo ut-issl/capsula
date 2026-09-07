@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+step() {
+    local description="$1"
+    shift
+    local started_at=$SECONDS
+    printf '==> %s\n' "$description"
+    "$@"
+    printf '    completed in %ss\n' "$((SECONDS - started_at))"
+}
+
+missing_packages=()
+for package in build-essential ca-certificates cmake curl libssl-dev pkg-config postgresql-client; do
+    if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -Fq 'install ok installed'; then
+        missing_packages+=("$package")
+    fi
+done
+
+need_docker=false
+if ! command -v docker >/dev/null 2>&1 || \
+    ! command -v dockerd >/dev/null 2>&1 || \
+    ! docker compose version >/dev/null 2>&1; then
+    need_docker=true
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL https://download.docker.com/linux/debian/gpg \
+        -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian %s stable\n' \
+        "$(dpkg --print-architecture)" \
+        "$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")" |
+        sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+fi
+
+if ((${#missing_packages[@]} > 0)) || [[ "$need_docker" == true ]]; then
+    step 'Refreshing system package metadata' sudo apt-get update
+    if ((${#missing_packages[@]} > 0)); then
+        step 'Installing native build and PostgreSQL client dependencies' \
+            sudo apt-get install -y --no-install-recommends "${missing_packages[@]}"
+    fi
+    if [[ "$need_docker" == true ]]; then
+        step 'Installing Docker Engine and Compose' \
+            sudo apt-get install -y --no-install-recommends \
+                docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    fi
+fi
+
+if [[ -f "$HOME/.cargo/env" ]]; then
+    # shellcheck disable=SC1091
+    source "$HOME/.cargo/env"
+fi
+
+if ! command -v rustup >/dev/null 2>&1; then
+    step 'Installing rustup' sh -c \
+        'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal'
+fi
+
+# shellcheck disable=SC1091
+source "$HOME/.cargo/env"
+
+profile_marker='# Capsula Rust toolchain'
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+    cat >>"$HOME/.bash_profile" <<'EOF'
+
+# Capsula Rust toolchain
+if [[ -f "$HOME/.cargo/env" ]]; then
+    source "$HOME/.cargo/env"
+fi
+EOF
+fi
+
+step 'Installing the repository Rust toolchain' rustup toolchain install --no-self-update
+step 'Installing Rust coverage support' rustup component add llvm-tools-preview
+
+if ! command -v just >/dev/null 2>&1; then
+    step 'Installing just' cargo install --locked just
+fi
+if ! sqlx --version 2>/dev/null | grep -Fq '0.9.0'; then
+    step 'Installing sqlx-cli' \
+        cargo install --locked sqlx-cli --version 0.9.0 \
+            --no-default-features --features postgres
+fi
+if ! cargo llvm-cov --version >/dev/null 2>&1; then
+    step 'Installing cargo-llvm-cov' cargo install --locked cargo-llvm-cov
+fi
+if ! cargo hack --version >/dev/null 2>&1; then
+    step 'Installing cargo-hack' cargo install --locked cargo-hack
+fi
+if ! command -v dotenvx >/dev/null 2>&1; then
+    step 'Installing dotenvx' npm install --global @dotenvx/dotenvx
+fi
+
+step 'Fetching locked Rust dependencies' cargo fetch --locked
+step 'Warming the workspace build cache' cargo check --locked --workspace --all-targets --all-features
+
+if ! id -nG "$USER" | tr ' ' '\n' | grep -Fxq docker; then
+    step 'Granting the orb user Docker access' sudo usermod -aG docker "$USER"
+fi
+step 'Enabling the Docker daemon for Testcontainers' sudo systemctl enable --now docker
+step 'Caching the PostgreSQL test image' \
+    sudo -u "$USER" -g docker docker compose --env-file .env.server \
+        pull --policy missing postgres
+
+printf 'Orb setup complete.\n'

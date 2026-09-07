@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if timeout 1s sudo -n docker info >/dev/null 2>&1; then
+    exit 0
+fi
+
+printf 'Restarting Docker for Testcontainers...\n'
+timeout 1s sudo -n systemctl --no-block restart docker
+
+for _ in {1..6}; do
+    sleep 0.5
+    if timeout 0.5s sudo -n docker info >/dev/null 2>&1; then
+        exit 0
+    fi
+done
+
+printf 'Docker did not become ready after restart.\n' >&2
+exit 1
