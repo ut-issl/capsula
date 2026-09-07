@@ -11,11 +11,11 @@ publish:
     cargo publish --workspace
 
 lint:
-    cargo clippy --workspace --all-targets --all-features
-    cargo clippy --workspace --all-targets --no-default-features
+    CARGO_BUILD_WARNINGS=deny cargo clippy --workspace --all-targets --all-features
+    CARGO_BUILD_WARNINGS=deny cargo clippy --workspace --all-targets --no-default-features
     cargo fmt --check --all
-    cargo doc --workspace --no-deps
-    cargo check --workspace
+    CARGO_BUILD_WARNINGS=deny cargo doc --workspace --no-deps
+    CARGO_BUILD_WARNINGS=deny cargo check --workspace
 
 test:
     cargo test --workspace
