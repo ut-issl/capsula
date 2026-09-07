@@ -32,6 +32,20 @@ jobs:
       - run: cargo check --workspace
       - run: git diff --exit-code
 
+  audit:
+    name: Audit dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/install-action@ba47c86ac325773530516bb756137ac718732518 # v2.86.5
+        with:
+          tool: cargo-audit
+
+      - run: cargo audit --deny warnings
+
   coverage:
     name: Generate and upload coverage to Codecov
     runs-on: ubuntu-latest
@@ -159,7 +173,7 @@ jobs:
         uses: crate-ci/typos@4d9c206a77c041268485162b8e2579ad7a5cb9a3 # v1.50.0
 
   collect:
-    needs: [checks, coverage, sqlx-check, msrv, typos]
+    needs: [checks, audit, coverage, sqlx-check, msrv, typos]
     runs-on: ubuntu-latest
     steps:
       - name: Collect results
