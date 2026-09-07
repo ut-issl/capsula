@@ -398,6 +398,88 @@ async fn test_multiple_file_upload_with_storage() {
 }
 
 #[tokio::test]
+async fn get_run_response_includes_captured_files() {
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    let run_id = "01RUNFILES1234567890ABCDE";
+    let run_data = json!({
+        "id": run_id,
+        "name": "test-run-files",
+        "timestamp": "2026-08-01T10:00:00Z",
+        "command": "echo files",
+        "vault": "test-vault",
+        "project_root": "/tmp/test",
+        "exit_code": 0,
+        "duration_ms": 100,
+        "stdout": null,
+        "stderr": null
+    });
+    let response = client
+        .post(format!("{}/api/v1/runs", ctx.base_url()))
+        .json(&run_data)
+        .send()
+        .await
+        .expect("Failed to create run");
+    assert_eq!(response.status(), 201);
+
+    let nested_content = b"nested file content";
+    let root_content = b"root file";
+    let form = reqwest::multipart::Form::new()
+        .text("run_id", run_id)
+        .text("path", "output/result.txt")
+        .part(
+            "file",
+            reqwest::multipart::Part::bytes(nested_content.to_vec())
+                .file_name("result.txt")
+                .mime_str("text/plain")
+                .expect("Failed to set MIME type"),
+        )
+        .text("path", "readme.md")
+        .part(
+            "file",
+            reqwest::multipart::Part::bytes(root_content.to_vec())
+                .file_name("readme.md")
+                .mime_str("text/markdown")
+                .expect("Failed to set MIME type"),
+        );
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .multipart(form)
+        .send()
+        .await
+        .expect("Failed to upload files");
+    assert_eq!(response.status(), 200);
+
+    let response = client
+        .get(format!("{}/api/v1/runs/{run_id}", ctx.base_url()))
+        .send()
+        .await
+        .expect("Failed to get run");
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
+
+    assert_eq!(body["status"], "ok");
+    let files = body["files"].as_array().expect("files should be an array");
+    assert_eq!(files.len(), 2, "files: {files:?}");
+
+    // Ordered by path; each entry exposes path/size/hash but not the
+    // server-internal storage location.
+    assert_eq!(files[0]["path"], "output/result.txt");
+    assert_eq!(files[0]["size"], nested_content.len() as u64);
+    assert_eq!(files[1]["path"], "readme.md");
+    assert_eq!(files[1]["size"], root_content.len() as u64);
+    for file in files {
+        let hash = file["hash"].as_str().expect("hash should be present");
+        assert_eq!(hash.len(), 64, "hash should be hex sha-256: {hash}");
+        assert!(
+            file.get("storage_path").is_none(),
+            "storage_path must not leak: {file:?}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn test_file_download() {
     let ctx = TestContext::new().await;
     let client = reqwest::Client::new();

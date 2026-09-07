@@ -124,3 +124,55 @@ pub struct FileInfo {
     hash: Option<String>,
     url: String,
 }
+
+// =============================================================================
+// Run Detail API Types (GET /api/v1/runs/{id})
+// =============================================================================
+
+/// A run record as returned in the run detail response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RunRecord {
+    pub id: String,
+    pub name: String,
+    /// RFC 3339 timestamp of the run.
+    pub timestamp: String,
+    /// The executed command, serialized as a JSON array string.
+    pub command: String,
+    pub vault: String,
+    pub project_root: String,
+    pub exit_code: Option<i32>,
+    pub duration_ms: Option<i32>,
+    pub stdout: Option<String>,
+    pub stderr: Option<String>,
+}
+
+/// A captured file entry in the run detail response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RunDetailFile {
+    /// Path of the file relative to the run directory.
+    pub path: String,
+    pub size: i64,
+    /// Hex-encoded SHA-256 of the file content, when recorded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+}
+
+/// Response from the run detail endpoint (`GET /api/v1/runs/{id}`).
+///
+/// The server reports errors via the `status` field (`"ok"`,
+/// `"not_found"`, or `"error"`); the remaining fields are only populated
+/// on success.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunDetailResponse {
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run: Option<RunRecord>,
+    #[serde(default)]
+    pub pre_run_hooks: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub post_run_hooks: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub files: Vec<RunDetailFile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
