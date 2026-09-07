@@ -24,10 +24,10 @@ repos:
       - id: forbid-submodules
       - id: no-commit-to-branch
 
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: a4d5d37e66ebcd6b3705204a1d6dbb56dea66338  # frozen: v0.49.0
+  - repo: https://github.com/rvben/rumdl-pre-commit
+    rev: 4f7fb84c204d04a8b458ad18ca6cd63417d524a9  # frozen: v0.2.55
     hooks:
-      - id: markdownlint
+      - id: rumdl
 
   - repo: https://github.com/crate-ci/typos
     rev: 96d9af6217dc2855210655af7e1ff19d23d4e593  # frozen: v1
