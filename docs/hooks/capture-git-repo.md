@@ -100,11 +100,35 @@ tag_head = true
     located at `{phase}-{index}-capture-git-repo/` under the run directory
     (e.g., `pre-0-capture-git-repo/my-project.patch`).
 
+### Dirty Repository Failure (with `allow_dirty = false`)
+
+```json
+{
+  "__meta": {
+    "id": "capture-git-repo",
+    "config": {
+      "name": "my-project",
+      "path": ".",
+      "allow_dirty": false,
+      "require_pushed": false,
+      "remote": "origin"
+    },
+    "success": false,
+    "failure_reason": "repository has uncommitted changes"
+  },
+  "working_dir": "/Users/username/projects/experiment",
+  "sha": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+  "is_dirty": true,
+  "is_pushed": true,
+  "tag": null
+}
+```
+
 !!! warning "Abort Behavior"
-    When `allow_dirty = false` and the repository is dirty, Capsula saves the hook output showing the dirty state, then aborts before running your command.
+    When `allow_dirty = false` and the repository is dirty, Capsula saves the hook output showing the dirty state, runs the remaining pre-run hooks, then aborts before running your command.
 
 !!! warning "Abort Behavior (push check)"
-    When `require_pushed = true` and the HEAD commit is not reachable from any remote branch, Capsula saves the hook output, then aborts before running your command.
+    When `require_pushed = true` and the HEAD commit is not reachable from any remote branch, Capsula saves the hook output, runs the remaining pre-run hooks, then aborts before running your command.
 
 !!! note "Push check details"
     - The push check verifies that the HEAD commit is reachable from a remote-tracking branch of the configured remote. It does **not** require HEAD to be at the tip of a remote branch — ancestor commits are also considered pushed.

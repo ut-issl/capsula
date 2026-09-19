@@ -38,8 +38,9 @@ fn file_hook_captures_files_with_copy_mode() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -103,8 +104,9 @@ fn file_hook_captures_files_in_subdirectories() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -168,8 +170,9 @@ fn file_hook_captures_files_in_nested_subdirectories() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -224,8 +227,9 @@ fn file_hook_wildcard_in_subdirectory() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -270,8 +274,9 @@ fn file_hook_captures_files_with_move_mode() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -320,8 +325,9 @@ fn file_hook_captures_files_with_none_mode() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -381,8 +387,9 @@ fn file_hook_matches_glob_pattern() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 

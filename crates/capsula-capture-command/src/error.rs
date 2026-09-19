@@ -16,6 +16,14 @@ pub enum CommandHookError {
         source: std::io::Error,
     },
 
+    /// No exit status can be accepted by the configured success code set.
+    #[error("success_codes cannot be empty")]
+    EmptySuccessCodes,
+
+    /// Legacy and preferred status-policy options were both provided.
+    #[error("success_codes and abort_on_failure cannot both be set")]
+    ConflictingStatusPolicy,
+
     /// Command output contains invalid UTF-8
     #[error("Command output contains invalid UTF-8: {message}")]
     InvalidUtf8 { message: String },
