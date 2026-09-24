@@ -123,8 +123,7 @@ impl App {
         match self.execute_start_run() {
             Ok(should_abort) => {
                 if should_abort {
-                    self.error =
-                        Some("A pre-run hook requested abort. Run was not started.".into());
+                    self.error = Some("A pre-run hook failed. Run was not started.".into());
                     self.status_message = None;
                     self.active_run = None;
                     self.focused = FocusTarget::StartButton;
@@ -212,13 +211,16 @@ impl App {
 
         info!("Finalizing run: {} (ID: {})", run.name, run.id);
 
-        run_post_hooks(
+        let post_hooks_failed = run_post_hooks(
             &run,
             &capsula_dir,
             &self.config.config.post_run,
             &self.post_run_registry,
             &self.config.project_root,
         )?;
+        if post_hooks_failed {
+            anyhow::bail!("post-run hook failure recorded");
+        }
 
         info!("Run '{}' finalized successfully", run.name);
         Ok(())

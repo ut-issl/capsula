@@ -3,7 +3,7 @@ mod error;
 use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -13,8 +13,13 @@ use tracing::debug;
 #[serde(deny_unknown_fields)]
 pub struct CommandHookConfig {
     command: Vec<String>,
-    #[serde(default)]
-    abort_on_failure: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    success_codes: Option<Vec<i32>>,
+    /// Deprecated compatibility knob. When omitted, only exit status 0 is
+    /// successful. When explicitly set to false, any exit status is accepted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    abort_on_failure: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     cwd: Option<PathBuf>,
 }
 
@@ -29,8 +34,6 @@ pub struct CommandCaptured {
     stdout: String,
     stderr: String,
     status: i32,
-    #[serde(skip)]
-    abort_requested: bool,
 }
 
 impl<P> Hook<P> for CommandHook
@@ -47,6 +50,12 @@ where
         project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: CommandHookConfig = serde_json::from_value(config.clone())?;
+        if config.success_codes.as_ref().is_some_and(Vec::is_empty) {
+            return Err(CommandHookError::EmptySuccessCodes.into());
+        }
+        if config.success_codes.is_some() && config.abort_on_failure.is_some() {
+            return Err(CommandHookError::ConflictingStatusPolicy.into());
+        }
 
         let working_dir = match &config.cwd {
             Some(cwd) => capsula_core::util::resolve_relative(cwd, project_root)?,
@@ -67,7 +76,7 @@ where
         &self,
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         use std::process::Command;
 
         if self.config.command.is_empty() {
@@ -103,26 +112,48 @@ where
             stderr.len()
         );
 
-        let abort_requested = self.config.abort_on_failure && status != 0;
-        if abort_requested {
-            debug!("CommandHook: Requesting abort due to command failure");
-        }
-
-        Ok(CommandCaptured {
+        let captured = CommandCaptured {
             stdout,
             stderr,
             status,
-            abort_requested,
-        })
+        };
+
+        if self.is_success_status(status) {
+            Ok(HookOutcome::success(captured))
+        } else {
+            let reason = self.failure_reason(status);
+            debug!("CommandHook: {reason}");
+            Ok(HookOutcome::failure(captured, reason))
+        }
+    }
+}
+
+impl CommandHook {
+    fn is_success_status(&self, status: i32) -> bool {
+        self.config.success_codes.as_ref().map_or_else(
+            || match self.config.abort_on_failure {
+                // Backward compatibility: the previous default accepted non-zero
+                // statuses unless this flag was true. New configs should use
+                // `success_codes` when a non-zero status is expected.
+                Some(false) => true,
+                Some(true) | None => status == 0,
+            },
+            |success_codes| success_codes.contains(&status),
+        )
+    }
+
+    fn failure_reason(&self, status: i32) -> String {
+        self.config.success_codes.as_ref().map_or_else(
+            || format!("command exited with status {status}; expected 0"),
+            |success_codes| {
+                format!("command exited with status {status}; expected one of {success_codes:?}")
+            },
+        )
     }
 }
 
 impl Captured for CommandCaptured {
     fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
         serde_json::to_value(self)
-    }
-
-    fn abort_requested(&self) -> bool {
-        self.abort_requested
     }
 }
