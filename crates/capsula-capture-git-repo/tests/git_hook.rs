@@ -73,8 +73,9 @@ fn git_hook_captures_clean_repo() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -90,10 +91,7 @@ fn git_hook_captures_clean_repo() {
         Some(false),
         "Repo with no remote should not be pushed"
     );
-    assert!(
-        !captured.abort_requested(),
-        "Clean repo should not request abort"
-    );
+    assert!(outcome.is_success(), "Clean repo should not request abort");
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -210,8 +208,9 @@ fn git_hook_detects_pushed_commit() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -222,7 +221,7 @@ fn git_hook_detects_pushed_commit() {
         "Pushed commit should be detected as pushed"
     );
     assert!(
-        !captured.abort_requested(),
+        outcome.is_success(),
         "Should not abort when commit is pushed"
     );
 
@@ -258,8 +257,9 @@ fn git_hook_detects_unpushed_commit() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -270,7 +270,7 @@ fn git_hook_detects_unpushed_commit() {
         "Unpushed commit should be detected as not pushed"
     );
     assert!(
-        !captured.abort_requested(),
+        outcome.is_success(),
         "Should not abort when require_pushed is false (default)"
     );
 
@@ -308,11 +308,11 @@ fn git_hook_aborts_on_unpushed_when_required() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
     assert!(
-        captured.abort_requested(),
+        outcome.is_failure(),
         "Should abort when require_pushed is true and commit is not pushed"
     );
 
@@ -371,8 +371,9 @@ fn git_hook_pushed_commit_behind_remote() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -383,7 +384,7 @@ fn git_hook_pushed_commit_behind_remote() {
         "Commit behind remote tip should still be detected as pushed (ancestor check)"
     );
     assert!(
-        !captured.abort_requested(),
+        outcome.is_success(),
         "Should not abort for a pushed ancestor commit"
     );
 
@@ -422,8 +423,9 @@ fn git_hook_custom_remote() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -456,8 +458,9 @@ fn git_hook_custom_remote() {
     };
     let params2 = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir2);
 
-    let captured_origin = hook_origin.run(&run_metadata2, &params2).expect("run ok");
-    let json_origin = captured_origin
+    let outcome_origin = hook_origin.run(&run_metadata2, &params2).expect("run ok");
+    let json_origin = outcome_origin
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -467,6 +470,10 @@ fn git_hook_custom_remote() {
             .and_then(serde_json::Value::as_bool),
         Some(false),
         "Commit pushed to 'upstream' should NOT be detected when remote='origin'"
+    );
+    assert!(
+        outcome_origin.is_failure(),
+        "require_pushed should fail when the configured remote does not contain HEAD"
     );
 
     // Cleanup
@@ -539,8 +546,9 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -551,7 +559,7 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
         "Repo with uncommitted changes should be dirty"
     );
     assert!(
-        !captured.abort_requested(),
+        outcome.is_success(),
         "Should not abort when allow_dirty is true"
     );
 
@@ -631,11 +639,11 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
     assert!(
-        captured.abort_requested(),
+        outcome.is_failure(),
         "Should request abort when dirty and allow_dirty is false"
     );
 
@@ -726,8 +734,9 @@ fn git_hook_ignores_git_ignored_files() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -738,7 +747,7 @@ fn git_hook_ignores_git_ignored_files() {
         "Repo with only ignored files should not be dirty"
     );
     assert!(
-        !captured.abort_requested(),
+        outcome.is_success(),
         "Should not abort when only ignored files are present"
     );
 
@@ -772,8 +781,9 @@ fn git_hook_tag_head_creates_lightweight_tag() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -840,8 +850,9 @@ fn git_hook_no_tag_when_tag_head_is_false() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -944,8 +955,9 @@ fn git_hook_detects_untracked_files_as_dirty() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -956,7 +968,7 @@ fn git_hook_detects_untracked_files_as_dirty() {
         "Repo with untracked files should be dirty"
     );
     assert!(
-        captured.abort_requested(),
+        outcome.is_failure(),
         "Should abort when untracked files are present and allow_dirty is false"
     );
 
