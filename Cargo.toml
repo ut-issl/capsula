@@ -101,4 +101,4 @@ unwrap_used = { level = "warn", priority = 1 }
 
 [workspace.lints.rust]
 # missing-docs = "warn"
-unsafe-code = "warn"
+unsafe_code = "warn"
