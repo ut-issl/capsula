@@ -21,7 +21,7 @@ The workspace contains crates under `crates/`:
 - `capsula-api-types`: shared serializable client/server API types.
 - Hook crates: `capsula-capture-cwd`, `capsula-capture-env`, `capsula-capture-git-repo`, `capsula-capture-file`, `capsula-capture-machine`, `capsula-capture-command`, `capsula-capture-json`, `capsula-capture-toml`, and `capsula-notify-slack`.
 
-The workspace has `crates/*` as members and `crates/capsula-cli` as its default member. Root-level `README.md` documents the basic CLI workflow; server-specific setup is in `crates/capsula-server/README.md`; hook documentation is in `docs/hooks/`.
+The workspace has `crates/*` as members and `crates/capsula-cli` as its default member. Root-level `README.md` documents the basic CLI workflow; server-specific setup is in `crates/capsula-server/README.md`; the Zensical documentation site has an English edition in `docs/en/` and a Japanese edition in `docs/ja/` (see `docs/README.md`).
 
 ## Development Commands
 
@@ -112,7 +112,7 @@ The standard registries currently provide these hook IDs in both phases:
 - `capture-command`: execute a command and capture output, exit status, and duration; `abort_on_failure` is available.
 - `capture-json`: parse one JSON file into queryable `content`.
 - `capture-toml`: parse one TOML file into queryable JSON `content`.
-- `notify-slack`: send Slack notifications; see `docs/hooks/notify-slack.md` for token and attachment configuration.
+- `notify-slack`: send Slack notifications; see `docs/en/hooks/notify-slack.md` for token and attachment configuration.
 
 Each hook configuration is deserialized by its hook crate. Hook configs generally use `#[serde(deny_unknown_fields)]`, so check the relevant documentation before adding fields.
 
@@ -183,9 +183,13 @@ Run uploads include run metadata, command output, hook outputs, and captured fil
 4. Implement `Captured`; use `abort_requested()` only when the hook intentionally prevents command execution.
 5. Add the crate to `[workspace.dependencies]` in the root `Cargo.toml` and to `crates/capsula-registry/Cargo.toml`.
 6. Register the hook in `standard_hook_registry()` in `crates/capsula-registry/src/lib.rs`.
-7. Add hook documentation under `docs/hooks/` and tests for configuration and execution behavior.
+7. Add hook documentation under `docs/en/hooks/` and its Japanese translation under `docs/ja/hooks/`, plus navigation entries in both `zensical.toml` and `zensical.ja.toml`, and tests for configuration and execution behavior.
 
 The registry is compile-time wired through `RegistryBuilder::with_hook::<YourHook>()`; no CLI or config-parser changes are needed for a normal hook.
+
+## Documentation
+
+The documentation is published in English (`docs/en/`, `zensical.toml`) and Japanese (`docs/ja/`, `zensical.ja.toml`). Both editions must have the same pages, navigation structure, heading IDs, and byte-identical code fences. When changing a page, update both editions and run `just docs-build`. Follow `docs/README.md` for the translation workflow and Japanese terminology.
 
 ## GitHub Issues and Pull Requests
 

@@ -23,7 +23,11 @@ site_author = "Shunichiro Nomura"
 # The site_url is the canonical URL for your site. When building online
 # documentation you should set this.
 # Read more: https://zensical.org/docs/setup/basics/#site_url
-site_url = "https://www.space.t.u-tokyo.ac.jp/capsula/"
+site_url = "https://www.space.t.u-tokyo.ac.jp/capsula/en/"
+# Each edition is a separate Zensical project published under its own
+# subdirectory of site/. See docs/README.md.
+docs_dir = "docs/en"
+site_dir = "site/en"
 # The repo_name is shown in the repository link in the header
 repo_name = "ut-issl/capsula"
 # The repo_url is the URL to your repository
@@ -289,6 +293,12 @@ toggle.name = "Switch to light mode"
 # ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.
 # ----------------------------------------------------------------------------
+[project.extra]
+alternate = [
+  { name = "English", link = "/capsula/en/", lang = "en" },
+  { name = "日本語", link = "/capsula/ja/", lang = "ja" },
+]
+
 # [[project.extra.social]]
 # icon = "fontawesome/brands/github"
 # link = "https://github.com/user/repo"
