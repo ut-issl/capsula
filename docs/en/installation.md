@@ -8,7 +8,7 @@ This guide will help you install Capsula on your system.
 
 ## Requirements
 
-- **Rust toolchain** (version 1.91.0 or later)
+- **Rust toolchain** (version 1.95.0 or later)
 
 !!! tip "Don't have Rust installed?"
     Visit [rustup.rs](https://rustup.rs/) to install Rust. It takes just a few minutes!
@@ -47,7 +47,7 @@ capsula --version
 You should see output like:
 
 ```
-capsula 0.9.0
+capsula 0.15.1
 ```
 
 Try the help command:
@@ -82,7 +82,7 @@ Check your Rust version:
 rustc --version
 ```
 
-Capsula requires Rust 1.91.0 or later. Update Rust:
+Capsula requires Rust 1.95.0 or later. Update Rust:
 
 ```bash
 rustup update
