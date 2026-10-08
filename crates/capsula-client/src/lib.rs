@@ -329,7 +329,7 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        assert!(vaults.is_empty());
+        assert_eq!(vaults, [] as [capsula_api_types::VaultInfo; 0]);
     }
 
     #[tokio::test(flavor = "multi_thread")]
