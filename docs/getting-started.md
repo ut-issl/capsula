@@ -17,6 +17,8 @@ When you run a command with Capsula:
 2. **Your command executes** - Capsula runs your command normally
 3. **Post-run hooks execute in order** - Capsula runs your configured post-run hooks sequentially
 
+If a hook fails, Capsula still runs the remaining hooks in that phase and records all results. Pre-run failures stop the main command from running. Post-run failures are reported after the main command has finished.
+
 All outputs are saved in a structured directory called a "vault".
 
 ## Your First Run

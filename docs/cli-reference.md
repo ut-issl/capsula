@@ -113,7 +113,8 @@ capsula run-end "$name"
 End a manual run: execute post-run hooks for an existing run.
 
 Finalizes a run previously started with `run-start`. This command will fail
-if the run has already been finalized (i.e., `post-run.json` already exists).
+if the run has already been finalized (i.e., `post-run.json` already exists)
+or if any post-run hook fails after `post-run.json` is written.
 
 ### Usage
 

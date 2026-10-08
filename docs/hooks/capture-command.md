@@ -4,7 +4,7 @@ icon: material/hook
 
 # capture-command
 
-Runs a shell command and captures its output, exit code, and execution time.
+Runs a shell command and captures its output and exit code.
 
 ## Use Cases
 
@@ -25,7 +25,8 @@ Runs a shell command and captures its output, exit code, and execution time.
 
 | Option | Type | Default | Description |
 | -------- | ------ | --------- | ------------- |
-| `abort_on_failure` | boolean | `false` | If `true`, Capsula aborts if this command exits with a non-zero code |
+| `success_codes` | array of integers | `[0]` | Exit statuses that count as a successful hook outcome |
+| `abort_on_failure` | boolean | unset | Deprecated compatibility option. If explicitly set to `false`, any exit status is accepted. Prefer `success_codes` for new configs. |
 
 ### Example
 
@@ -33,7 +34,15 @@ Runs a shell command and captures its output, exit code, and execution time.
 [[pre-run.hooks]]
 id = "capture-command"
 command = ["python", "--version"]
-abort_on_failure = false
+```
+
+To intentionally check for a command failure, configure the expected non-zero status:
+
+```toml
+[[pre-run.hooks]]
+id = "capture-command"
+command = ["test", "-f", "missing-file.txt"]
+success_codes = [1]
 ```
 
 ## Output Example
@@ -45,36 +54,33 @@ abort_on_failure = false
   "__meta": {
     "id": "capture-command",
     "config": {
-      "command": ["python", "--version"],
-      "abort_on_failure": false
+      "command": ["python", "--version"]
     },
     "success": true
   },
   "status": 0,
   "stdout": "Python 3.11.5\n",
-  "stderr": "",
-  "abort_requested": false
+  "stderr": ""
 }
 ```
 
-### Failed Command with Abort
+### Unexpected Status
 
 ```json
 {
   "__meta": {
     "id": "capture-command",
     "config": {
-      "command": ["test", "-f", "required-file.txt"],
-      "abort_on_failure": true
+      "command": ["test", "-f", "required-file.txt"]
     },
-    "success": true
+    "success": false,
+    "failure_reason": "command exited with status 1; expected 0"
   },
   "status": 1,
   "stdout": "",
-  "stderr": "",
-  "abort_requested": true
+  "stderr": ""
 }
 ```
 
-!!! warning "Abort Behavior"
-    When `abort_requested` is `true`, Capsula stops before running your main command.
+!!! warning "Failure Behavior"
+    Pre-run hook failures are recorded, remaining pre-run hooks still run, and then Capsula stops before running your main command. Post-run hook failures are recorded after the main command; they make `capsula run` fail if the main command succeeded, while preserving the main command's non-zero exit code if it already failed.
