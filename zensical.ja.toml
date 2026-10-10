@@ -1,0 +1,72 @@
+# Japanese edition. Keep every non-localized setting identical to
+# zensical.toml. See docs/README.md.
+
+[project]
+site_name = "Capsula ドキュメント"
+site_description = "コマンド実行の前後でフックを実行し、その出力を記録する CLI ツール Capsula のドキュメント。"
+site_author = "Shunichiro Nomura"
+site_url = "https://www.space.t.u-tokyo.ac.jp/capsula/ja/"
+docs_dir = "docs/ja"
+site_dir = "site/ja"
+repo_name = "ut-issl/capsula"
+repo_url = "https://github.com/ut-issl/capsula"
+copyright = """
+Copyright &copy; 2025 The Intelligent Space Systems Laboratory (ISSL)
+"""
+nav = [
+  { "ホーム" = "index.md" },
+  { "インストール" = "installation.md" },
+  { "はじめに" = "getting-started.md" },
+  { "設定" = "configuration.md" },
+  { "フック" = [
+    { "capture-cwd" = "hooks/capture-cwd.md" },
+    { "capture-env" = "hooks/capture-env.md" },
+    { "capture-git-repo" = "hooks/capture-git-repo.md" },
+    { "capture-file" = "hooks/capture-file.md" },
+    { "capture-machine" = "hooks/capture-machine.md" },
+    { "capture-command" = "hooks/capture-command.md" },
+    { "capture-json" = "hooks/capture-json.md" },
+    { "capture-toml" = "hooks/capture-toml.md" },
+    { "capture-yaml" = "hooks/capture-yaml.md" },
+    { "notify-slack" = "hooks/notify-slack.md" },
+  ]},
+  { "CLI リファレンス" = "cli-reference.md" },
+  { "サーバーのセットアップ" = "server-setup.md" },
+]
+
+[project.theme]
+language = "ja"
+features = [
+  "announce.dismiss",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  "content.footnote.tooltips",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "ダークモードに切り替える"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "ライトモードに切り替える"
+
+[project.extra]
+alternate = [
+  { name = "English", link = "/capsula/en/", lang = "en" },
+  { name = "日本語", link = "/capsula/ja/", lang = "ja" },
+]
