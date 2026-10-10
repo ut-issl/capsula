@@ -1,0 +1,3 @@
+[default.extend-words]
+# The terminal UI library used by capsula-tui
+ratatui = "ratatui"
