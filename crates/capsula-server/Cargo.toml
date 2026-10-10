@@ -38,3 +38,7 @@ testcontainers-modules = { workspace = true }
 
 [lints]
 workspace = true
+
+# The server is distributed as a Docker image, not as a dist binary.
+[package.metadata.dist]
+dist = false
