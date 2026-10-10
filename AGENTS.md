@@ -198,6 +198,10 @@ When an agent files a GitHub Issue or opens a GitHub Pull Request, put this aler
 
 The human developer must remove this note after verifying the description or comment's contents.
 
+## Releasing
+
+Releases are cut with the `Release` workflow, which uses dist to build prebuilt `capsula` binaries. Follow `RELEASING.md` for the procedure; release notes are hand-written in `CHANGELOG.md`.
+
 ## Error Handling and Code Style
 
 - Use `Result` for fallible operations; do not use `None` as an error signal.
