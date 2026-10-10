@@ -38,3 +38,16 @@ tempfile = { workspace = true }
 
 [lints]
 workspace = true
+
+# `cargo binstall capsula` downloads the archives that the `Release` workflow
+# (dist) attaches to the GitHub Release; see RELEASING.md.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }{ archive-suffix }"
+pkg-fmt = "tgz"
+bin-dir = "{ name }-{ target }/{ bin }{ binary-ext }"
+# Never fall back to third-party binaries built by cargo-quickinstall.
+disabled-strategies = ["quick-install"]
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
+bin-dir = "{ bin }{ binary-ext }"
