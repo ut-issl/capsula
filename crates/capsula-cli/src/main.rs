@@ -32,9 +32,23 @@ const VERSION: &str = if env!("GIT_HASH").is_empty() {
     )
 };
 
-/// Exit code used when Capsula hook failures should make the CLI fail and no
-/// child command exit code needs to be propagated.
-const HOOK_FAILURE_EXIT_CODE: i32 = 125;
+/// Exit code used when a pre-run hook failure stops Capsula before the command
+/// runs. Like GNU `env`/`timeout` and `docker run`, 125 means the wrapper
+/// failed and the command was not executed.
+const PRE_RUN_FAILURE_EXIT_CODE: i32 = 125;
+
+/// Exit code used when a post-run hook fails and the command's own exit code
+/// does not already signal a failure.
+const POST_RUN_FAILURE_EXIT_CODE: i32 = 1;
+
+/// Exit code of `capsula run` after the command has run: the command's
+/// failure takes precedence over a post-run hook failure.
+const fn run_exit_code(command_exit_code: i32, post_run_failed: bool) -> i32 {
+    match (command_exit_code, post_run_failed) {
+        (0, true) => POST_RUN_FAILURE_EXIT_CODE,
+        (code, _) => code,
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "capsula", bin_name = "capsula", version = VERSION, about = "Capsula CLI")]
@@ -340,7 +354,7 @@ path = \".\"
                     "Aborting run due to pre-run hook failure:{}",
                     format_failures(&pre_report)
                 );
-                std::process::exit(HOOK_FAILURE_EXIT_CODE);
+                std::process::exit(PRE_RUN_FAILURE_EXIT_CODE);
             }
 
             // Execute the command
@@ -368,12 +382,9 @@ path = \".\"
                     "Post-run hook failure recorded:{}",
                     format_failures(&post_report)
                 );
-                if run_output.exit_code == 0 {
-                    std::process::exit(HOOK_FAILURE_EXIT_CODE);
-                }
             }
 
-            std::process::exit(run_output.exit_code);
+            std::process::exit(run_exit_code(run_output.exit_code, post_report.is_failed()));
         }
         Commands::RunStart => {
             let (run, capsula_dir) = create_and_setup_run(vec![], &project_root, &vault_dir)?;
@@ -390,7 +401,7 @@ path = \".\"
                     "Aborting run-start due to pre-run hook failure:{}",
                     format_failures(&pre_report)
                 );
-                std::process::exit(HOOK_FAILURE_EXIT_CODE);
+                std::process::exit(PRE_RUN_FAILURE_EXIT_CODE);
             }
 
             // Print run name to stdout for callers to capture
@@ -431,7 +442,7 @@ path = \".\"
                     "Post-run hook failure recorded:{}",
                     format_failures(&post_report)
                 );
-                std::process::exit(HOOK_FAILURE_EXIT_CODE);
+                std::process::exit(POST_RUN_FAILURE_EXIT_CODE);
             }
 
             info!("Run '{}' finalized successfully", run_name);
@@ -716,5 +727,26 @@ fn main() {
         }
 
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_exit_code_propagates_command_exit_code() {
+        assert_eq!(run_exit_code(0, false), 0);
+        assert_eq!(run_exit_code(42, false), 42);
+    }
+
+    #[test]
+    fn run_exit_code_fails_successful_command_on_post_run_failure() {
+        assert_eq!(run_exit_code(0, true), POST_RUN_FAILURE_EXIT_CODE);
+    }
+
+    #[test]
+    fn run_exit_code_keeps_command_failure_over_post_run_failure() {
+        assert_eq!(run_exit_code(42, true), 42);
     }
 }

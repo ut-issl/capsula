@@ -74,7 +74,8 @@ struct TestCommandOutput {
     exit_code: i32,
 }
 
-const HOOK_FAILURE_EXIT_CODE: i32 = 125;
+const PRE_RUN_FAILURE_EXIT_CODE: i32 = 125;
+const POST_RUN_FAILURE_EXIT_CODE: i32 = 1;
 
 fn find_first_run(vault_dir: &std::path::Path) -> (PathBuf, String) {
     let date_dirs: Vec<_> = fs::read_dir(vault_dir)
@@ -151,7 +152,7 @@ fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
         .arg("touch should-not-run");
 
     cmd.assert()
-        .code(HOOK_FAILURE_EXIT_CODE)
+        .code(PRE_RUN_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains(
             "Aborting run due to pre-run hook failure",
         ))
@@ -224,7 +225,7 @@ id = "capture-cwd"
         .arg("touch should-not-run");
 
     cmd.assert()
-        .code(HOOK_FAILURE_EXIT_CODE)
+        .code(PRE_RUN_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains(
             "Aborting run due to pre-run hook failure",
         ));
@@ -291,7 +292,7 @@ id = "capture-cwd"
         .arg("touch did-run");
 
     cmd.assert()
-        .code(HOOK_FAILURE_EXIT_CODE)
+        .code(POST_RUN_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains("Post-run hook failure recorded"))
         .stderr(predicate::str::contains("post[0] capture-command: "))
         .stderr(predicate::str::contains("Command cannot be empty"));
@@ -560,7 +561,7 @@ fn test_capsula_show_displays_hook_failure_reason() {
         .arg(&config_path)
         .arg("run")
         .arg("true");
-    cmd.assert().code(HOOK_FAILURE_EXIT_CODE);
+    cmd.assert().code(PRE_RUN_FAILURE_EXIT_CODE);
 
     let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
     let (_, run_name) = find_first_run(&vault_dir);
@@ -818,7 +819,7 @@ fn test_run_start_exits_nonzero_and_prints_no_name_when_pre_run_requests_abort()
 
     let output = cmd
         .assert()
-        .code(HOOK_FAILURE_EXIT_CODE)
+        .code(PRE_RUN_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains(
             "Aborting run-start due to pre-run hook failure",
         ));
@@ -875,6 +876,52 @@ fn test_run_end_creates_post_run() {
     assert!(
         capsula_dir.join("post-run.json").exists(),
         "post-run.json should exist after run-end"
+    );
+}
+
+#[test]
+fn test_run_end_exits_with_post_run_failure_code_when_post_run_hook_fails() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("capsula.toml");
+    let config_content = r#"
+[vault]
+name = "test-vault"
+
+[[post-run.hooks]]
+id = "capture-command"
+command = []
+"#;
+    fs::write(&config_path, config_content).unwrap();
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-start");
+
+    let output = cmd.assert().success();
+    let run_name = String::from_utf8(output.get_output().stdout.clone())
+        .unwrap()
+        .trim()
+        .to_string();
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-end")
+        .arg(&run_name);
+
+    cmd.assert()
+        .code(POST_RUN_FAILURE_EXIT_CODE)
+        .stderr(predicate::str::contains("Post-run hook failure recorded"))
+        .stderr(predicate::str::contains("post[0] capture-command: "));
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, _) = find_first_run(&vault_dir);
+    assert!(
+        run_dir.join("_capsula").join("post-run.json").exists(),
+        "post-run.json should be recorded even when a post-run hook fails"
     );
 }
 
