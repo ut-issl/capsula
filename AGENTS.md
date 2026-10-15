@@ -106,10 +106,10 @@ The standard registries currently provide these hook IDs in both phases:
 
 - `capture-cwd`: capture the current working directory.
 - `capture-env`: capture a named environment variable.
-- `capture-git-repo`: capture commit, dirty, pushed state, and optionally a diff/tag; can request an abort when dirty or not pushed.
+- `capture-git-repo`: capture commit, dirty, pushed state, and optionally a diff/tag; fails when dirty (unless `allow_dirty`) or, with `require_pushed`, when HEAD is not pushed.
 - `capture-file`: glob files, optionally copy/move them into the run artifact directory, and/or hash them with SHA-256.
 - `capture-machine`: capture host/system information.
-- `capture-command`: execute a command and capture output, exit status, and duration; `abort_on_failure` is available.
+- `capture-command`: execute a command and capture its output and exit status; fails unless the status is in `success_codes` (default `[0]`). `abort_on_failure` is a deprecated compatibility option.
 - `capture-json`: parse one JSON file into queryable `content`.
 - `capture-toml`: parse one TOML file into queryable JSON `content`.
 - `notify-slack`: send Slack notifications; see `docs/hooks/notify-slack.md` for token and attachment configuration.
@@ -124,7 +124,8 @@ The core hook API is in `crates/capsula-core/src/hook.rs`:
 - `HookErased<P>` is the object-safe trait used for heterogeneous hook collections.
 - `PhaseMarker::phase_name()` supplies `pre`/`post` artifact directory names.
 - `RuntimeParams<P>` optionally carries a per-hook artifact directory.
-- `Captured` serializes hook output and can request abortion through `abort_requested()`.
+- `Hook::run` returns `HookOutcome<Output>`: `Succeeded(output)`, or `Failed { output, reason }` when the hook ran but its configured success condition was not met. It returns `Err` only when the hook could not produce a result.
+- `Captured::serialize_json` serializes hook output into a JSON object; implementations usually delegate to `capsula_core::captured::to_object`.
 
 `Run<Dir>` in `crates/capsula-core/src/run.rs` uses type state:
 
@@ -137,11 +138,11 @@ The normal `capsula run` flow is:
 1. Parse the CLI and load `capsula.toml`; determine project root, dotenv variables, and vault path.
 2. Create a ULID and human-readable random name, create the run directory, and write `_capsula/metadata.json`.
 3. Build the pre-run hook list through the registry and execute hooks in configuration order.
-4. Write `_capsula/pre-run.json`; if any captured result requests an abort, stop before the command with exit code `125`.
+4. Write `_capsula/pre-run.json`; if any pre-run hook failed or errored, stop before the command with exit code `125`.
 5. Execute the command and write `_capsula/command.json`.
-6. Execute post-run hooks and write `_capsula/post-run.json`.
+6. Execute post-run hooks and write `_capsula/post-run.json`; if any post-run hook failed or errored and the command exited with `0`, exit with `1`, otherwise exit with the command's status.
 
-Hook execution is best-effort per hook: a hook failure is recorded in the result with `success: false` and an error, while later hooks still run. Hook configuration/build failures prevent the phase from starting. Successful outputs receive a `__meta` object containing the hook ID, serialized config, and success status.
+Hook execution is fail-closed per phase. `crates/capsula-orchestration/src/record.rs` turns each hook result into a `HookRecord` whose `HookStatus` is `Succeeded`, `Failed { reason }` (a `HookOutcome::Failed`), or `Errored { error }` (an `Err` from the hook, or output that cannot be serialized). Later hooks still run after a failure, and the phase's `PhaseReport` is failed if any hook failed or errored. Each record is written with a `__meta` object containing the hook ID, serialized config, `success`, and `failure_reason` or `error`. Hook configuration/build failures prevent the phase from starting.
 
 Hooks that return `needs_artifact_dir() == true` receive a dedicated directory named `{phase}-{index}-{hook-id}/` under the run directory. The built-in file and Git hooks use this mechanism. The `_capsula/` directory contains metadata and JSON summaries; captured artifacts live beside it.
 
@@ -180,7 +181,7 @@ Run uploads include run metadata, command output, hook outputs, and captured fil
 1. Add a crate under `crates/` following the existing hook crate pattern.
 2. Define a serializable config and captured output type.
 3. Implement `Hook<PreRun>` and/or `Hook<PostRun>`; implement both when the hook is valid in both phases.
-4. Implement `Captured`; use `abort_requested()` only when the hook intentionally prevents command execution.
+4. Implement `Captured` with `capsula_core::captured::to_object`; the output must serialize to a JSON object without a `__meta` key. Return `HookOutcome::failure` when the hook ran but its configured success condition failed, and `Err` when it could not produce a result. Either one stops the run in the pre-run phase.
 5. Add the crate to `[workspace.dependencies]` in the root `Cargo.toml` and to `crates/capsula-registry/Cargo.toml`.
 6. Register the hook in `standard_hook_registry()` in `crates/capsula-registry/src/lib.rs`.
 7. Add hook documentation under `docs/hooks/` and tests for configuration and execution behavior.
@@ -201,7 +202,7 @@ The human developer must remove this note after verifying the description or com
 ## Error Handling and Code Style
 
 - Use `Result` for fallible operations; do not use `None` as an error signal.
-- Hook execution errors should normally be captured as non-fatal per-hook results by the orchestration layer.
+- Hook execution errors are recorded per hook by the orchestration layer, so the remaining hooks of the phase still run, but they fail the phase like `HookOutcome::Failed`.
 - Configuration, run-directory setup, command execution, and server/database failures are fatal to the relevant operation.
 - Preserve error context with `anyhow::Context` at application/orchestration boundaries and use `thiserror` for crate-specific errors.
 - Follow the workspace Clippy configuration in the root `Cargo.toml`; CI runs with `RUSTFLAGS="-Dwarnings"`.
