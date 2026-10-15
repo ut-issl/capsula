@@ -8,6 +8,7 @@ use tracing::{debug, info};
 use ulid::Ulid;
 
 use crate::hooks::build_and_run_hooks;
+use crate::record::PhaseReport;
 
 /// Create a new run, set up its directory structure, and write metadata.
 ///
@@ -54,57 +55,61 @@ pub fn create_and_setup_run(
 
 /// Execute pre-run hooks and write results to `pre-run.json`.
 ///
-/// Returns whether any hook failed or errored and the run should abort.
+/// Returns the report of every hook; the run should abort when
+/// [`PhaseReport::is_failed`] is true.
 pub fn run_pre_hooks(
     run: &PreparedRun,
     capsula_dir: &Path,
     config: &HookPhaseConfig,
     registry: &capsula_registry::HookRegistry<PreRun>,
     project_root: &Path,
-) -> Result<bool> {
+) -> Result<PhaseReport<PreRun>> {
     debug!("Executing pre-run hooks");
-    let (pre_json, should_abort) =
-        build_and_run_hooks::<PreRun>(run, config, registry, project_root)
-            .context("Failed to execute pre-run hooks")?;
+    let report = build_and_run_hooks::<PreRun>(run, config, registry, project_root)
+        .context("Failed to execute pre-run hooks")?;
     debug!("Pre-run hooks completed");
 
     let pre_json_path = capsula_dir.join("pre-run.json");
-    std::fs::write(&pre_json_path, serde_json::to_string_pretty(&pre_json)?).with_context(
-        || {
-            format!(
-                "Failed to write pre-run hook results to {}",
-                pre_json_path.display()
-            )
-        },
-    )?;
+    std::fs::write(
+        &pre_json_path,
+        serde_json::to_string_pretty(&report.to_json())?,
+    )
+    .with_context(|| {
+        format!(
+            "Failed to write pre-run hook results to {}",
+            pre_json_path.display()
+        )
+    })?;
 
-    Ok(should_abort)
+    Ok(report)
 }
 
 /// Execute post-run hooks and write results to `post-run.json`.
 ///
-/// Returns whether any hook failed or errored.
+/// Returns the report of every hook.
 pub fn run_post_hooks(
     run: &PreparedRun,
     capsula_dir: &Path,
     config: &HookPhaseConfig,
     registry: &capsula_registry::HookRegistry<PostRun>,
     project_root: &Path,
-) -> Result<bool> {
+) -> Result<PhaseReport<PostRun>> {
     debug!("Executing post-run hooks");
-    let (post_json, failed) = build_and_run_hooks::<PostRun>(run, config, registry, project_root)
+    let report = build_and_run_hooks::<PostRun>(run, config, registry, project_root)
         .context("Failed to execute post-run hooks")?;
     debug!("Post-run hooks completed");
 
     let post_json_path = capsula_dir.join("post-run.json");
-    std::fs::write(&post_json_path, serde_json::to_string_pretty(&post_json)?).with_context(
-        || {
-            format!(
-                "Failed to write post-run hook results to {}",
-                post_json_path.display()
-            )
-        },
-    )?;
+    std::fs::write(
+        &post_json_path,
+        serde_json::to_string_pretty(&report.to_json())?,
+    )
+    .with_context(|| {
+        format!(
+            "Failed to write post-run hook results to {}",
+            post_json_path.display()
+        )
+    })?;
 
-    Ok(failed)
+    Ok(report)
 }

@@ -3,6 +3,7 @@ use std::time::Instant;
 use anyhow::Result;
 use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::PreparedRun;
+use capsula_orchestration::record::PhaseReport;
 use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::find_run_dir_by_name;
@@ -36,6 +37,13 @@ pub struct ActiveRun {
     pub timestamp_display: String,
 }
 
+/// A run whose post-run hooks have been executed and recorded.
+pub struct CompletedRun {
+    pub run_name: String,
+    /// One line per failed post-run hook; empty when every hook succeeded.
+    pub hook_failures: Vec<String>,
+}
+
 /// A deferred action that requires a redraw before execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PendingAction {
@@ -56,7 +64,7 @@ pub struct App {
     pub confirm_quit: bool,
     pub active_run: Option<ActiveRun>,
     pub pending_action: Option<PendingAction>,
-    pub last_completed_run: Option<String>,
+    pub last_completed_run: Option<CompletedRun>,
 
     // Hook registries (created once)
     pre_run_registry: capsula_registry::HookRegistry<PreRun>,
@@ -121,9 +129,12 @@ impl App {
 
     fn do_start_run_flow(&mut self) {
         match self.execute_start_run() {
-            Ok(should_abort) => {
-                if should_abort {
-                    self.error = Some("A pre-run hook failed. Run was not started.".into());
+            Ok(report) => {
+                if report.is_failed() {
+                    self.error = Some(format!(
+                        "A pre-run hook failed. Run was not started: {}",
+                        report.failure_lines().join("; ")
+                    ));
                     self.status_message = None;
                     self.active_run = None;
                     self.focused = FocusTarget::StartButton;
@@ -148,13 +159,13 @@ impl App {
         }
     }
 
-    fn execute_start_run(&mut self) -> Result<bool> {
+    fn execute_start_run(&mut self) -> Result<PhaseReport<PreRun>> {
         let (run, capsula_dir) =
             create_and_setup_run(vec![], &self.config.project_root, &self.config.vault_dir)?;
 
         info!("Run created: {} (ID: {})", run.name, run.id);
 
-        let should_abort = run_pre_hooks(
+        let report = run_pre_hooks(
             &run,
             &capsula_dir,
             &self.config.config.pre_run,
@@ -169,7 +180,7 @@ impl App {
             timestamp_display: timestamp.format("%H:%M:%S").to_string(),
         });
 
-        Ok(should_abort)
+        Ok(report)
     }
 
     fn do_end_run_flow(&mut self) {
@@ -179,10 +190,14 @@ impl App {
             .map(|a| a.run_name.clone())
             .unwrap_or_default();
 
-        if let Err(e) = self.execute_end_run() {
-            self.error = Some(format!("Failed to end run: {e}"));
-        } else {
-            self.last_completed_run = Some(run_name);
+        match self.execute_end_run() {
+            Ok(report) => {
+                self.last_completed_run = Some(CompletedRun {
+                    run_name,
+                    hook_failures: report.failure_lines(),
+                });
+            }
+            Err(e) => self.error = Some(format!("Failed to end run: {e}")),
         }
 
         self.active_run = None;
@@ -190,7 +205,7 @@ impl App {
         self.focused = FocusTarget::StartButton;
     }
 
-    fn execute_end_run(&self) -> Result<()> {
+    fn execute_end_run(&self) -> Result<PhaseReport<PostRun>> {
         let active = self
             .active_run
             .as_ref()
@@ -211,19 +226,16 @@ impl App {
 
         info!("Finalizing run: {} (ID: {})", run.name, run.id);
 
-        let post_hooks_failed = run_post_hooks(
+        let report = run_post_hooks(
             &run,
             &capsula_dir,
             &self.config.config.post_run,
             &self.post_run_registry,
             &self.config.project_root,
         )?;
-        if post_hooks_failed {
-            anyhow::bail!("post-run hook failure recorded");
-        }
 
-        info!("Run '{}' finalized successfully", run.name);
-        Ok(())
+        info!("Run '{}' finalized", run.name);
+        Ok(report)
     }
 
     pub const fn toggle_instant_run(&mut self) {

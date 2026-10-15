@@ -1,60 +1,17 @@
 use anyhow::{Context, Result};
 use capsula_config::HookPhaseConfig;
-use capsula_core::hook::{PhaseMarker, RuntimeParams};
+use capsula_core::hook::{HookErased, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::path::Path;
 use tracing::{debug, error, warn};
 
-fn attach_metadata(mut json: Value, metadata: Value) -> Value {
-    if let Value::Object(ref mut map) = json {
-        map.insert("__meta".to_string(), metadata);
-        json
-    } else {
-        json!({
-            "value": json,
-            "__meta": metadata,
-        })
-    }
-}
-
-fn outcome_metadata(hook_id: &str, config: &Value, failure_reason: Option<String>) -> Value {
-    failure_reason.map_or_else(
-        || {
-            json!({
-                "id": hook_id,
-                "config": config,
-                "success": true,
-            })
-        },
-        |reason| {
-            json!({
-                "id": hook_id,
-                "config": config,
-                "success": false,
-                "failure_reason": reason,
-            })
-        },
-    )
-}
-
-fn error_json(hook_id: &str, config: &Value, error: &str) -> Value {
-    json!({
-        "__meta": json!({
-            "id": hook_id,
-            "config": config,
-            "success": false,
-            "error": error,
-        })
-    })
-}
+use crate::record::{HookRecord, HookStatus, PhaseReport};
 
 /// Build hooks from configuration and execute them in order.
 ///
-/// Returns a tuple of (JSON results array, `should_abort` flag).
-/// Each hook's output includes a `__meta` field with `id`, `config`, and `success` status.
-/// Failed hooks are recorded with `success: false` but do not stop remaining hooks
-/// from running. The returned `should_abort` flag is true when any hook fails or errors.
+/// Every hook is attempted; a failed or errored hook does not stop the
+/// remaining hooks. The returned report records each hook's result.
 ///
 /// Hooks that request an artifact directory get a
 /// dedicated subdirectory under `run_dir` named `{phase}-{index}-{hook_id}/`.
@@ -63,7 +20,7 @@ pub fn build_and_run_hooks<P: PhaseMarker>(
     hook_phase_config: &HookPhaseConfig,
     hook_registry: &capsula_registry::HookRegistry<P>,
     project_root: &Path,
-) -> Result<(Vec<serde_json::Value>, bool)> {
+) -> Result<PhaseReport<P>> {
     debug!(
         "Building {} hooks from configuration",
         hook_phase_config.hooks.len()
@@ -72,79 +29,148 @@ pub fn build_and_run_hooks<P: PhaseMarker>(
         .context("Failed to build hooks from configuration")?;
     debug!("Successfully built {} hook instances", hooks.len());
 
-    let phase_name = P::phase_name();
-
-    let results: Vec<_> = hooks
+    let records = hooks
         .iter()
         .enumerate()
         .map(|(idx, hook)| {
-            let hook_identifier = hook_phase_config.hooks.get(idx).map_or_else(
-                || format!("hook[{idx}]"),
-                |config_hook| config_hook.id.clone(),
-            );
-            let hook_id = hook.id();
-
-            let hook_config_json = hook
-                .config_as_json()
-                .unwrap_or_else(|_| json!({ "__error": "Failed to serialize hook config" }));
-
-            // Create per-hook artifact directory if requested
-            let runtime_params = if hook.needs_artifact_dir() {
-                let dir_name = format!("{phase_name}-{idx}-{hook_id}");
-                let artifact_dir = run_metadata.run_dir.join(&dir_name);
-                debug!(
-                    "Creating artifact directory for hook '{}': {}",
-                    hook_identifier,
-                    artifact_dir.display()
-                );
-                if let Err(e) = std::fs::create_dir_all(&artifact_dir) {
-                    error!(
-                        "Failed to create artifact directory {}: {e}",
-                        artifact_dir.display()
-                    );
-                    let json = error_json(
-                        &hook_id,
-                        &hook_config_json,
-                        &format!("Failed to create artifact directory: {e}"),
-                    );
-                    return (json, true);
-                }
-                RuntimeParams::<P>::with_artifact_dir(artifact_dir)
-            } else {
-                RuntimeParams::<P>::default()
-            };
-
-            debug!("Running hook: {}", hook_identifier);
-            match hook.run(run_metadata, &runtime_params) {
-                Ok(outcome) => {
-                    let should_abort = outcome.is_failure();
-                    let failure_reason = outcome.failure_reason().map(ToOwned::to_owned);
-                    if let Some(reason) = &failure_reason {
-                        warn!(
-                            "Hook '{hook_identifier}' completed with a failure outcome: {reason}"
-                        );
-                    } else {
-                        debug!("Hook '{}' completed successfully", hook_identifier);
-                    }
-
-                    let json = outcome.output().serialize_json().unwrap_or_else(
-                        |_| json!({ "__error": "Failed to serialize captured data" }),
-                    );
-                    let metadata = outcome_metadata(&hook_id, &hook_config_json, failure_reason);
-                    (attach_metadata(json, metadata), should_abort)
-                }
-                Err(e) => {
-                    let error = anyhow::anyhow!(e);
-                    error!("Failed to run {hook_identifier} (config index {idx}): {error:#}");
-                    let json = error_json(&hook_id, &hook_config_json, &format!("{error:#}"));
-                    (json, true)
-                }
-            }
+            debug!("Running hook: {}", hook.id());
+            let record = run_hook(idx, hook.as_ref(), run_metadata);
+            log_record::<P>(&record);
+            record
         })
         .collect();
 
-    let json_results = results.iter().map(|(json, _)| json.clone()).collect();
-    let should_abort = results.iter().any(|(_, abort)| *abort);
+    Ok(PhaseReport::new(records))
+}
 
-    Ok((json_results, should_abort))
+/// Run one hook and record its result. Never fails: every problem is
+/// recorded as [`HookStatus::Errored`].
+fn run_hook<P: PhaseMarker>(
+    index: usize,
+    hook: &dyn HookErased<P>,
+    run_metadata: &PreparedRun,
+) -> HookRecord {
+    let hook_id = hook.id();
+
+    let config = match hook.config_as_json() {
+        Ok(config) => config,
+        Err(e) => {
+            return HookRecord::errored(
+                index,
+                hook_id,
+                Value::Null,
+                format!("Failed to serialize hook config: {e}"),
+            );
+        }
+    };
+
+    let runtime_params = if hook.needs_artifact_dir() {
+        let dir_name = format!("{}-{index}-{hook_id}", P::phase_name());
+        let artifact_dir = run_metadata.run_dir.join(&dir_name);
+        debug!(
+            "Creating artifact directory for hook '{}': {}",
+            hook_id,
+            artifact_dir.display()
+        );
+        if let Err(e) = std::fs::create_dir_all(&artifact_dir) {
+            return HookRecord::errored(
+                index,
+                hook_id,
+                config,
+                format!("Failed to create artifact directory: {e}"),
+            );
+        }
+        RuntimeParams::<P>::with_artifact_dir(artifact_dir)
+    } else {
+        RuntimeParams::<P>::default()
+    };
+
+    let result = hook
+        .run(run_metadata, &runtime_params)
+        .map_err(|e| format!("{:#}", anyhow::anyhow!(e)));
+    HookRecord::from_run(index, hook_id, config, result)
+}
+
+fn log_record<P: PhaseMarker>(record: &HookRecord) {
+    let phase = P::phase_name();
+    let HookRecord { index, hook_id, .. } = record;
+    match &record.status {
+        HookStatus::Succeeded => debug!("Hook {phase}[{index}] {hook_id} completed successfully"),
+        HookStatus::Failed { reason } => {
+            warn!("Hook {phase}[{index}] {hook_id} completed with a failure outcome: {reason}");
+        }
+        HookStatus::Errored { error } => error!("Hook {phase}[{index}] {hook_id} errored: {error}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "Tests use unwrap/expect for brevity"
+    )]
+
+    use super::*;
+    use capsula_core::captured::Captured;
+    use capsula_core::error::CapsulaError;
+    use capsula_core::hook::{HookOutcome, PreRun};
+    use serde::ser::Error as _;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    /// A hook whose configuration cannot be serialized.
+    struct UnserializableConfigHook {
+        ran: AtomicBool,
+    }
+
+    impl HookErased<PreRun> for UnserializableConfigHook {
+        fn id(&self) -> String {
+            "broken-config".to_string()
+        }
+
+        fn config_as_json(&self) -> Result<Value, serde_json::Error> {
+            Err(serde_json::Error::custom("boom"))
+        }
+
+        fn run(
+            &self,
+            _metadata: &PreparedRun,
+            _params: &RuntimeParams<PreRun>,
+        ) -> Result<HookOutcome<Box<dyn Captured>>, CapsulaError> {
+            self.ran.store(true, Ordering::SeqCst);
+            Err(CapsulaError::Other("should not run".to_string()))
+        }
+
+        fn needs_artifact_dir(&self) -> bool {
+            false
+        }
+    }
+
+    fn prepared_run(dir: &Path) -> PreparedRun {
+        PreparedRun {
+            id: ulid::Ulid::generate(),
+            name: "test-run".to_string(),
+            command: vec![],
+            run_dir: dir.to_path_buf(),
+            project_root: dir.to_path_buf(),
+        }
+    }
+
+    #[test]
+    fn unserializable_config_errors_without_running_hook() {
+        let dir = tempfile::tempdir().unwrap();
+        let hook = UnserializableConfigHook {
+            ran: AtomicBool::new(false),
+        };
+
+        let record = run_hook(0, &hook, &prepared_run(dir.path()));
+
+        assert!(!hook.ran.load(Ordering::SeqCst), "hook should not run");
+        assert_eq!(record.config, Value::Null);
+        assert!(
+            matches!(&record.status, HookStatus::Errored { error } if error.contains("Failed to serialize hook config")),
+            "unexpected status: {:?}",
+            record.status
+        );
+    }
 }
