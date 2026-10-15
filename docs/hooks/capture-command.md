@@ -26,7 +26,7 @@ Runs a shell command and captures its output and exit code.
 | Option | Type | Default | Description |
 | -------- | ------ | --------- | ------------- |
 | `success_codes` | array of integers | `[0]` | Exit statuses that count as a successful hook outcome |
-| `abort_on_failure` | boolean | unset | Deprecated compatibility option. If explicitly set to `false`, any exit status is accepted. Prefer `success_codes` for new configs. |
+| `abort_on_failure` | boolean | unset | Deprecated compatibility option. If explicitly set to `false`, any exit status is accepted. Setting it to `true` has no effect and logs a warning. Prefer `success_codes` for new configs. Cannot be combined with `success_codes`. |
 
 ### Example
 
@@ -83,4 +83,4 @@ success_codes = [1]
 ```
 
 !!! warning "Failure Behavior"
-    Pre-run hook failures are recorded, remaining pre-run hooks still run, and then Capsula stops before running your main command. Post-run hook failures are recorded after the main command; they make `capsula run` fail if the main command succeeded, while preserving the main command's non-zero exit code if it already failed.
+    Pre-run hook failures are recorded, remaining pre-run hooks still run, and then Capsula stops before running your main command. Post-run hook failures are recorded after the main command; they make `capsula run` fail if the main command succeeded, while preserving the main command's non-zero exit code if it already failed. See [Hook Failures](../configuration.md#hook-failures).
