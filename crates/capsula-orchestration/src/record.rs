@@ -92,9 +92,10 @@ impl HookRecord {
     /// Build a record from the result of running a hook.
     ///
     /// `result` is `Err` with a formatted message when the hook returned an
-    /// operational error. A captured output that cannot be serialized makes
-    /// the record [`HookStatus::Errored`], so an unrecordable result never
-    /// counts as a success.
+    /// operational error. A captured output that cannot be serialized, or
+    /// that uses the reserved `__meta` key, makes the record
+    /// [`HookStatus::Errored`], so an unrecordable result never counts as a
+    /// success.
     #[must_use]
     pub fn from_run(
         index: usize,
@@ -109,11 +110,17 @@ impl HookRecord {
             Err(error) => return Self::errored(index, hook_id, config, error),
         };
         match output.serialize_json() {
-            Ok(json) => Self {
+            Ok(output) if output.contains_key(META_KEY) => Self::errored(
                 index,
                 hook_id,
                 config,
-                output: Some(into_object(json)),
+                format!("Captured data must not contain the reserved {META_KEY} key"),
+            ),
+            Ok(output) => Self {
+                index,
+                hook_id,
+                config,
+                output: Some(output),
                 status,
             },
             Err(e) => Self::errored(
@@ -185,14 +192,6 @@ impl HookRecord {
         let mut json = self.output.clone().unwrap_or_default();
         json.insert(META_KEY.to_string(), Value::Object(meta));
         Value::Object(json)
-    }
-}
-
-/// Wrap a non-object output so metadata can be attached next to it.
-fn into_object(json: Value) -> Map<String, Value> {
-    match json {
-        Value::Object(map) => map,
-        other => Map::from_iter([("value".to_string(), other)]),
     }
 }
 
@@ -279,15 +278,19 @@ mod tests {
     struct JsonOutput(Value);
 
     impl Captured for JsonOutput {
-        fn serialize_json(&self) -> Result<Value, serde_json::Error> {
-            Ok(self.0.clone())
+        fn serialize_json(&self) -> Result<Map<String, Value>, serde_json::Error> {
+            Ok(self
+                .0
+                .as_object()
+                .cloned()
+                .expect("test output must be a JSON object"))
         }
     }
 
     struct Unserializable;
 
     impl Captured for Unserializable {
-        fn serialize_json(&self) -> Result<Value, serde_json::Error> {
+        fn serialize_json(&self) -> Result<Map<String, Value>, serde_json::Error> {
             Err(serde_json::Error::custom("boom"))
         }
     }
@@ -372,14 +375,21 @@ mod tests {
     }
 
     #[test]
-    fn from_run_wraps_non_object_output() {
+    fn from_run_rejects_output_with_reserved_meta_key() {
         let record = HookRecord::from_run(
             0,
             "capture-cwd",
             json!({}),
-            Ok(HookOutcome::success(boxed(JsonOutput(json!("/p"))))),
+            Ok(HookOutcome::success(boxed(JsonOutput(
+                json!({ "__meta": "mine" }),
+            )))),
         );
-        assert_eq!(record.output.unwrap()["value"], "/p");
+        assert!(
+            matches!(&record.status, HookStatus::Errored { error } if error.contains("__meta")),
+            "unexpected status: {:?}",
+            record.status
+        );
+        assert_eq!(record.output, None);
     }
 
     #[test]
