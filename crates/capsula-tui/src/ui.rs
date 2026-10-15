@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
-use crate::app::{App, FocusTarget, HitAreas};
+use crate::app::{App, CompletedRun, FocusTarget, HitAreas};
 use crate::widgets::{render_button, render_checkbox};
 
 pub fn draw(frame: &mut Frame, app: &App) -> HitAreas {
@@ -32,9 +32,9 @@ pub fn draw(frame: &mut Frame, app: &App) -> HitAreas {
         draw_status(frame, area, status);
     }
 
-    // Success message after completed run
-    if let Some(ref run_name) = app.last_completed_run {
-        draw_success(frame, area, run_name);
+    // Result message after completed run
+    if let Some(ref completed) = app.last_completed_run {
+        draw_completed(frame, area, completed);
     }
 
     // Error display at bottom
@@ -188,23 +188,37 @@ fn draw_status(frame: &mut Frame, area: Rect, status: &str) {
     frame.render_widget(status_widget, status_area);
 }
 
-fn draw_success(frame: &mut Frame, area: Rect, run_name: &str) {
-    let success_y = area.height.saturating_sub(4);
-    let success_area = Rect::new(area.x + 1, success_y, area.width.saturating_sub(2), 1);
+fn draw_completed(frame: &mut Frame, area: Rect, completed: &CompletedRun) {
+    let completed_y = area.height.saturating_sub(4);
+    let completed_area = Rect::new(area.x + 1, completed_y, area.width.saturating_sub(2), 2);
+    let run_name = &completed.run_name;
 
-    let success_widget = Paragraph::new(Line::from(vec![
-        Span::styled(
+    let (mark, message, color) = if completed.hook_failures.is_empty() {
+        (
             "✓ ",
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
             format!("Run '{run_name}' completed successfully"),
-            Style::default().fg(Color::Green),
+            Color::Green,
+        )
+    } else {
+        (
+            "! ",
+            format!(
+                "Run '{run_name}' completed, but a post-run hook failed: {}",
+                completed.hook_failures.join("; ")
+            ),
+            Color::Yellow,
+        )
+    };
+
+    let completed_widget = Paragraph::new(Line::from(vec![
+        Span::styled(
+            mark,
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
         ),
-    ]));
-    frame.render_widget(success_widget, success_area);
+        Span::styled(message, Style::default().fg(color)),
+    ]))
+    .wrap(Wrap { trim: true });
+    frame.render_widget(completed_widget, completed_area);
 }
 
 fn draw_error(frame: &mut Frame, area: Rect, error: &str) {

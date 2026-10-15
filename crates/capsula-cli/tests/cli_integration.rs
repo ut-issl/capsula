@@ -154,6 +154,9 @@ fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
         .code(HOOK_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains(
             "Aborting run due to pre-run hook failure",
+        ))
+        .stderr(predicate::str::contains(
+            "pre[0] capture-command: command exited with status 1",
         ));
 
     assert!(
@@ -164,9 +167,24 @@ fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
     let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
     let (run_dir, _) = find_first_run(&vault_dir);
     let capsula_dir = run_dir.join("_capsula");
+    let pre_run_json = fs::read_to_string(capsula_dir.join("pre-run.json"))
+        .expect("pre-run results should be recorded before aborting");
+    let pre_run: serde_json::Value = serde_json::from_str(&pre_run_json).unwrap();
+    let meta = &pre_run[0]["__meta"];
+    assert_eq!(meta["success"], false);
     assert!(
-        capsula_dir.join("pre-run.json").exists(),
-        "pre-run results should be recorded before aborting"
+        meta["failure_reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("command exited with status 1")),
+        "the policy failure reason should be recorded: {meta}"
+    );
+    assert!(
+        meta.get("error").is_none(),
+        "a policy failure is not an operational error: {meta}"
+    );
+    assert_eq!(
+        pre_run[0]["status"], 1,
+        "captured output should be kept for a policy failure"
     );
     assert!(
         !capsula_dir.join("command.json").exists(),
@@ -274,7 +292,9 @@ id = "capture-cwd"
 
     cmd.assert()
         .code(HOOK_FAILURE_EXIT_CODE)
-        .stderr(predicate::str::contains("Post-run hook failure recorded"));
+        .stderr(predicate::str::contains("Post-run hook failure recorded"))
+        .stderr(predicate::str::contains("post[0] capture-command: "))
+        .stderr(predicate::str::contains("Command cannot be empty"));
 
     assert!(
         sentinel_path.exists(),
@@ -527,6 +547,37 @@ fn test_capsula_show_displays_run_details() {
         .stdout(predicate::str::contains("Result:    exit 0"))
         .stdout(predicate::str::contains("Pre-run hooks:"))
         .stdout(predicate::str::contains("[ok]     capture-cwd"));
+}
+
+#[test]
+fn test_capsula_show_displays_hook_failure_reason() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config_with_aborting_pre_run(&temp_dir, "test-vault");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("true");
+    cmd.assert().code(HOOK_FAILURE_EXIT_CODE);
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (_, run_name) = find_first_run(&vault_dir);
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("show")
+        .arg(&run_name);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "[FAILED] capture-command: command exited with status 1",
+        ))
+        .stdout(predicate::str::contains("unknown error").not());
 }
 
 #[test]
