@@ -44,7 +44,7 @@ id = "capture-cwd"
 }
 
 /// Helper to create a capsula.toml config whose pre-run hook fails.
-fn create_test_config_with_aborting_pre_run(dir: &TempDir, vault_name: &str) -> PathBuf {
+fn create_test_config_with_failing_pre_run(dir: &TempDir, vault_name: &str) -> PathBuf {
     let config_path = dir.path().join("capsula.toml");
     let config_content = format!(
         r#"
@@ -54,7 +54,6 @@ name = "{vault_name}"
 [[pre-run.hooks]]
 id = "capture-command"
 command = ["sh", "-c", "exit 1"]
-abort_on_failure = true
 
 [[post-run.hooks]]
 id = "capture-cwd"
@@ -137,9 +136,9 @@ fn test_capsula_run_propagates_child_exit_code() {
 }
 
 #[test]
-fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
+fn test_capsula_run_exits_125_when_pre_run_hook_fails() {
     let temp_dir = TempDir::new().unwrap();
-    let config_path = create_test_config_with_aborting_pre_run(&temp_dir, "test-vault");
+    let config_path = create_test_config_with_failing_pre_run(&temp_dir, "test-vault");
     let sentinel_path = temp_dir.path().join("should-not-run");
 
     let mut cmd = cargo_bin_cmd!("capsula");
@@ -193,7 +192,7 @@ fn test_capsula_run_exits_nonzero_when_pre_run_requests_abort() {
     );
     assert!(
         !capsula_dir.join("post-run.json").exists(),
-        "post-run hooks should not run when pre-run hooks abort"
+        "post-run hooks should not run when a pre-run hook fails"
     );
 }
 
@@ -624,7 +623,7 @@ fn test_capsula_show_displays_run_details() {
 #[test]
 fn test_capsula_show_displays_hook_failure_reason() {
     let temp_dir = TempDir::new().unwrap();
-    let config_path = create_test_config_with_aborting_pre_run(&temp_dir, "test-vault");
+    let config_path = create_test_config_with_failing_pre_run(&temp_dir, "test-vault");
 
     let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
@@ -878,9 +877,9 @@ fn test_run_start_prints_name_to_stdout() {
 }
 
 #[test]
-fn test_run_start_exits_nonzero_and_prints_no_name_when_pre_run_requests_abort() {
+fn test_run_start_exits_125_and_prints_no_name_when_pre_run_hook_fails() {
     let temp_dir = TempDir::new().unwrap();
-    let config_path = create_test_config_with_aborting_pre_run(&temp_dir, "test-vault");
+    let config_path = create_test_config_with_failing_pre_run(&temp_dir, "test-vault");
 
     let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())
@@ -897,7 +896,7 @@ fn test_run_start_exits_nonzero_and_prints_no_name_when_pre_run_requests_abort()
     let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
     assert!(
         stdout.is_empty(),
-        "run-start should not print a run name when pre-run hooks abort"
+        "run-start should not print a run name when a pre-run hook fails"
     );
 
     let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
@@ -916,7 +915,7 @@ fn test_run_start_exits_nonzero_and_prints_no_name_when_pre_run_requests_abort()
 #[test]
 fn test_run_end_refuses_run_whose_pre_run_failed() {
     let temp_dir = TempDir::new().unwrap();
-    let config_path = create_test_config_with_aborting_pre_run(&temp_dir, "test-vault");
+    let config_path = create_test_config_with_failing_pre_run(&temp_dir, "test-vault");
 
     let mut cmd = cargo_bin_cmd!("capsula");
     cmd.current_dir(temp_dir.path())

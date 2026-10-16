@@ -25,7 +25,7 @@ Runs a shell command and captures its output and exit code.
 
 | Option | Type | Default | Description |
 | -------- | ------ | --------- | ------------- |
-| `success_codes` | array of integers | `[0]` | Exit statuses that count as a successful hook outcome |
+| `success_codes` | array of integers | `[0]` | Exit statuses that count as a successful hook outcome. A command terminated by a signal is recorded with status `-1`. |
 | `abort_on_failure` | boolean | unset | Deprecated compatibility option. If explicitly set to `false`, any exit status is accepted. Setting it to `true` has no effect and logs a warning. Prefer `success_codes` for new configs. Cannot be combined with `success_codes`. |
 
 ### Example
@@ -54,7 +54,8 @@ success_codes = [1]
   "__meta": {
     "id": "capture-command",
     "config": {
-      "command": ["python", "--version"]
+      "command": ["python", "--version"],
+      "cwd": null
     },
     "success": true
   },
@@ -71,7 +72,8 @@ success_codes = [1]
   "__meta": {
     "id": "capture-command",
     "config": {
-      "command": ["test", "-f", "required-file.txt"]
+      "command": ["test", "-f", "required-file.txt"],
+      "cwd": null
     },
     "success": false,
     "failure_reason": "command exited with status 1; expected 0"
