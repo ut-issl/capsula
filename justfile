@@ -1,3 +1,7 @@
+# Evaluate database_url (which needs dotenvx) only in recipes that use it.
+
+set lazy
+
 envfile := justfile_directory() / ".env.server"
 
 # Construct the DATABASE_URL from environment variables in the envfile
@@ -49,3 +53,28 @@ serve $RUST_LOG="info":
 [working-directory('crates/capsula-server')]
 sqlx-prepare:
     cargo sqlx prepare --database-url {{ database_url }}
+
+# Documentation (English and Japanese). See docs/README.md.
+
+# Build the GitHub Pages artifact (site/) with the same steps as CI.
+docs-build:
+    rm -rf site
+    zensical build --config-file zensical.toml --strict
+    zensical build --config-file zensical.ja.toml --strict
+    cp docs/site-root/index.html site/
+    cp site/en/404.html site/
+
+# English live preview.
+docs-serve:
+    zensical serve
+
+# Japanese live preview.
+docs-serve-ja:
+    zensical serve --config-file zensical.ja.toml
+
+# Production-like preview of both editions: http://127.0.0.1:8000/capsula/
+docs-preview: docs-build
+    rm -rf target/docs-preview
+    mkdir -p target/docs-preview
+    cp -R site target/docs-preview/capsula
+    python3 -m http.server --directory target/docs-preview --bind 127.0.0.1 8000
