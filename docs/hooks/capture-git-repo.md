@@ -82,7 +82,8 @@ tag_head = true
       "path": ".",
       "allow_dirty": true,
       "require_pushed": false,
-      "remote": "origin"
+      "remote": "origin",
+      "tag_head": false
     },
     "success": true
   },
@@ -111,7 +112,8 @@ tag_head = true
       "path": ".",
       "allow_dirty": false,
       "require_pushed": false,
-      "remote": "origin"
+      "remote": "origin",
+      "tag_head": false
     },
     "success": false,
     "failure_reason": "repository has uncommitted changes"
