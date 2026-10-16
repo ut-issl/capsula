@@ -145,8 +145,8 @@ impl App {
             Ok(report) => {
                 if report.is_failed() {
                     self.error = Some(format!(
-                        "A pre-run hook failed. Run was not started: {}",
-                        report.failure_lines().join("; ")
+                        "A pre-run hook failed. Run was not started:\n  {}",
+                        report.failure_lines().join("\n  ")
                     ));
                     self.status_message = None;
                     self.active_run = None;
