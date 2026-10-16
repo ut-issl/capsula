@@ -135,8 +135,8 @@ fn describe_error(error: &CapsulaError) -> String {
 
 fn log_record<P: PhaseMarker>(record: &HookRecord) {
     let phase = P::phase_name();
-    let HookRecord { index, hook_id, .. } = record;
-    match &record.status {
+    let (index, hook_id) = (record.index(), record.hook_id());
+    match record.status() {
         HookStatus::Succeeded => debug!("Hook {phase}[{index}] {hook_id} completed successfully"),
         HookStatus::Failed { reason } => {
             warn!("Hook {phase}[{index}] {hook_id} completed with a failure outcome: {reason}");
@@ -224,11 +224,11 @@ mod tests {
         let record = run_hook(0, &hook, &prepared_run(dir.path()));
 
         assert!(!hook.ran.load(Ordering::SeqCst), "hook should not run");
-        assert_eq!(record.config, Value::Null);
+        assert_eq!(record.config(), &Value::Null);
         assert!(
-            matches!(&record.status, HookStatus::Errored { error } if error.contains("Failed to serialize hook config")),
+            matches!(record.status(), HookStatus::Errored { error } if error.contains("Failed to serialize hook config")),
             "unexpected status: {:?}",
-            record.status
+            record.status()
         );
     }
 }
