@@ -124,6 +124,10 @@ or if any post-run hook fails. In the latter case the run is still finalized:
 `post-run.json` records the failure, and running `run-end` again fails because
 the run has already been finalized. See [Exit Status](#exit-status).
 
+`run-end` refuses a run whose pre-run hooks failed, because `run-start`
+stopped that run before it was started. It runs no post-run hook for such a
+run.
+
 ### Usage
 
 ```bash

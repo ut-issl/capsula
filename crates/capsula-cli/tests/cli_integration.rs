@@ -914,6 +914,38 @@ fn test_run_start_exits_nonzero_and_prints_no_name_when_pre_run_requests_abort()
 }
 
 #[test]
+fn test_run_end_refuses_run_whose_pre_run_failed() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = create_test_config_with_aborting_pre_run(&temp_dir, "test-vault");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-start");
+    cmd.assert().code(PRE_RUN_FAILURE_EXIT_CODE);
+
+    let vault_dir = temp_dir.path().join(".capsula").join("test-vault");
+    let (run_dir, run_name) = find_first_run(&vault_dir);
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-end")
+        .arg(&run_name);
+    cmd.assert()
+        .code(1)
+        .stderr(predicate::str::contains("a pre-run hook failed"))
+        .stderr(predicate::str::contains("pre[0] capture-command"));
+
+    assert!(
+        !run_dir.join("_capsula").join("post-run.json").exists(),
+        "run-end should not finalize a run that was not started"
+    );
+}
+
+#[test]
 fn test_run_end_creates_post_run() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = create_test_config_with_post_run(&temp_dir, "test-vault");
