@@ -9,7 +9,7 @@ use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::path::PathBuf;
-use tracing::{debug, warn};
+use tracing::debug;
 
 fn default_remote() -> String {
     "origin".to_string()
@@ -128,12 +128,6 @@ where
         let is_dirty = !statuses.is_empty();
         debug!("GitHook: Repository is dirty: {}", is_dirty);
 
-        // If dirty and not allowed, we'll signal abort through the Captured trait
-        // rather than returning an error, so other hooks can still be captured
-        if is_dirty && !self.config.allow_dirty {
-            warn!("Repository has uncommitted changes. Run will be aborted after hooks capture.");
-        }
-
         // Output diff content if dirty
         if is_dirty {
             debug!("GitHook: Generating diff patch for dirty repository");
@@ -156,26 +150,32 @@ where
         let is_pushed = Self::check_pushed(&repo, oid, &self.config.remote)?;
         debug!("GitHook: HEAD is pushed: {}", is_pushed);
 
-        if self.config.require_pushed && !is_pushed {
-            warn!(
-                "HEAD commit is not pushed to remote '{}'. Run will be aborted after hooks capture.",
-                self.config.remote
-            );
-        }
+        // A policy violation is returned as a failed outcome rather than an
+        // error, so that the captured state is still recorded.
+        let failure_reasons = [
+            (is_dirty && !self.config.allow_dirty)
+                .then(|| "repository has uncommitted changes".to_string()),
+            (self.config.require_pushed && !is_pushed).then(|| {
+                format!(
+                    "HEAD commit is not pushed to remote '{}'",
+                    self.config.remote
+                )
+            }),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
 
-        // Tag the HEAD commit to prevent garbage collection
-        let tag = if self.config.tag_head {
-            let tag_name = format!("capsula/{}", metadata.name);
-            debug!("GitHook: Creating lightweight tag '{}'", tag_name);
-            let commit = repo
-                .find_object(oid, Some(git2::ObjectType::Commit))
-                .map_err(GitHookError::from)?;
-            repo.tag_lightweight(&tag_name, &commit, false)
-                .map_err(GitHookError::from)?;
-            debug!("GitHook: Tag '{}' created successfully", tag_name);
-            Some(tag_name)
-        } else {
-            None
+        // Tag the HEAD commit to prevent garbage collection. A failed pre-run
+        // hook stops the run, so there is no run whose commit the tag would keep.
+        let stops_run = P::BEFORE_COMMAND && !failure_reasons.is_empty();
+        let tag = match (self.config.tag_head, stops_run) {
+            (true, false) => Some(Self::tag_head(&repo, oid, &metadata.name)?),
+            (true, true) => {
+                debug!("GitHook: Not creating a tag because the run will be stopped");
+                None
+            }
+            (false, _) => None,
         };
 
         let captured = GitCaptured {
@@ -186,15 +186,6 @@ where
             tag,
         };
 
-        let failure_reasons = [
-            (is_dirty && !self.config.allow_dirty).then_some("repository has uncommitted changes"),
-            (self.config.require_pushed && !is_pushed)
-                .then_some("HEAD commit is not pushed to the configured remote"),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-
         match failure_reasons.as_slice() {
             [] => Ok(HookOutcome::success(captured)),
             reasons => Ok(HookOutcome::failure(captured, reasons.join("; "))),
@@ -203,6 +194,19 @@ where
 }
 
 impl GitHook {
+    /// Create a lightweight tag `capsula/<run-name>` at `oid`.
+    fn tag_head(repo: &Repository, oid: git2::Oid, run_name: &str) -> CapsulaResult<String> {
+        let tag_name = format!("capsula/{run_name}");
+        debug!("GitHook: Creating lightweight tag '{}'", tag_name);
+        let commit = repo
+            .find_object(oid, Some(git2::ObjectType::Commit))
+            .map_err(GitHookError::from)?;
+        repo.tag_lightweight(&tag_name, &commit, false)
+            .map_err(GitHookError::from)?;
+        debug!("GitHook: Tag '{}' created successfully", tag_name);
+        Ok(tag_name)
+    }
+
     fn check_pushed(repo: &Repository, head_oid: git2::Oid, remote: &str) -> CapsulaResult<bool> {
         let remote_branch_prefix = format!("refs/remotes/{remote}/");
 

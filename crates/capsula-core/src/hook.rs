@@ -81,15 +81,23 @@ pub struct PreRun;
 pub struct PostRun;
 
 pub trait PhaseMarker {
+    /// Whether the phase runs before the command, so that a hook failure in
+    /// it stops the command from running.
+    const BEFORE_COMMAND: bool;
+
     /// Short name used in artifact directory names (e.g., "pre", "post").
     fn phase_name() -> &'static str;
 }
 impl PhaseMarker for PreRun {
+    const BEFORE_COMMAND: bool = true;
+
     fn phase_name() -> &'static str {
         "pre"
     }
 }
 impl PhaseMarker for PostRun {
+    const BEFORE_COMMAND: bool = false;
+
     fn phase_name() -> &'static str {
         "post"
     }
