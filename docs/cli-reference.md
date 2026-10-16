@@ -112,6 +112,8 @@ capsula run-end "$name"
 
 If a pre-run hook fails, `run-start` exits with status `125` and prints no run name, so check its exit status before starting the external process. The run directory and `pre-run.json` are still written so that you can inspect the failure. See [Exit Status](#exit-status).
 
+`run-start` also checks the configuration of the post-run hooks, so that a mistake in it is reported before you start the external process rather than by `run-end`.
+
 ## `capsula run-end`
 
 End a manual run: execute post-run hooks for an existing run.
@@ -370,7 +372,7 @@ capsula vaults list --server https://capsula.example.com
 | `0` | The command exited with `0` and every post-run hook succeeded. |
 | The command's status | The command exited with a non-zero status. A post-run hook failure does not change it. A command killed by signal `N` gives `128 + N`. |
 | `125` | A pre-run hook failed or errored. The command was not executed. |
-| `1` | The command exited with `0`, but a post-run hook failed or errored. Also used when Capsula itself fails, for example on an invalid configuration or when the command cannot be started. |
+| `1` | The command exited with `0`, but a post-run hook failed or errored. Also used when Capsula itself fails, for example on an invalid configuration (detected before any hook or the command runs) or when the command cannot be started. |
 
 `capsula run-start` exits with `125` when a pre-run hook fails or errors, and with `1` when Capsula itself fails. `capsula run-end` exits with `1` when a post-run hook fails or errors, or when Capsula itself fails.
 

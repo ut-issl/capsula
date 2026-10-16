@@ -4,7 +4,9 @@ use anyhow::Result;
 use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::PreparedRun;
 use capsula_orchestration::record::PhaseReport;
-use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
+use capsula_orchestration::run::{
+    Hooks, build_hooks, create_and_setup_run, run_post_hooks, run_pre_hooks,
+};
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::find_run_dir_by_name;
 use ratatui::layout::Rect;
@@ -66,9 +68,10 @@ pub struct App {
     pub pending_action: Option<PendingAction>,
     pub last_completed_run: Option<CompletedRun>,
 
-    // Hook registries (created once)
-    pre_run_registry: capsula_registry::HookRegistry<PreRun>,
-    post_run_registry: capsula_registry::HookRegistry<PostRun>,
+    // Hooks of both phases, built once at startup so that a configuration
+    // error is reported before any run starts.
+    pre_run_hooks: Hooks<PreRun>,
+    post_run_hooks: Hooks<PostRun>,
 
     /// Clickable areas from the most recent render. Updated by the main loop
     /// after `ui::draw` returns; read by the mouse event handler for hit-testing.
@@ -77,6 +80,16 @@ pub struct App {
 
 impl App {
     pub fn new(config: LoadedConfig) -> Result<Self> {
+        let pre_run_hooks = build_hooks(
+            &config.config.pre_run,
+            &capsula_registry::standard_pre_run_hook_registry()?,
+            &config.project_root,
+        )?;
+        let post_run_hooks = build_hooks(
+            &config.config.post_run,
+            &capsula_registry::standard_post_run_hook_registry()?,
+            &config.project_root,
+        )?;
         Ok(Self {
             config,
             instant_run: false,
@@ -88,8 +101,8 @@ impl App {
             active_run: None,
             pending_action: None,
             last_completed_run: None,
-            pre_run_registry: capsula_registry::standard_pre_run_hook_registry()?,
-            post_run_registry: capsula_registry::standard_post_run_hook_registry()?,
+            pre_run_hooks,
+            post_run_hooks,
             hit_areas: HitAreas::default(),
         })
     }
@@ -165,13 +178,7 @@ impl App {
 
         info!("Run created: {} (ID: {})", run.name, run.id);
 
-        let report = run_pre_hooks(
-            &run,
-            &capsula_dir,
-            &self.config.config.pre_run,
-            &self.pre_run_registry,
-            &self.config.project_root,
-        )?;
+        let report = run_pre_hooks(&run, &capsula_dir, &self.pre_run_hooks)?;
 
         let timestamp = run.timestamp();
         self.active_run = Some(ActiveRun {
@@ -226,13 +233,7 @@ impl App {
 
         info!("Finalizing run: {} (ID: {})", run.name, run.id);
 
-        let report = run_post_hooks(
-            &run,
-            &capsula_dir,
-            &self.config.config.post_run,
-            &self.post_run_registry,
-            &self.config.project_root,
-        )?;
+        let report = run_post_hooks(&run, &capsula_dir, &self.post_run_hooks)?;
 
         info!("Run '{}' finalized", run.name);
         Ok(report)

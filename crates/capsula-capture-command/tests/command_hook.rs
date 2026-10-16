@@ -209,3 +209,45 @@ fn command_hook_config_keeps_unset_cwd_as_null() {
 
     assert_eq!(serialized.get("cwd"), Some(&serde_json::Value::Null));
 }
+
+#[test]
+fn command_hook_rejects_empty_command_when_built() {
+    let config = json!({ "command": [] });
+
+    let result = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+
+    assert!(result.is_err(), "an empty command should be rejected");
+}
+
+#[test]
+fn command_hook_resolves_cwd_when_run() {
+    // A post-run hook may refer to a directory that the command creates, so a
+    // missing `cwd` is an error of the run, not of the configuration.
+    let project_root =
+        std::env::temp_dir().join(format!("capsula_command_test_{}", Ulid::generate()));
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    let config = json!({
+        "command": ["pwd"],
+        "cwd": "created-later"
+    });
+    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &project_root)
+        .expect("a missing cwd should not fail the configuration");
+    let params = RuntimeParams::<PreRun>::default();
+
+    let err = <CommandHook as Hook<PreRun>>::run(&hook, &prepared_run(), &params)
+        .expect_err("running in a missing cwd should fail");
+    let message = std::error::Error::source(&err).map(ToString::to_string);
+    assert!(
+        message
+            .as_deref()
+            .is_some_and(|m| m.contains("created-later")),
+        "the error should name the directory: {message:?}"
+    );
+
+    std::fs::create_dir(project_root.join("created-later")).expect("create cwd");
+    let outcome = <CommandHook as Hook<PreRun>>::run(&hook, &prepared_run(), &params)
+        .expect("running in an existing cwd should succeed");
+    assert!(outcome.is_success());
+
+    std::fs::remove_dir_all(&project_root).ok();
+}

@@ -165,7 +165,7 @@ Each hook either succeeds, fails, or errors:
 
 Both make `__meta.success` `false` and count as a failure of the phase. Capsula runs the remaining hooks of the phase, writes the phase's JSON file, and prints each failed hook to stderr. A pre-run failure stops Capsula before your command; see [Exit Status](cli-reference.md#exit-status) for the resulting exit codes.
 
-An invalid hook configuration, such as an unknown field, makes Capsula exit with an error before any hook of the phase runs, and the phase's JSON file is not written.
+Capsula checks the configuration of every hook in both phases before it creates the run. An invalid hook configuration, such as an unknown field, makes Capsula exit with status `1` before any hook or your command runs, and no run is created. Paths in a hook configuration, such as `cwd` of `capture-command`, are resolved when the hook runs, so a post-run hook can refer to a directory that your command creates.
 
 !!! warning "Any pre-run failure stops the run"
     Every pre-run hook guards your command, including hooks that only report on it. For example, if `notify-slack` cannot reach Slack because of a temporary network problem, the command does not run. Put hooks that are not essential for the record of the run, such as notifications, in `post-run`. A post-run failure is still reported, but only after your command has finished.

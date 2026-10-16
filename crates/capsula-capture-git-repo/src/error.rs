@@ -8,6 +8,14 @@ pub enum GitHookError {
     #[error("Not a git repository (or any parent up to mount point)")]
     NotARepository,
 
+    /// The configured repository path cannot be resolved
+    #[error("Failed to resolve repository path '{}'", path.display())]
+    InvalidPath {
+        path: std::path::PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     /// Failed to get HEAD
     #[error("Failed to get repository HEAD: {message}")]
     HeadNotFound { message: String },

@@ -11,7 +11,9 @@ use capsula_orchestration::pull::{is_pulled_run, pull_single_run, resolve_pull_v
 use capsula_orchestration::push::push_single_run;
 use capsula_orchestration::record::PhaseReport;
 use capsula_orchestration::resolve::{is_same_origin, resolve_server_headers, resolve_server_url};
-use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
+use capsula_orchestration::run::{
+    build_hooks, create_and_setup_run, run_post_hooks, run_pre_hooks,
+};
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::{find_run_dir, find_run_dir_by_name, list_runs};
 use chrono::DateTime;
@@ -340,15 +342,16 @@ path = \".\"
                 anyhow::bail!("No command specified to run");
             }
 
+            // Build the hooks of both phases first, so that a configuration
+            // error is reported before any hook or the command runs.
+            let pre_run_hooks =
+                build_hooks(&config.pre_run, &pre_run_hook_registry, &project_root)?;
+            let post_run_hooks =
+                build_hooks(&config.post_run, &post_run_hook_registry, &project_root)?;
+
             let (run, capsula_dir) = create_and_setup_run(cmd, &project_root, &vault_dir)?;
 
-            let pre_report = run_pre_hooks(
-                &run,
-                &capsula_dir,
-                &config.pre_run,
-                &pre_run_hook_registry,
-                &project_root,
-            )?;
+            let pre_report = run_pre_hooks(&run, &capsula_dir, &pre_run_hooks)?;
             if pre_report.is_failed() {
                 error!(
                     "Aborting run due to pre-run hook failure:{}",
@@ -370,13 +373,7 @@ path = \".\"
                     format!("Failed to write run output to {}", run_json_path.display())
                 })?;
 
-            let post_report = run_post_hooks(
-                &run,
-                &capsula_dir,
-                &config.post_run,
-                &post_run_hook_registry,
-                &project_root,
-            )?;
+            let post_report = run_post_hooks(&run, &capsula_dir, &post_run_hooks)?;
             if post_report.is_failed() {
                 error!(
                     "Post-run hook failure recorded:{}",
@@ -387,15 +384,16 @@ path = \".\"
             std::process::exit(run_exit_code(run_output.exit_code, post_report.is_failed()));
         }
         Commands::RunStart => {
+            // Also check the post-run hook configuration, so that a mistake
+            // is reported now rather than by `run-end` after the external
+            // process has finished.
+            let pre_run_hooks =
+                build_hooks(&config.pre_run, &pre_run_hook_registry, &project_root)?;
+            build_hooks(&config.post_run, &post_run_hook_registry, &project_root)?;
+
             let (run, capsula_dir) = create_and_setup_run(vec![], &project_root, &vault_dir)?;
 
-            let pre_report = run_pre_hooks(
-                &run,
-                &capsula_dir,
-                &config.pre_run,
-                &pre_run_hook_registry,
-                &project_root,
-            )?;
+            let pre_report = run_pre_hooks(&run, &capsula_dir, &pre_run_hooks)?;
             if pre_report.is_failed() {
                 error!(
                     "Aborting run-start due to pre-run hook failure:{}",
@@ -408,6 +406,9 @@ path = \".\"
             println!("{}", run.name);
         }
         Commands::RunEnd { run_name } => {
+            let post_run_hooks =
+                build_hooks(&config.post_run, &post_run_hook_registry, &project_root)?;
+
             let run_dir = find_run_dir_by_name(&vault_dir, &run_name)?;
             let capsula_dir = run_dir.join("_capsula");
 
@@ -430,13 +431,7 @@ path = \".\"
 
             info!("Finalizing run: {} (ID: {})", run.name, run.id);
 
-            let post_report = run_post_hooks(
-                &run,
-                &capsula_dir,
-                &config.post_run,
-                &post_run_hook_registry,
-                &project_root,
-            )?;
+            let post_report = run_post_hooks(&run, &capsula_dir, &post_run_hooks)?;
             if post_report.is_failed() {
                 error!(
                     "Post-run hook failure recorded:{}",

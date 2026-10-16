@@ -722,7 +722,6 @@ name = "capsula-config"
 version = "0.15.1"
 dependencies = [
  "capsula-core",
- "capsula-registry",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

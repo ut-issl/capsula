@@ -36,7 +36,7 @@ pub struct GitHookConfig {
 #[derive(Debug)]
 pub struct GitHook {
     config: GitHookConfig,
-    working_dir: PathBuf,
+    project_root: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
@@ -71,11 +71,11 @@ where
     ) -> CapsulaResult<Self> {
         let config: GitHookConfig = serde_json::from_value(config.clone())?;
 
-        let working_dir = capsula_core::util::resolve_relative(&config.path, project_root)?;
-
+        // `path` is resolved when the hook runs, so that building the hook
+        // does not depend on the file system.
         Ok(Self {
             config,
-            working_dir,
+            project_root: project_root.to_path_buf(),
         })
     }
 
@@ -93,11 +93,11 @@ where
         metadata: &PreparedRun,
         params: &RuntimeParams<P>,
     ) -> CapsulaResult<HookOutcome<Self::Output>> {
-        let repo_path = if self.working_dir.as_os_str().is_empty() {
-            std::env::current_dir()?
-        } else {
-            self.working_dir.clone()
-        };
+        let repo_path = capsula_core::util::resolve_relative(&self.config.path, &self.project_root)
+            .map_err(|source| GitHookError::InvalidPath {
+                path: self.config.path.clone(),
+                source,
+            })?;
 
         debug!(
             "GitHook: Discovering repository at: {}",

@@ -1,13 +1,13 @@
 use anyhow::{Context, Result};
-use capsula_config::HookPhaseConfig;
-use capsula_core::hook::{PostRun, PreRun};
+use capsula_core::hook::{PhaseMarker, PostRun, PreRun};
 use capsula_core::run::{PreparedRun, UnpreparedRun};
 use names::Generator;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
 use ulid::Ulid;
 
-use crate::hooks::build_and_run_hooks;
+use crate::hooks::run_hooks;
+pub use crate::hooks::{Hooks, build_hooks};
 use crate::record::PhaseReport;
 
 /// Create a new run, set up its directory structure, and write metadata.
@@ -60,27 +60,12 @@ pub fn create_and_setup_run(
 pub fn run_pre_hooks(
     run: &PreparedRun,
     capsula_dir: &Path,
-    config: &HookPhaseConfig,
-    registry: &capsula_registry::HookRegistry<PreRun>,
-    project_root: &Path,
+    hooks: &Hooks<PreRun>,
 ) -> Result<PhaseReport<PreRun>> {
     debug!("Executing pre-run hooks");
-    let report = build_and_run_hooks::<PreRun>(run, config, registry, project_root)
-        .context("Failed to execute pre-run hooks")?;
+    let report = run_hooks(run, hooks);
     debug!("Pre-run hooks completed");
-
-    let pre_json_path = capsula_dir.join("pre-run.json");
-    std::fs::write(
-        &pre_json_path,
-        serde_json::to_string_pretty(&report.to_json())?,
-    )
-    .with_context(|| {
-        format!(
-            "Failed to write pre-run hook results to {}",
-            pre_json_path.display()
-        )
-    })?;
-
+    write_report(capsula_dir, &report)?;
     Ok(report)
 }
 
@@ -90,26 +75,23 @@ pub fn run_pre_hooks(
 pub fn run_post_hooks(
     run: &PreparedRun,
     capsula_dir: &Path,
-    config: &HookPhaseConfig,
-    registry: &capsula_registry::HookRegistry<PostRun>,
-    project_root: &Path,
+    hooks: &Hooks<PostRun>,
 ) -> Result<PhaseReport<PostRun>> {
     debug!("Executing post-run hooks");
-    let report = build_and_run_hooks::<PostRun>(run, config, registry, project_root)
-        .context("Failed to execute post-run hooks")?;
+    let report = run_hooks(run, hooks);
     debug!("Post-run hooks completed");
-
-    let post_json_path = capsula_dir.join("post-run.json");
-    std::fs::write(
-        &post_json_path,
-        serde_json::to_string_pretty(&report.to_json())?,
-    )
-    .with_context(|| {
-        format!(
-            "Failed to write post-run hook results to {}",
-            post_json_path.display()
-        )
-    })?;
-
+    write_report(capsula_dir, &report)?;
     Ok(report)
+}
+
+/// Write a phase report to `pre-run.json` / `post-run.json`.
+fn write_report<P: PhaseMarker>(capsula_dir: &Path, report: &PhaseReport<P>) -> Result<()> {
+    let path = capsula_dir.join(format!("{}-run.json", P::phase_name()));
+    std::fs::write(&path, serde_json::to_string_pretty(&report.to_json())?).with_context(|| {
+        format!(
+            "Failed to write {}-run hook results to {}",
+            P::phase_name(),
+            path.display()
+        )
+    })
 }

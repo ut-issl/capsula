@@ -207,7 +207,7 @@ name = "test-vault"
 
 [[pre-run.hooks]]
 id = "capture-command"
-command = []
+command = ["capsula-test-missing-command"]
 
 [[pre-run.hooks]]
 id = "capture-cwd"
@@ -248,9 +248,9 @@ id = "capture-cwd"
     assert_eq!(hooks[0]["__meta"]["id"], "capture-command");
     assert_eq!(hooks[0]["__meta"]["success"], false);
     assert!(
-        hooks[0]["__meta"]["error"]
-            .as_str()
-            .is_some_and(|error| error.contains("Command cannot be empty")),
+        hooks[0]["__meta"]["error"].as_str().is_some_and(
+            |error| error.contains("Failed to execute command 'capsula-test-missing-command'")
+        ),
         "the command hook error should be recorded"
     );
     assert_eq!(hooks[1]["__meta"]["id"], "capture-cwd");
@@ -274,7 +274,7 @@ id = "capture-cwd"
 
 [[post-run.hooks]]
 id = "capture-command"
-command = []
+command = ["capsula-test-missing-command"]
 
 [[post-run.hooks]]
 id = "capture-cwd"
@@ -295,7 +295,9 @@ id = "capture-cwd"
         .code(POST_RUN_FAILURE_EXIT_CODE)
         .stderr(predicate::str::contains("Post-run hook failure recorded"))
         .stderr(predicate::str::contains("post[0] capture-command: "))
-        .stderr(predicate::str::contains("Command cannot be empty"));
+        .stderr(predicate::str::contains(
+            "Failed to execute command 'capsula-test-missing-command'",
+        ));
 
     assert!(
         sentinel_path.exists(),
@@ -336,7 +338,7 @@ id = "capture-cwd"
 
 [[post-run.hooks]]
 id = "capture-command"
-command = []
+command = ["capsula-test-missing-command"]
 "#;
     fs::write(&config_path, config_content).unwrap();
 
@@ -387,6 +389,75 @@ abort_on_failure_typo = true
     assert!(
         !sentinel_path.exists(),
         "command should not execute when hook config contains unknown fields"
+    );
+}
+
+/// A config whose post-run `capture-command` hook is invalid.
+const INVALID_POST_RUN_CONFIG: &str = r#"
+[vault]
+name = "test-vault"
+
+[[pre-run.hooks]]
+id = "capture-cwd"
+
+[[post-run.hooks]]
+id = "capture-command"
+command = ["true"]
+success_codes = []
+"#;
+
+#[test]
+fn test_capsula_run_rejects_invalid_post_run_config_before_running_command() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("capsula.toml");
+    fs::write(&config_path, INVALID_POST_RUN_CONFIG).unwrap();
+    let sentinel_path = temp_dir.path().join("should-not-run");
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run")
+        .arg("sh")
+        .arg("-c")
+        .arg("touch should-not-run");
+
+    cmd.assert().code(1).stderr(predicate::str::contains(
+        "post[0] capture-command: success_codes cannot be empty",
+    ));
+
+    assert!(
+        !sentinel_path.exists(),
+        "command should not execute when a post-run hook config is invalid"
+    );
+    assert!(
+        !temp_dir.path().join(".capsula").exists(),
+        "no run should be created when a hook config is invalid"
+    );
+}
+
+#[test]
+fn test_run_start_rejects_invalid_post_run_config() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("capsula.toml");
+    fs::write(&config_path, INVALID_POST_RUN_CONFIG).unwrap();
+
+    let mut cmd = cargo_bin_cmd!("capsula");
+    cmd.current_dir(temp_dir.path())
+        .arg("--config")
+        .arg(&config_path)
+        .arg("run-start");
+
+    cmd.assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains(
+            "post[0] capture-command: success_codes cannot be empty",
+        ));
+
+    assert!(
+        !temp_dir.path().join(".capsula").exists(),
+        "no run should be created when a hook config is invalid"
     );
 }
 
@@ -889,7 +960,7 @@ name = "test-vault"
 
 [[post-run.hooks]]
 id = "capture-command"
-command = []
+command = ["capsula-test-missing-command"]
 "#;
     fs::write(&config_path, config_content).unwrap();
 
