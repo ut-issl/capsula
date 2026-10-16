@@ -151,7 +151,7 @@ impl App {
                 }
             }
             Err(e) => {
-                self.error = Some(format!("Failed to start run: {e}"));
+                self.error = Some(format!("Failed to start run: {e:#}"));
                 self.status_message = None;
                 self.active_run = None;
                 self.focused = FocusTarget::StartButton;
@@ -197,7 +197,7 @@ impl App {
                     hook_failures: report.failure_lines(),
                 });
             }
-            Err(e) => self.error = Some(format!("Failed to end run: {e}")),
+            Err(e) => self.error = Some(format!("Failed to end run: {e:#}")),
         }
 
         self.active_run = None;

@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum YamlHookError {
     /// Failed to read the configured YAML file
-    #[error("Failed to read YAML file '{path}': {source}")]
+    #[error("Failed to read YAML file '{path}'")]
     Io {
         path: PathBuf,
         #[source]
@@ -15,11 +15,11 @@ pub enum YamlHookError {
 
     /// Failed to parse the file content as YAML, or to convert it to JSON
     /// for embedding in the run output.
-    #[error("Failed to parse YAML: {0}")]
+    #[error("Failed to parse YAML")]
     Yaml(#[from] yaml_serde::Error),
 
     /// Failed to deserialize the hook config from JSON
-    #[error("Failed to (de)serialize JSON: {0}")]
+    #[error("Failed to (de)serialize JSON")]
     Json(#[from] serde_json::Error),
 }
 

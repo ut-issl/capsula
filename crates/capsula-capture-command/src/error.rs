@@ -9,7 +9,7 @@ pub enum CommandHookError {
     EmptyCommand,
 
     /// Command execution failed
-    #[error("Failed to execute command '{command}': {source}")]
+    #[error("Failed to execute command '{command}'")]
     ExecutionFailed {
         command: String,
         #[source]
@@ -33,7 +33,7 @@ pub enum CommandHookError {
     NonZeroExit { command: String, status: i32 },
 
     /// Serialization failed
-    #[error("Failed to serialize command hook: {0}")]
+    #[error("Failed to serialize command hook")]
     Serialization(#[from] serde_json::Error),
 }
 
