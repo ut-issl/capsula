@@ -25,8 +25,7 @@ Runs a shell command and captures its output and exit code.
 
 | Option | Type | Default | Description |
 | -------- | ------ | --------- | ------------- |
-| `success_codes` | array of integers | `[0]` | Exit statuses that count as a successful hook outcome. A command terminated by a signal is recorded with status `-1`. |
-| `abort_on_failure` | boolean | unset | Deprecated compatibility option. If explicitly set to `false`, any exit status is accepted. Setting it to `true` has no effect and logs a warning. Prefer `success_codes` for new configs. Cannot be combined with `success_codes`. |
+| `success_codes` | array of integers, or `"any"` | `[0]` | Exit statuses that count as a successful hook outcome. `"any"` accepts every status. A command terminated by a signal is recorded with status `-1`. |
 
 ### Example
 
@@ -45,6 +44,18 @@ command = ["test", "-f", "missing-file.txt"]
 success_codes = [1]
 ```
 
+To record the output of a command whatever its exit status, accept any status:
+
+```toml
+[[post-run.hooks]]
+id = "capture-command"
+command = ["nvidia-smi"]
+success_codes = "any"
+```
+
+!!! note "Migrating from `abort_on_failure`"
+    The `abort_on_failure` option has been removed, and a configuration that sets it is rejected before the run starts. Replace `abort_on_failure = false` with `success_codes = "any"`. Delete `abort_on_failure = true`, because failing on a non-zero exit status is now the default.
+
 ## Output Example
 
 ### Successful Command
@@ -55,6 +66,7 @@ success_codes = [1]
     "id": "capture-command",
     "config": {
       "command": ["python", "--version"],
+      "success_codes": [0],
       "cwd": null
     },
     "success": true
@@ -73,6 +85,7 @@ success_codes = [1]
     "id": "capture-command",
     "config": {
       "command": ["test", "-f", "required-file.txt"],
+      "success_codes": [0],
       "cwd": null
     },
     "success": false,

@@ -104,11 +104,11 @@ fn command_hook_allows_expected_nonzero_status() {
 }
 
 #[test]
-fn command_hook_preserves_abort_on_failure_false_compatibility() {
+fn command_hook_accepts_any_status_with_any() {
     // Arrange
     let config = json!({
         "command": ["false"],
-        "abort_on_failure": false
+        "success_codes": "any"
     });
     let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
         .expect("from_config ok");
@@ -122,7 +122,7 @@ fn command_hook_preserves_abort_on_failure_false_compatibility() {
     // Assert
     assert!(
         outcome.is_success(),
-        "legacy abort_on_failure = false should accept any exit status"
+        "success_codes = \"any\" should accept any exit status"
     );
 }
 
@@ -179,19 +179,36 @@ fn command_hook_rejects_empty_success_codes() {
 }
 
 #[test]
-fn command_hook_rejects_conflicting_status_policy() {
-    let config = json!({
-        "command": ["true"],
-        "success_codes": [0],
-        "abort_on_failure": true
-    });
+fn command_hook_rejects_removed_abort_on_failure_with_migration_hint() {
+    for abort_on_failure in [false, true] {
+        let config = json!({
+            "command": ["true"],
+            "abort_on_failure": abort_on_failure
+        });
 
-    let result = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."));
+        let err = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+            .expect_err("abort_on_failure should be rejected");
 
-    assert!(
-        result.is_err(),
-        "success_codes and abort_on_failure should not be combined"
-    );
+        let message = std::error::Error::source(&err).map(ToString::to_string);
+        assert!(
+            message
+                .as_deref()
+                .is_some_and(|m| m.contains(r#"success_codes = "any""#)),
+            "the error should name the replacement: {message:?}"
+        );
+    }
+}
+
+#[test]
+fn command_hook_config_records_default_success_codes() {
+    let config = json!({ "command": ["true"] });
+    let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &PathBuf::from("."))
+        .expect("from_config ok");
+
+    let serialized =
+        serde_json::to_value(<CommandHook as Hook<PreRun>>::config(&hook)).expect("serialize ok");
+
+    assert_eq!(serialized.get("success_codes"), Some(&json!([0])));
 }
 
 #[test]

@@ -45,7 +45,7 @@ command = ["rustc", "--version"]
 [[pre-run.hooks]]
 id = "capture-command"
 command = ["uv", "run", "python", "-c", "raise SystemExit(1)"]
-abort_on_failure = false
+success_codes = "any"
 
 [[pre-run.hooks]]
 id = "notify-slack"
