@@ -16,6 +16,14 @@ pub enum CommandHookError {
         source: std::io::Error,
     },
 
+    /// The configured working directory cannot be resolved
+    #[error("Failed to resolve working directory '{}'", path.display())]
+    WorkingDirectory {
+        path: std::path::PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     /// No exit status can be accepted by the configured success code set.
     #[error("success_codes cannot be empty")]
     EmptySuccessCodes,

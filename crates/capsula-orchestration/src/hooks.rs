@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use capsula_config::HookPhaseConfig;
 use capsula_core::error::CapsulaError;
 use capsula_core::hook::{HookErased, PhaseMarker, RuntimeParams};
@@ -9,27 +9,52 @@ use tracing::{debug, error, warn};
 
 use crate::record::{HookRecord, HookStatus, PhaseReport};
 
-/// Build hooks from configuration and execute them in order.
+/// The hooks of one phase, in configuration order.
+pub type Hooks<P> = Vec<Box<dyn HookErased<P>>>;
+
+/// Build the hooks of one phase from configuration.
+///
+/// Building only validates the configuration and does not touch the file
+/// system, so the hooks of both phases can be built before a run starts and a
+/// configuration error is reported before any hook or the command runs.
+pub fn build_hooks<P: PhaseMarker>(
+    hook_phase_config: &HookPhaseConfig,
+    hook_registry: &capsula_registry::HookRegistry<P>,
+    project_root: &Path,
+) -> Result<Hooks<P>> {
+    debug!(
+        "Building {} {}-run hooks from configuration",
+        hook_phase_config.hooks.len(),
+        P::phase_name()
+    );
+    hook_phase_config
+        .hooks
+        .iter()
+        .enumerate()
+        .map(|(index, envelope)| {
+            hook_registry
+                .create_hook(&envelope.id, envelope.config(), project_root)
+                .map_err(|e| {
+                    anyhow!(
+                        "{}[{index}] {}: {}",
+                        P::phase_name(),
+                        envelope.id,
+                        describe_error(&e)
+                    )
+                })
+        })
+        .collect::<Result<_>>()
+        .context("Invalid hook configuration")
+}
+
+/// Execute hooks in order.
 ///
 /// Every hook is attempted; a failed or errored hook does not stop the
 /// remaining hooks. The returned report records each hook's result.
 ///
 /// Hooks that request an artifact directory get a
 /// dedicated subdirectory under `run_dir` named `{phase}-{index}-{hook_id}/`.
-pub fn build_and_run_hooks<P: PhaseMarker>(
-    run_metadata: &PreparedRun,
-    hook_phase_config: &HookPhaseConfig,
-    hook_registry: &capsula_registry::HookRegistry<P>,
-    project_root: &Path,
-) -> Result<PhaseReport<P>> {
-    debug!(
-        "Building {} hooks from configuration",
-        hook_phase_config.hooks.len()
-    );
-    let hooks = capsula_config::build_hooks(hook_phase_config, project_root, hook_registry)
-        .context("Failed to build hooks from configuration")?;
-    debug!("Successfully built {} hook instances", hooks.len());
-
+pub fn run_hooks<P: PhaseMarker>(run_metadata: &PreparedRun, hooks: &Hooks<P>) -> PhaseReport<P> {
     let records = hooks
         .iter()
         .enumerate()
@@ -41,7 +66,7 @@ pub fn build_and_run_hooks<P: PhaseMarker>(
         })
         .collect();
 
-    Ok(PhaseReport::new(records))
+    PhaseReport::new(records)
 }
 
 /// Run one hook and record its result. Never fails: every problem is

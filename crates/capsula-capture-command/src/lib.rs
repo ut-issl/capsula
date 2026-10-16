@@ -25,7 +25,7 @@ pub struct CommandHookConfig {
 #[derive(Debug)]
 pub struct CommandHook {
     config: CommandHookConfig,
-    working_dir: PathBuf,
+    project_root: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,6 +49,9 @@ where
         project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: CommandHookConfig = serde_json::from_value(config.clone())?;
+        if config.command.is_empty() {
+            return Err(CommandHookError::EmptyCommand.into());
+        }
         if config.success_codes.as_ref().is_some_and(Vec::is_empty) {
             return Err(CommandHookError::EmptySuccessCodes.into());
         }
@@ -56,14 +59,11 @@ where
             return Err(CommandHookError::ConflictingStatusPolicy.into());
         }
 
-        let working_dir = match &config.cwd {
-            Some(cwd) => capsula_core::util::resolve_relative(cwd, project_root)?,
-            None => project_root.to_path_buf(),
-        };
-
+        // `cwd` is resolved when the hook runs, because a post-run hook may
+        // refer to a directory that the command creates.
         Ok(Self {
             config,
-            working_dir,
+            project_root: project_root.to_path_buf(),
         })
     }
 
@@ -78,20 +78,18 @@ where
     ) -> CapsulaResult<HookOutcome<Self::Output>> {
         use std::process::Command;
 
-        if self.config.command.is_empty() {
+        let Some((program, args)) = self.config.command.split_first() else {
             return Err(CommandHookError::EmptyCommand.into());
-        }
+        };
+        let working_dir = self.working_dir()?;
 
         debug!(
             "CommandHook: Executing command: {:?} in {}",
             self.config.command,
-            self.working_dir.display()
+            working_dir.display()
         );
-        let mut cmd = Command::new(&self.config.command[0]);
-        cmd.current_dir(&self.working_dir);
-        if self.config.command.len() > 1 {
-            cmd.args(&self.config.command[1..]);
-        }
+        let mut cmd = Command::new(program);
+        cmd.current_dir(&working_dir).args(args);
 
         let output = cmd
             .output()
@@ -128,6 +126,22 @@ where
 }
 
 impl CommandHook {
+    /// The directory the command runs in: `cwd` resolved against the project
+    /// root, or the project root itself.
+    fn working_dir(&self) -> Result<PathBuf, CommandHookError> {
+        self.config.cwd.as_ref().map_or_else(
+            || Ok(self.project_root.clone()),
+            |cwd| {
+                capsula_core::util::resolve_relative(cwd, &self.project_root).map_err(|source| {
+                    CommandHookError::WorkingDirectory {
+                        path: cwd.clone(),
+                        source,
+                    }
+                })
+            },
+        )
+    }
+
     fn is_success_status(&self, status: i32) -> bool {
         self.config.success_codes.as_ref().map_or_else(
             || match self.config.abort_on_failure {

@@ -988,3 +988,32 @@ fn git_hook_rejects_unknown_config_fields() {
 
     assert!(result.is_err(), "unknown config fields should be rejected");
 }
+
+#[test]
+fn git_hook_resolves_path_when_run() {
+    // Building the hook must not depend on the file system, so a missing path
+    // is an error of the run, not of the configuration.
+    let config = json!({
+        "name": "test-repo",
+        "path": format!("capsula-missing-{}", Ulid::generate()),
+    });
+    let hook = <GitHook as Hook<PreRun>>::from_config(&config, &std::env::temp_dir())
+        .expect("a missing path should not fail the configuration");
+    let run = PreparedRun {
+        id: Ulid::generate(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir: std::env::temp_dir(),
+        project_root: std::env::temp_dir(),
+    };
+
+    let err = <GitHook as Hook<PreRun>>::run(&hook, &run, &RuntimeParams::default())
+        .expect_err("running with a missing path should fail");
+    let message = std::error::Error::source(&err).map(ToString::to_string);
+    assert!(
+        message
+            .as_deref()
+            .is_some_and(|m| m.contains("Failed to resolve repository path")),
+        "unexpected error: {message:?}"
+    );
+}

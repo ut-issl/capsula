@@ -136,13 +136,14 @@ The core hook API is in `crates/capsula-core/src/hook.rs`:
 The normal `capsula run` flow is:
 
 1. Parse the CLI and load `capsula.toml`; determine project root, dotenv variables, and vault path.
-2. Create a ULID and human-readable random name, create the run directory, and write `_capsula/metadata.json`.
-3. Build the pre-run hook list through the registry and execute hooks in configuration order.
-4. Write `_capsula/pre-run.json`; if any pre-run hook failed or errored, stop before the command with exit code `125`.
-5. Execute the command and write `_capsula/command.json`.
-6. Execute post-run hooks and write `_capsula/post-run.json`; if any post-run hook failed or errored and the command exited with `0`, exit with `1`, otherwise exit with the command's status.
+2. Build the hooks of both phases through the registry (`capsula_orchestration::run::build_hooks`); an invalid hook configuration stops Capsula here with exit code `1`, before any run is created.
+3. Create a ULID and human-readable random name, create the run directory, and write `_capsula/metadata.json`.
+4. Execute the pre-run hooks in configuration order.
+5. Write `_capsula/pre-run.json`; if any pre-run hook failed or errored, stop before the command with exit code `125`.
+6. Execute the command and write `_capsula/command.json`.
+7. Execute post-run hooks and write `_capsula/post-run.json`; if any post-run hook failed or errored and the command exited with `0`, exit with `1`, otherwise exit with the command's status.
 
-Hook execution is fail-closed per phase. `crates/capsula-orchestration/src/record.rs` turns each hook result into a `HookRecord` whose `HookStatus` is `Succeeded`, `Failed { reason }` (a `HookOutcome::Failed`), or `Errored { error }` (an `Err` from the hook, or output that cannot be serialized). Later hooks still run after a failure, and the phase's `PhaseReport` is failed if any hook failed or errored. Each record is written with a `__meta` object containing the hook ID, serialized config, `success`, and `failure_reason` or `error`. Hook configuration/build failures prevent the phase from starting.
+Hook execution is fail-closed per phase. `crates/capsula-orchestration/src/record.rs` turns each hook result into a `HookRecord` whose `HookStatus` is `Succeeded`, `Failed { reason }` (a `HookOutcome::Failed`), or `Errored { error }` (an `Err` from the hook, or output that cannot be serialized). Later hooks still run after a failure, and the phase's `PhaseReport` is failed if any hook failed or errored. Each record is written with a `__meta` object containing the hook ID, serialized config, `success`, and `failure_reason` or `error`. `Hook::from_config` only validates the configuration and must not depend on the file system (resolve paths such as `cwd` in `Hook::run`), because post-run hooks are built before the command runs. `run-start` also builds the post-run hooks to validate them.
 
 Hooks that return `needs_artifact_dir() == true` receive a dedicated directory named `{phase}-{index}-{hook-id}/` under the run directory. The built-in file and Git hooks use this mechanism. The `_capsula/` directory contains metadata and JSON summaries; captured artifacts live beside it.
 
