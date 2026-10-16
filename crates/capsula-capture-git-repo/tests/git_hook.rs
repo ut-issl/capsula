@@ -91,7 +91,7 @@ fn git_hook_captures_clean_repo() {
         Some(false),
         "Repo with no remote should not be pushed"
     );
-    assert!(outcome.is_success(), "Clean repo should not request abort");
+    assert!(outcome.is_success(), "Clean repo should succeed");
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -220,10 +220,7 @@ fn git_hook_detects_pushed_commit() {
         Some(true),
         "Pushed commit should be detected as pushed"
     );
-    assert!(
-        outcome.is_success(),
-        "Should not abort when commit is pushed"
-    );
+    assert!(outcome.is_success(), "Should succeed when commit is pushed");
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -271,7 +268,7 @@ fn git_hook_detects_unpushed_commit() {
     );
     assert!(
         outcome.is_success(),
-        "Should not abort when require_pushed is false (default)"
+        "Should succeed when require_pushed is false (default)"
     );
 
     // Cleanup
@@ -280,7 +277,7 @@ fn git_hook_detects_unpushed_commit() {
 }
 
 #[test]
-fn git_hook_aborts_on_unpushed_when_required() {
+fn git_hook_fails_on_unpushed_when_required() {
     // Arrange
     let temp_dir = init_git_repo();
     let bare_dir = add_bare_remote(&temp_dir, "origin");
@@ -311,9 +308,10 @@ fn git_hook_aborts_on_unpushed_when_required() {
     let outcome = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
-    assert!(
-        outcome.is_failure(),
-        "Should abort when require_pushed is true and commit is not pushed"
+    assert_eq!(
+        outcome.failure_reason(),
+        Some("HEAD commit is not pushed to remote 'origin'"),
+        "Should fail when require_pushed is true and commit is not pushed"
     );
 
     // Cleanup
@@ -385,7 +383,7 @@ fn git_hook_pushed_commit_behind_remote() {
     );
     assert!(
         outcome.is_success(),
-        "Should not abort for a pushed ancestor commit"
+        "Should succeed for a pushed ancestor commit"
     );
 
     // Cleanup
@@ -560,7 +558,7 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
     );
     assert!(
         outcome.is_success(),
-        "Should not abort when allow_dirty is true"
+        "Should succeed when allow_dirty is true"
     );
 
     // Verify patch file was created in artifact directory
@@ -575,7 +573,7 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
 }
 
 #[test]
-fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
+fn git_hook_fails_for_dirty_repo_when_not_allowed() {
     // Arrange
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
@@ -642,9 +640,10 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
     let outcome = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
-    assert!(
-        outcome.is_failure(),
-        "Should request abort when dirty and allow_dirty is false"
+    assert_eq!(
+        outcome.failure_reason(),
+        Some("repository has uncommitted changes"),
+        "Should fail when dirty and allow_dirty is false"
     );
 
     // Cleanup
@@ -748,7 +747,7 @@ fn git_hook_ignores_git_ignored_files() {
     );
     assert!(
         outcome.is_success(),
-        "Should not abort when only ignored files are present"
+        "Should succeed when only ignored files are present"
     );
 
     // Cleanup
@@ -969,7 +968,7 @@ fn git_hook_detects_untracked_files_as_dirty() {
     );
     assert!(
         outcome.is_failure(),
-        "Should abort when untracked files are present and allow_dirty is false"
+        "Should fail when untracked files are present and allow_dirty is false"
     );
 
     // Cleanup
@@ -1016,4 +1015,73 @@ fn git_hook_resolves_path_when_run() {
             .is_some_and(|m| m.contains("Failed to resolve repository path")),
         "unexpected error: {message:?}"
     );
+}
+
+/// Run `capture-git-repo` with `tag_head = true` on a dirty repository with
+/// `allow_dirty = false`, and return the captured tag and the tags in the repo.
+fn run_tag_head_on_dirty_repo<P>() -> (Option<String>, String)
+where
+    P: capsula_core::hook::PhaseMarker + std::fmt::Debug,
+    GitHook: Hook<P>,
+{
+    let temp_dir = init_git_repo();
+    fs::write(temp_dir.join("test.txt"), b"modified").unwrap();
+    let artifact_dir = temp_dir.join("run").join("artifact");
+    fs::create_dir_all(&artifact_dir).unwrap();
+
+    let config = json!({
+        "name": "test-repo",
+        "path": ".",
+        "allow_dirty": false,
+        "tag_head": true
+    });
+    let hook = <GitHook as Hook<P>>::from_config(&config, &temp_dir).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::generate(),
+        name: "dirty-run".to_string(),
+        command: vec![],
+        run_dir: temp_dir.join("run"),
+        project_root: temp_dir.clone(),
+    };
+
+    let outcome = <GitHook as Hook<P>>::run(
+        &hook,
+        &run_metadata,
+        &RuntimeParams::<P>::with_artifact_dir(artifact_dir),
+    )
+    .expect("run ok");
+    assert!(outcome.is_failure(), "a dirty repository should fail");
+    let json = outcome.output().serialize_json().expect("serialize ok");
+    let tag = json
+        .get("tag")
+        .and_then(serde_json::Value::as_str)
+        .map(String::from);
+
+    let tags = Command::new("git")
+        .args(["tag", "-l", "capsula/*"])
+        .current_dir(&temp_dir)
+        .output()
+        .expect("git tag failed");
+    let tags = String::from_utf8_lossy(&tags.stdout).trim().to_string();
+
+    fs::remove_dir_all(&temp_dir).ok();
+    (tag, tags)
+}
+
+#[test]
+fn git_hook_tag_head_skips_tag_when_pre_run_hook_fails() {
+    // The failure stops the run, so there is no run whose commit to keep.
+    let (tag, tags) = run_tag_head_on_dirty_repo::<PreRun>();
+
+    assert_eq!(tag, None);
+    assert_eq!(tags, "", "no tag should be created");
+}
+
+#[test]
+fn git_hook_tag_head_tags_commit_when_post_run_hook_fails() {
+    // The command has already run, so its commit is still worth keeping.
+    let (tag, tags) = run_tag_head_on_dirty_repo::<capsula_core::hook::PostRun>();
+
+    assert_eq!(tag.as_deref(), Some("capsula/dirty-run"));
+    assert_eq!(tags, "capsula/dirty-run");
 }

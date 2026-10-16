@@ -30,7 +30,7 @@ Captures git repository state including commit hash, branch, and whether there a
 | `allow_dirty` | boolean | `false` | If `false`, Capsula aborts when the repository has uncommitted changes |
 | `require_pushed` | boolean | `false` | If `true`, Capsula aborts when the HEAD commit is not pushed to the remote |
 | `remote` | string | `"origin"` | Name of the remote to check when `require_pushed` is `true` |
-| `tag_head` | boolean | `false` | If `true`, creates a lightweight tag `capsula/<run-name>` at the HEAD commit to prevent Git garbage collection |
+| `tag_head` | boolean | `false` | If `true`, creates a lightweight tag `capsula/<run-name>` at the HEAD commit to prevent Git garbage collection. In `pre-run`, no tag is created when this hook fails, because the run is stopped |
 
 ### Example
 
