@@ -39,6 +39,20 @@ pub struct ListRunsQuery {
     pub offset: Option<i64>,
 }
 
+impl ListRunsQuery {
+    const MAX_LIMIT: i64 = 1_000;
+    const MAX_OFFSET: i64 = 100_000;
+
+    pub fn pagination(&self, default_limit: i64) -> (i64, i64) {
+        (
+            self.limit
+                .unwrap_or(default_limit)
+                .clamp(1, Self::MAX_LIMIT),
+            self.offset.unwrap_or(0).clamp(0, Self::MAX_OFFSET),
+        )
+    }
+}
+
 /// A hook output as sent by the CLI to `POST /api/v1/upload`.
 ///
 /// The uploaded variant does not carry a `hook_index` because the server
@@ -210,4 +224,27 @@ pub struct SearchRunsResponse {
     pub status: String,
     pub total: i64,
     pub runs: Vec<SearchRunResult>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ListRunsQuery;
+
+    #[test]
+    fn list_runs_pagination_is_bounded() {
+        let mut query = ListRunsQuery {
+            vault: None,
+            limit: None,
+            offset: None,
+        };
+        assert_eq!(query.pagination(50), (50, 0));
+
+        query.limit = Some(0);
+        query.offset = Some(-1);
+        assert_eq!(query.pagination(50), (1, 0));
+
+        query.limit = Some(i64::MAX);
+        query.offset = Some(i64::MAX);
+        assert_eq!(query.pagination(50), (1_000, 100_000));
+    }
 }
