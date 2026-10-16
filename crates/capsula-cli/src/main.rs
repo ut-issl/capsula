@@ -12,7 +12,7 @@ use capsula_orchestration::push::push_single_run;
 use capsula_orchestration::record::PhaseReport;
 use capsula_orchestration::resolve::{is_same_origin, resolve_server_headers, resolve_server_url};
 use capsula_orchestration::run::{
-    build_hooks, create_and_setup_run, run_post_hooks, run_pre_hooks,
+    build_hooks, create_and_setup_run, ensure_finalizable, run_post_hooks, run_pre_hooks,
 };
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::{find_run_dir, find_run_dir_by_name, list_runs};
@@ -411,13 +411,7 @@ path = \".\"
 
             let run_dir = find_run_dir_by_name(&vault_dir, &run_name)?;
             let capsula_dir = run_dir.join("_capsula");
-
-            let post_run_path = capsula_dir.join("post-run.json");
-            if post_run_path.exists() {
-                anyhow::bail!(
-                    "Run '{run_name}' has already been finalized (post-run.json already exists)"
-                );
-            }
+            ensure_finalizable(&run_name, &capsula_dir)?;
 
             let metadata = capsula_orchestration::vault::read_run_metadata(&run_dir)?;
 
