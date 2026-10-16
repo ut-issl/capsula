@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use capsula_config::HookPhaseConfig;
+use capsula_core::error::CapsulaError;
 use capsula_core::hook::{HookErased, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde_json::Value;
@@ -87,8 +88,24 @@ fn run_hook<P: PhaseMarker>(
 
     let result = hook
         .run(run_metadata, &runtime_params)
-        .map_err(|e| format!("{:#}", anyhow::anyhow!(e)));
+        .map_err(|e| describe_error(&e));
     HookRecord::from_run(index, hook_id, config, result)
+}
+
+/// Describe a hook error as its chain of messages joined by `": "`.
+///
+/// The [`CapsulaError::HookFailed`] wrapper only names the hook, which every
+/// caller already reports next to the message, so the description starts at
+/// the hook's own error.
+fn describe_error(error: &CapsulaError) -> String {
+    let error: &(dyn std::error::Error + 'static) = match error {
+        CapsulaError::HookFailed { source, .. } => source.as_ref(),
+        other => other,
+    };
+    anyhow::Chain::new(error)
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ")
 }
 
 fn log_record<P: PhaseMarker>(record: &HookRecord) {
@@ -113,7 +130,6 @@ mod tests {
 
     use super::*;
     use capsula_core::captured::Captured;
-    use capsula_core::error::CapsulaError;
     use capsula_core::hook::{HookOutcome, PreRun};
     use serde::ser::Error as _;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -154,6 +170,23 @@ mod tests {
             run_dir: dir.to_path_buf(),
             project_root: dir.to_path_buf(),
         }
+    }
+
+    #[test]
+    fn describe_error_skips_hook_wrapper_and_joins_sources() {
+        let error = CapsulaError::HookFailed {
+            hook: "capture-cwd".to_string(),
+            source: Box::new(CapsulaError::Serialization(serde_json::Error::custom(
+                "boom",
+            ))),
+        };
+        assert_eq!(describe_error(&error), "Serialization failed: boom");
+    }
+
+    #[test]
+    fn describe_error_keeps_errors_without_hook_wrapper() {
+        let error = CapsulaError::Other("unexpected".to_string());
+        assert_eq!(describe_error(&error), "unexpected");
     }
 
     #[test]

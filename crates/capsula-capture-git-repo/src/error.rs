@@ -13,11 +13,11 @@ pub enum GitHookError {
     HeadNotFound { message: String },
 
     /// Git operation failed
-    #[error("Git operation failed: {0}")]
+    #[error("Git operation failed")]
     GitOperation(#[from] git2::Error),
 
     /// Serialization failed
-    #[error("Failed to serialize git hook: {0}")]
+    #[error("Failed to serialize git hook")]
     Serialization(#[from] serde_json::Error),
 
     #[error("Run directory not specified and current directory could not be determined: {message}")]
@@ -26,7 +26,7 @@ pub enum GitHookError {
     #[error("capture-git-repo hook requires an artifact directory but none was provided")]
     ArtifactDirMissing,
 
-    #[error("I/O error: {0}")]
+    #[error("I/O error")]
     IoError(#[from] std::io::Error),
 }
 

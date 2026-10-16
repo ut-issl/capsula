@@ -17,7 +17,7 @@ pub enum EnvHookError {
     },
 
     /// Serialization failed
-    #[error("Failed to serialize environment hook: {0}")]
+    #[error("Failed to serialize environment hook")]
     Serialization(#[from] serde_json::Error),
 }
 
