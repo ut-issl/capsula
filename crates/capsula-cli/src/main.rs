@@ -9,7 +9,7 @@ use capsula_core::hook::{PhaseMarker, PostRun, PreRun};
 use capsula_core::run::PreparedRun;
 use capsula_orchestration::pull::{is_pulled_run, pull_single_run, resolve_pull_vault_dir};
 use capsula_orchestration::push::push_single_run;
-use capsula_orchestration::record::PhaseReport;
+use capsula_orchestration::record::{HookRecord, PhaseReport};
 use capsula_orchestration::resolve::{is_same_origin, resolve_server_headers, resolve_server_url};
 use capsula_orchestration::run::{
     build_hooks, create_and_setup_run, ensure_finalizable, run_post_hooks, run_pre_hooks,
@@ -325,11 +325,11 @@ path = \".\"
                 // Hooks summary
                 if let Some(ref pre_run) = pre_run {
                     println!("Pre-run hooks:");
-                    print_hook_summary::<PreRun>(pre_run);
+                    print_hook_summary(pre_run);
                 }
                 if let Some(ref post_run) = post_run {
                     println!("Post-run hooks:");
-                    print_hook_summary::<PostRun>(post_run);
+                    print_hook_summary(post_run);
                 }
             }
         }
@@ -658,20 +658,29 @@ fn format_failures<P: PhaseMarker>(report: &PhaseReport<P>) -> String {
     format!("\n  {}", report.failure_lines().join("\n  "))
 }
 
-fn print_hook_summary<P: PhaseMarker>(hooks: &serde_json::Value) {
-    let report = match PhaseReport::<P>::from_json(hooks) {
-        Ok(report) => report,
-        Err(e) => {
-            println!("  (unreadable hook results: {e:#})");
-            return;
-        }
-    };
-    for record in report.records() {
-        match record.status.message() {
-            None => println!("  [ok]     {}", record.hook_id),
-            Some(message) => println!("  [FAILED] {}: {message}", record.hook_id),
-        }
+fn print_hook_summary(hooks: &serde_json::Value) {
+    for line in hook_summary_lines(hooks) {
+        println!("{line}");
     }
+}
+
+/// One line per hook in `pre-run.json` / `post-run.json`. Each hook result is
+/// read on its own, so one unreadable result does not hide the others.
+fn hook_summary_lines(hooks: &serde_json::Value) -> Vec<String> {
+    let Some(items) = hooks.as_array() else {
+        return vec!["  (unreadable hook results: not a JSON array)".to_string()];
+    };
+    items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| match HookRecord::from_json(index, item) {
+            Ok(record) => record.status().message().map_or_else(
+                || format!("  [ok]     {}", record.hook_id()),
+                |message| format!("  [FAILED] {}: {message}", record.hook_id()),
+            ),
+            Err(e) => format!("  [?]      hook #{index}: unreadable result ({e:#})"),
+        })
+        .collect()
 }
 
 fn main() {
@@ -722,6 +731,35 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hook_summary_lines_reads_each_hook_on_its_own() {
+        let hooks = serde_json::json!([
+            { "__meta": { "id": "capture-cwd", "config": {}, "success": true } },
+            { "sha": "abc" },
+            {
+                "__meta": {
+                    "id": "capture-git-repo",
+                    "config": {},
+                    "success": false,
+                    "failure_reason": "repository has uncommitted changes"
+                }
+            }
+        ]);
+
+        let lines = hook_summary_lines(&hooks);
+
+        assert_eq!(lines.len(), 3, "{lines:?}");
+        assert_eq!(lines[0], "  [ok]     capture-cwd");
+        assert!(
+            lines[1].starts_with("  [?]      hook #1: unreadable result"),
+            "{lines:?}"
+        );
+        assert_eq!(
+            lines[2],
+            "  [FAILED] capture-git-repo: repository has uncommitted changes"
+        );
+    }
 
     #[test]
     fn run_exit_code_propagates_command_exit_code() {

@@ -44,16 +44,21 @@ impl HookStatus {
 }
 
 /// The recorded result of one hook in a phase.
+///
+/// The fields are private so that a record is only built through
+/// [`HookRecord::errored`], [`HookRecord::from_run`], or
+/// [`HookRecord::from_json`], which keep `output` and `status` consistent: an
+/// errored hook has no output.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HookRecord {
     /// 0-based position of the hook in the phase's configuration.
-    pub index: usize,
-    pub hook_id: String,
+    index: usize,
+    hook_id: String,
     /// Serialized hook configuration; `null` when it could not be serialized.
-    pub config: Value,
+    config: Value,
     /// Captured output; `None` when the hook errored before producing one.
-    pub output: Option<Map<String, Value>>,
-    pub status: HookStatus,
+    output: Option<Map<String, Value>>,
+    status: HookStatus,
 }
 
 /// Shape of the `__meta` object as stored on disk, including records written
@@ -70,6 +75,34 @@ struct StoredMeta {
 }
 
 impl HookRecord {
+    /// 0-based position of the hook in the phase's configuration.
+    #[must_use]
+    pub const fn index(&self) -> usize {
+        self.index
+    }
+
+    #[must_use]
+    pub fn hook_id(&self) -> &str {
+        &self.hook_id
+    }
+
+    /// Serialized hook configuration; `null` when it could not be serialized.
+    #[must_use]
+    pub const fn config(&self) -> &Value {
+        &self.config
+    }
+
+    /// Captured output; `None` when the hook errored before producing one.
+    #[must_use]
+    pub const fn output(&self) -> Option<&Map<String, Value>> {
+        self.output.as_ref()
+    }
+
+    #[must_use]
+    pub const fn status(&self) -> &HookStatus {
+        &self.status
+    }
+
     /// A record for a hook that errored without producing output.
     #[must_use]
     pub fn errored(
