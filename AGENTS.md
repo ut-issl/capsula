@@ -109,7 +109,7 @@ The standard registries currently provide these hook IDs in both phases:
 - `capture-git-repo`: capture commit, dirty, pushed state, and optionally a diff/tag; fails when dirty (unless `allow_dirty`) or, with `require_pushed`, when HEAD is not pushed.
 - `capture-file`: glob files, optionally copy/move them into the run artifact directory, and/or hash them with SHA-256.
 - `capture-machine`: capture host/system information.
-- `capture-command`: execute a command and capture its output and exit status; fails unless the status is in `success_codes` (default `[0]`). `abort_on_failure` is a deprecated compatibility option.
+- `capture-command`: execute a command and capture its output and exit status; fails unless the status is in `success_codes` (default `[0]`; `"any"` accepts every status).
 - `capture-json`: parse one JSON file into queryable `content`.
 - `capture-toml`: parse one TOML file into queryable JSON `content`.
 - `notify-slack`: send Slack notifications; see `docs/hooks/notify-slack.md` for token and attachment configuration.

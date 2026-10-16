@@ -28,17 +28,16 @@ pub enum CommandHookError {
     #[error("success_codes cannot be empty")]
     EmptySuccessCodes,
 
-    /// Legacy and preferred status-policy options were both provided.
-    #[error("success_codes and abort_on_failure cannot both be set")]
-    ConflictingStatusPolicy,
+    /// The removed `abort_on_failure` option was set.
+    #[error(
+        "abort_on_failure has been removed: replace `abort_on_failure = false` with \
+         `success_codes = \"any\"`, and delete `abort_on_failure = true`"
+    )]
+    RemovedAbortOnFailure,
 
     /// Command output contains invalid UTF-8
     #[error("Command output contains invalid UTF-8: {message}")]
     InvalidUtf8 { message: String },
-
-    /// Command exited with non-zero status
-    #[error("Command '{command}' exited with status {status}")]
-    NonZeroExit { command: String, status: i32 },
 
     /// Serialization failed
     #[error("Failed to serialize command hook")]
