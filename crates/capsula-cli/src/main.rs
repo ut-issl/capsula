@@ -5,12 +5,15 @@
 )]
 
 use anyhow::{Context, Result};
-use capsula_core::hook::{PostRun, PreRun};
+use capsula_core::hook::{PhaseMarker, PostRun, PreRun};
 use capsula_core::run::PreparedRun;
 use capsula_orchestration::pull::{is_pulled_run, pull_single_run, resolve_pull_vault_dir};
 use capsula_orchestration::push::push_single_run;
+use capsula_orchestration::record::{HookRecord, PhaseReport};
 use capsula_orchestration::resolve::{is_same_origin, resolve_server_headers, resolve_server_url};
-use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
+use capsula_orchestration::run::{
+    build_hooks, create_and_setup_run, ensure_finalizable, run_post_hooks, run_pre_hooks,
+};
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::{find_run_dir, find_run_dir_by_name, list_runs};
 use chrono::DateTime;
@@ -31,9 +34,23 @@ const VERSION: &str = if env!("GIT_HASH").is_empty() {
     )
 };
 
-/// Exit code used when pre-run hooks capture successfully but request that the
-/// command itself must not run.
-const PRE_RUN_ABORT_EXIT_CODE: i32 = 125;
+/// Exit code used when a pre-run hook failure stops Capsula before the command
+/// runs. Like GNU `env`/`timeout` and `docker run`, 125 means the wrapper
+/// failed and the command was not executed.
+const PRE_RUN_FAILURE_EXIT_CODE: i32 = 125;
+
+/// Exit code used when a post-run hook fails and the command's own exit code
+/// does not already signal a failure.
+const POST_RUN_FAILURE_EXIT_CODE: i32 = 1;
+
+/// Exit code of `capsula run` after the command has run: the command's
+/// failure takes precedence over a post-run hook failure.
+const fn run_exit_code(command_exit_code: i32, post_run_failed: bool) -> i32 {
+    match (command_exit_code, post_run_failed) {
+        (0, true) => POST_RUN_FAILURE_EXIT_CODE,
+        (code, _) => code,
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "capsula", bin_name = "capsula", version = VERSION, about = "Capsula CLI")]
@@ -325,18 +342,22 @@ path = \".\"
                 anyhow::bail!("No command specified to run");
             }
 
+            // Build the hooks of both phases first, so that a configuration
+            // error is reported before any hook or the command runs.
+            let pre_run_hooks =
+                build_hooks(&config.pre_run, &pre_run_hook_registry, &project_root)?;
+            let post_run_hooks =
+                build_hooks(&config.post_run, &post_run_hook_registry, &project_root)?;
+
             let (run, capsula_dir) = create_and_setup_run(cmd, &project_root, &vault_dir)?;
 
-            let should_abort = run_pre_hooks(
-                &run,
-                &capsula_dir,
-                &config.pre_run,
-                &pre_run_hook_registry,
-                &project_root,
-            )?;
-            if should_abort {
-                error!("Aborting run due to pre-run hook request.");
-                std::process::exit(PRE_RUN_ABORT_EXIT_CODE);
+            let pre_report = run_pre_hooks(&run, &capsula_dir, &pre_run_hooks)?;
+            if pre_report.is_failed() {
+                error!(
+                    "Aborting run due to pre-run hook failure:{}",
+                    format_failures(&pre_report)
+                );
+                std::process::exit(PRE_RUN_FAILURE_EXIT_CODE);
             }
 
             // Execute the command
@@ -352,44 +373,45 @@ path = \".\"
                     format!("Failed to write run output to {}", run_json_path.display())
                 })?;
 
-            run_post_hooks(
-                &run,
-                &capsula_dir,
-                &config.post_run,
-                &post_run_hook_registry,
-                &project_root,
-            )?;
+            let post_report = run_post_hooks(&run, &capsula_dir, &post_run_hooks)?;
+            if post_report.is_failed() {
+                error!(
+                    "Post-run hook failure recorded:{}",
+                    format_failures(&post_report)
+                );
+            }
 
-            std::process::exit(run_output.exit_code);
+            std::process::exit(run_exit_code(run_output.exit_code, post_report.is_failed()));
         }
         Commands::RunStart => {
+            // Also check the post-run hook configuration, so that a mistake
+            // is reported now rather than by `run-end` after the external
+            // process has finished.
+            let pre_run_hooks =
+                build_hooks(&config.pre_run, &pre_run_hook_registry, &project_root)?;
+            build_hooks(&config.post_run, &post_run_hook_registry, &project_root)?;
+
             let (run, capsula_dir) = create_and_setup_run(vec![], &project_root, &vault_dir)?;
 
-            let should_abort = run_pre_hooks(
-                &run,
-                &capsula_dir,
-                &config.pre_run,
-                &pre_run_hook_registry,
-                &project_root,
-            )?;
-            if should_abort {
-                error!("Aborting run-start due to pre-run hook request.");
-                std::process::exit(PRE_RUN_ABORT_EXIT_CODE);
+            let pre_report = run_pre_hooks(&run, &capsula_dir, &pre_run_hooks)?;
+            if pre_report.is_failed() {
+                error!(
+                    "Aborting run-start due to pre-run hook failure:{}",
+                    format_failures(&pre_report)
+                );
+                std::process::exit(PRE_RUN_FAILURE_EXIT_CODE);
             }
 
             // Print run name to stdout for callers to capture
             println!("{}", run.name);
         }
         Commands::RunEnd { run_name } => {
+            let post_run_hooks =
+                build_hooks(&config.post_run, &post_run_hook_registry, &project_root)?;
+
             let run_dir = find_run_dir_by_name(&vault_dir, &run_name)?;
             let capsula_dir = run_dir.join("_capsula");
-
-            let post_run_path = capsula_dir.join("post-run.json");
-            if post_run_path.exists() {
-                anyhow::bail!(
-                    "Run '{run_name}' has already been finalized (post-run.json already exists)"
-                );
-            }
+            ensure_finalizable(&run_name, &capsula_dir)?;
 
             let metadata = capsula_orchestration::vault::read_run_metadata(&run_dir)?;
 
@@ -403,13 +425,14 @@ path = \".\"
 
             info!("Finalizing run: {} (ID: {})", run.name, run.id);
 
-            run_post_hooks(
-                &run,
-                &capsula_dir,
-                &config.post_run,
-                &post_run_hook_registry,
-                &project_root,
-            )?;
+            let post_report = run_post_hooks(&run, &capsula_dir, &post_run_hooks)?;
+            if post_report.is_failed() {
+                error!(
+                    "Post-run hook failure recorded:{}",
+                    format_failures(&post_report)
+                );
+                std::process::exit(POST_RUN_FAILURE_EXIT_CODE);
+            }
 
             info!("Run '{}' finalized successfully", run_name);
         }
@@ -630,31 +653,34 @@ fn format_duration(secs: u64, nanos: u64) -> String {
     }
 }
 
-fn print_hook_summary(hooks: &serde_json::Value) {
-    let Some(hooks) = hooks.as_array() else {
-        return;
-    };
-    for hook in hooks {
-        let meta = hook.get("__meta");
-        let id = meta
-            .and_then(|m| m.get("id"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
-        let success = meta
-            .and_then(|m| m.get("success"))
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false);
+/// Indented lines naming each failed hook, appended to an error message.
+fn format_failures<P: PhaseMarker>(report: &PhaseReport<P>) -> String {
+    format!("\n  {}", report.failure_lines().join("\n  "))
+}
 
-        if success {
-            println!("  [ok]     {id}");
-        } else {
-            let error = meta
-                .and_then(|m| m.get("error"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            println!("  [FAILED] {id}: {error}");
-        }
+fn print_hook_summary(hooks: &serde_json::Value) {
+    for line in hook_summary_lines(hooks) {
+        println!("{line}");
     }
+}
+
+/// One line per hook in `pre-run.json` / `post-run.json`. Each hook result is
+/// read on its own, so one unreadable result does not hide the others.
+fn hook_summary_lines(hooks: &serde_json::Value) -> Vec<String> {
+    let Some(items) = hooks.as_array() else {
+        return vec!["  (unreadable hook results: not a JSON array)".to_string()];
+    };
+    items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| match HookRecord::from_json(index, item) {
+            Ok(record) => record.status().message().map_or_else(
+                || format!("  [ok]     {}", record.hook_id()),
+                |message| format!("  [FAILED] {}: {message}", record.hook_id()),
+            ),
+            Err(e) => format!("  [?]      hook #{index}: unreadable result ({e:#})"),
+        })
+        .collect()
 }
 
 fn main() {
@@ -699,5 +725,55 @@ fn main() {
         }
 
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hook_summary_lines_reads_each_hook_on_its_own() {
+        let hooks = serde_json::json!([
+            { "__meta": { "id": "capture-cwd", "config": {}, "success": true } },
+            { "sha": "abc" },
+            {
+                "__meta": {
+                    "id": "capture-git-repo",
+                    "config": {},
+                    "success": false,
+                    "failure_reason": "repository has uncommitted changes"
+                }
+            }
+        ]);
+
+        let lines = hook_summary_lines(&hooks);
+
+        assert_eq!(lines.len(), 3, "{lines:?}");
+        assert_eq!(lines[0], "  [ok]     capture-cwd");
+        assert!(
+            lines[1].starts_with("  [?]      hook #1: unreadable result"),
+            "{lines:?}"
+        );
+        assert_eq!(
+            lines[2],
+            "  [FAILED] capture-git-repo: repository has uncommitted changes"
+        );
+    }
+
+    #[test]
+    fn run_exit_code_propagates_command_exit_code() {
+        assert_eq!(run_exit_code(0, false), 0);
+        assert_eq!(run_exit_code(42, false), 42);
+    }
+
+    #[test]
+    fn run_exit_code_fails_successful_command_on_post_run_failure() {
+        assert_eq!(run_exit_code(0, true), POST_RUN_FAILURE_EXIT_CODE);
+    }
+
+    #[test]
+    fn run_exit_code_keeps_command_failure_over_post_run_failure() {
+        assert_eq!(run_exit_code(42, true), 42);
     }
 }

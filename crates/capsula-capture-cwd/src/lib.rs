@@ -3,7 +3,7 @@ mod error;
 use crate::error::CwdHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -56,17 +56,19 @@ where
         &self,
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         debug!("CwdHook: Capturing current working directory");
         let cwd_abs =
             std::env::current_dir().map_err(|source| CwdHookError::CurrentDirError { source })?;
         debug!("CwdHook: Current directory is: {}", cwd_abs.display());
-        Ok(CwdCaptured { cwd_abs })
+        Ok(HookOutcome::success(CwdCaptured { cwd_abs }))
     }
 }
 
 impl Captured for CwdCaptured {
-    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::to_value(self)
+    fn serialize_json(
+        &self,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, serde_json::Error> {
+        capsula_core::captured::to_object(self)
     }
 }

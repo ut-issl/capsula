@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum JsonHookError {
     /// Failed to read the configured JSON file
-    #[error("Failed to read JSON file '{path}': {source}")]
+    #[error("Failed to read JSON file '{path}'")]
     Io {
         path: PathBuf,
         #[source]
@@ -15,7 +15,7 @@ pub enum JsonHookError {
 
     /// Failed to deserialize the file content as JSON, or failed to parse the
     /// hook config from TOML.
-    #[error("Failed to deserialize JSON: {0}")]
+    #[error("Failed to deserialize JSON")]
     Json(#[from] serde_json::Error),
 }
 

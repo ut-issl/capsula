@@ -5,14 +5,14 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum CwdHookError {
     /// Failed to get current working directory
-    #[error("Failed to get current working directory: {source}")]
+    #[error("Failed to get current working directory")]
     CurrentDirError {
         #[source]
         source: std::io::Error,
     },
 
     /// Serialization failed
-    #[error("Failed to serialize cwd hook: {0}")]
+    #[error("Failed to serialize cwd hook")]
     Serialization(#[from] serde_json::Error),
 }
 

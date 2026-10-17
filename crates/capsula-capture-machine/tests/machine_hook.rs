@@ -26,8 +26,9 @@ fn machine_hook_captures_system_info() {
     let params = RuntimeParams::<PreRun>::default();
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -74,12 +75,11 @@ fn machine_hook_default_config() {
     };
     let params = RuntimeParams::<PreRun>::default();
 
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    outcome
+        .output()
         .serialize_json()
-        .expect("serialization should succeed");
-
-    assert!(json.is_object(), "Should return valid JSON object");
+        .expect("serialization to a JSON object should succeed");
 }
 
 #[test]

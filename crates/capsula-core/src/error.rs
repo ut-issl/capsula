@@ -15,16 +15,16 @@ pub enum CapsulaError {
     Io(#[from] std::io::Error),
 
     /// Serialization/deserialization failed
-    #[error("Serialization failed: {0}")]
+    #[error("Serialization failed")]
     Serialization(#[from] serde_json::Error),
 
     /// Configuration-related error
     #[error("Configuration error: {message}")]
     Configuration { message: String },
 
-    /// Hook execution failed
+    /// An error from a hook while building or running it.
     /// This variant wraps hook-specific errors while preserving the error chain
-    #[error("Hook '{hook}' failed")]
+    #[error("Error in hook '{hook}'")]
     HookFailed {
         hook: String,
         #[source]

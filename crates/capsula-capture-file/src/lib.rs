@@ -5,7 +5,7 @@ use crate::error::FileHookError;
 use crate::hash::file_digest_sha256;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -57,8 +57,10 @@ pub struct FileCaptured {
 }
 
 impl Captured for FileCaptured {
-    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::to_value(self)
+    fn serialize_json(
+        &self,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, serde_json::Error> {
+        capsula_core::captured::to_object(self)
     }
 }
 
@@ -87,12 +89,14 @@ where
         &self,
         metadata: &PreparedRun,
         params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         let artifact_dir = params
             .artifact_dir
             .as_deref()
             .ok_or(FileHookError::ArtifactDirMissing)?;
-        self.run(metadata, artifact_dir).map_err(CapsulaError::from)
+        self.run(metadata, artifact_dir)
+            .map(HookOutcome::success)
+            .map_err(CapsulaError::from)
     }
 
     fn needs_artifact_dir(&self) -> bool {

@@ -73,8 +73,9 @@ fn git_hook_captures_clean_repo() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -90,10 +91,7 @@ fn git_hook_captures_clean_repo() {
         Some(false),
         "Repo with no remote should not be pushed"
     );
-    assert!(
-        !captured.abort_requested(),
-        "Clean repo should not request abort"
-    );
+    assert!(outcome.is_success(), "Clean repo should succeed");
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -210,8 +208,9 @@ fn git_hook_detects_pushed_commit() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -221,10 +220,7 @@ fn git_hook_detects_pushed_commit() {
         Some(true),
         "Pushed commit should be detected as pushed"
     );
-    assert!(
-        !captured.abort_requested(),
-        "Should not abort when commit is pushed"
-    );
+    assert!(outcome.is_success(), "Should succeed when commit is pushed");
 
     // Cleanup
     fs::remove_dir_all(&temp_dir).ok();
@@ -258,8 +254,9 @@ fn git_hook_detects_unpushed_commit() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -270,8 +267,8 @@ fn git_hook_detects_unpushed_commit() {
         "Unpushed commit should be detected as not pushed"
     );
     assert!(
-        !captured.abort_requested(),
-        "Should not abort when require_pushed is false (default)"
+        outcome.is_success(),
+        "Should succeed when require_pushed is false (default)"
     );
 
     // Cleanup
@@ -280,7 +277,7 @@ fn git_hook_detects_unpushed_commit() {
 }
 
 #[test]
-fn git_hook_aborts_on_unpushed_when_required() {
+fn git_hook_fails_on_unpushed_when_required() {
     // Arrange
     let temp_dir = init_git_repo();
     let bare_dir = add_bare_remote(&temp_dir, "origin");
@@ -308,12 +305,13 @@ fn git_hook_aborts_on_unpushed_when_required() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
-    assert!(
-        captured.abort_requested(),
-        "Should abort when require_pushed is true and commit is not pushed"
+    assert_eq!(
+        outcome.failure_reason(),
+        Some("HEAD commit is not pushed to remote 'origin'"),
+        "Should fail when require_pushed is true and commit is not pushed"
     );
 
     // Cleanup
@@ -371,8 +369,9 @@ fn git_hook_pushed_commit_behind_remote() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -383,8 +382,8 @@ fn git_hook_pushed_commit_behind_remote() {
         "Commit behind remote tip should still be detected as pushed (ancestor check)"
     );
     assert!(
-        !captured.abort_requested(),
-        "Should not abort for a pushed ancestor commit"
+        outcome.is_success(),
+        "Should succeed for a pushed ancestor commit"
     );
 
     // Cleanup
@@ -422,8 +421,9 @@ fn git_hook_custom_remote() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -456,8 +456,9 @@ fn git_hook_custom_remote() {
     };
     let params2 = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir2);
 
-    let captured_origin = hook_origin.run(&run_metadata2, &params2).expect("run ok");
-    let json_origin = captured_origin
+    let outcome_origin = hook_origin.run(&run_metadata2, &params2).expect("run ok");
+    let json_origin = outcome_origin
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -467,6 +468,10 @@ fn git_hook_custom_remote() {
             .and_then(serde_json::Value::as_bool),
         Some(false),
         "Commit pushed to 'upstream' should NOT be detected when remote='origin'"
+    );
+    assert!(
+        outcome_origin.is_failure(),
+        "require_pushed should fail when the configured remote does not contain HEAD"
     );
 
     // Cleanup
@@ -539,8 +544,9 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone());
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -551,8 +557,8 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
         "Repo with uncommitted changes should be dirty"
     );
     assert!(
-        !captured.abort_requested(),
-        "Should not abort when allow_dirty is true"
+        outcome.is_success(),
+        "Should succeed when allow_dirty is true"
     );
 
     // Verify patch file was created in artifact directory
@@ -567,7 +573,7 @@ fn git_hook_captures_dirty_repo_with_allow_dirty() {
 }
 
 #[test]
-fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
+fn git_hook_fails_for_dirty_repo_when_not_allowed() {
     // Arrange
     let temp_dir = std::env::temp_dir().join(format!("capsula_git_test_{}", Ulid::generate()));
     let run_dir = temp_dir.join("run");
@@ -631,12 +637,13 @@ fn git_hook_requests_abort_for_dirty_repo_when_not_allowed() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
 
     // Assert
-    assert!(
-        captured.abort_requested(),
-        "Should request abort when dirty and allow_dirty is false"
+    assert_eq!(
+        outcome.failure_reason(),
+        Some("repository has uncommitted changes"),
+        "Should fail when dirty and allow_dirty is false"
     );
 
     // Cleanup
@@ -726,8 +733,9 @@ fn git_hook_ignores_git_ignored_files() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -738,8 +746,8 @@ fn git_hook_ignores_git_ignored_files() {
         "Repo with only ignored files should not be dirty"
     );
     assert!(
-        !captured.abort_requested(),
-        "Should not abort when only ignored files are present"
+        outcome.is_success(),
+        "Should succeed when only ignored files are present"
     );
 
     // Cleanup
@@ -772,8 +780,9 @@ fn git_hook_tag_head_creates_lightweight_tag() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -840,8 +849,9 @@ fn git_hook_no_tag_when_tag_head_is_false() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -944,8 +954,9 @@ fn git_hook_detects_untracked_files_as_dirty() {
     let params = RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir);
 
     // Act
-    let captured = hook.run(&run_metadata, &params).expect("run ok");
-    let json = captured
+    let outcome = hook.run(&run_metadata, &params).expect("run ok");
+    let json = outcome
+        .output()
         .serialize_json()
         .expect("serialization should succeed");
 
@@ -956,8 +967,8 @@ fn git_hook_detects_untracked_files_as_dirty() {
         "Repo with untracked files should be dirty"
     );
     assert!(
-        captured.abort_requested(),
-        "Should abort when untracked files are present and allow_dirty is false"
+        outcome.is_failure(),
+        "Should fail when untracked files are present and allow_dirty is false"
     );
 
     // Cleanup
@@ -975,4 +986,102 @@ fn git_hook_rejects_unknown_config_fields() {
     let result = <GitHook as Hook<PreRun>>::from_config(&config, &std::env::temp_dir());
 
     assert!(result.is_err(), "unknown config fields should be rejected");
+}
+
+#[test]
+fn git_hook_resolves_path_when_run() {
+    // Building the hook must not depend on the file system, so a missing path
+    // is an error of the run, not of the configuration.
+    let config = json!({
+        "name": "test-repo",
+        "path": format!("capsula-missing-{}", Ulid::generate()),
+    });
+    let hook = <GitHook as Hook<PreRun>>::from_config(&config, &std::env::temp_dir())
+        .expect("a missing path should not fail the configuration");
+    let run = PreparedRun {
+        id: Ulid::generate(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir: std::env::temp_dir(),
+        project_root: std::env::temp_dir(),
+    };
+
+    let err = <GitHook as Hook<PreRun>>::run(&hook, &run, &RuntimeParams::default())
+        .expect_err("running with a missing path should fail");
+    let message = std::error::Error::source(&err).map(ToString::to_string);
+    assert!(
+        message
+            .as_deref()
+            .is_some_and(|m| m.contains("Failed to resolve repository path")),
+        "unexpected error: {message:?}"
+    );
+}
+
+/// Run `capture-git-repo` with `tag_head = true` on a dirty repository with
+/// `allow_dirty = false`, and return the captured tag and the tags in the repo.
+fn run_tag_head_on_dirty_repo<P>() -> (Option<String>, String)
+where
+    P: capsula_core::hook::PhaseMarker + std::fmt::Debug,
+    GitHook: Hook<P>,
+{
+    let temp_dir = init_git_repo();
+    fs::write(temp_dir.join("test.txt"), b"modified").unwrap();
+    let artifact_dir = temp_dir.join("run").join("artifact");
+    fs::create_dir_all(&artifact_dir).unwrap();
+
+    let config = json!({
+        "name": "test-repo",
+        "path": ".",
+        "allow_dirty": false,
+        "tag_head": true
+    });
+    let hook = <GitHook as Hook<P>>::from_config(&config, &temp_dir).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::generate(),
+        name: "dirty-run".to_string(),
+        command: vec![],
+        run_dir: temp_dir.join("run"),
+        project_root: temp_dir.clone(),
+    };
+
+    let outcome = <GitHook as Hook<P>>::run(
+        &hook,
+        &run_metadata,
+        &RuntimeParams::<P>::with_artifact_dir(artifact_dir),
+    )
+    .expect("run ok");
+    assert!(outcome.is_failure(), "a dirty repository should fail");
+    let json = outcome.output().serialize_json().expect("serialize ok");
+    let tag = json
+        .get("tag")
+        .and_then(serde_json::Value::as_str)
+        .map(String::from);
+
+    let tags = Command::new("git")
+        .args(["tag", "-l", "capsula/*"])
+        .current_dir(&temp_dir)
+        .output()
+        .expect("git tag failed");
+    let tags = String::from_utf8_lossy(&tags.stdout).trim().to_string();
+
+    fs::remove_dir_all(&temp_dir).ok();
+    (tag, tags)
+}
+
+#[test]
+fn git_hook_tag_head_skips_tag_when_pre_run_hook_fails() {
+    // The failure stops the run, so there is no run whose commit to keep.
+    let (tag, tags) = run_tag_head_on_dirty_repo::<PreRun>();
+
+    assert_eq!(tag, None);
+    assert_eq!(tags, "", "no tag should be created");
+}
+
+#[test]
+fn git_hook_tag_head_tags_commit_when_post_run_hook_fails() {
+    // The command has already run, so its commit is still worth keeping.
+    let (tag, tags) = run_tag_head_on_dirty_repo::<capsula_core::hook::PostRun>();
+
+    assert_eq!(tag.as_deref(), Some("capsula/dirty-run"));
+    assert_eq!(tags, "capsula/dirty-run");
 }

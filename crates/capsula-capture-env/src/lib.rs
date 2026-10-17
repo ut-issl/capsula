@@ -2,7 +2,7 @@ mod error;
 
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -48,7 +48,7 @@ where
         &self,
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         debug!(
             "EnvVarHook: Capturing environment variable: {}",
             self.config.name
@@ -64,12 +64,14 @@ where
         } else {
             debug!("EnvVarHook: Variable '{}' not found", self.config.name);
         }
-        Ok(EnvVarCaptured { value })
+        Ok(HookOutcome::success(EnvVarCaptured { value }))
     }
 }
 
 impl Captured for EnvVarCaptured {
-    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::to_value(self)
+    fn serialize_json(
+        &self,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, serde_json::Error> {
+        capsula_core::captured::to_object(self)
     }
 }

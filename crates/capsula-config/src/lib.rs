@@ -1,7 +1,4 @@
-use capsula_core::{
-    error::{CapsulaError, CapsulaResult},
-    hook::PhaseMarker,
-};
+use capsula_core::error::CapsulaError;
 use serde::{Deserialize, Deserializer};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -193,6 +190,14 @@ pub struct HookEnvelope {
     rest: serde_json::Value,
 }
 
+impl HookEnvelope {
+    /// The hook-specific configuration: every field except `id`.
+    #[must_use]
+    pub const fn config(&self) -> &serde_json::Value {
+        &self.rest
+    }
+}
+
 impl CapsulaConfig {
     fn from_toml_str(content: &str) -> ConfigResult<Self> {
         debug!("Parsing TOML configuration ({} bytes)", content.len());
@@ -215,28 +220,6 @@ impl CapsulaConfig {
         })?;
         Self::from_toml_str(&content)
     }
-}
-
-/// Build hooks from any phase config that contains hooks
-pub fn build_hooks<P: PhaseMarker>(
-    phase: &HookPhaseConfig,
-    project_root: &Path,
-    registry: &capsula_registry::HookRegistry<P>,
-) -> CapsulaResult<Vec<Box<dyn capsula_core::hook::HookErased<P>>>> {
-    debug!(
-        "Building {} hooks from phase configuration",
-        phase.hooks.len()
-    );
-    let hooks: Vec<_> = phase
-        .hooks
-        .iter()
-        .map(|envelope| {
-            debug!("Creating hook: {}", envelope.id);
-            registry.create_hook(&envelope.id, &envelope.rest, project_root)
-        })
-        .collect::<Result<_, _>>()?;
-    debug!("Successfully created {} hook instances", hooks.len());
-    Ok(hooks)
 }
 
 #[cfg(test)]

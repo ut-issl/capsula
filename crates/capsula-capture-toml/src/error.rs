@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum TomlHookError {
     /// Failed to read the configured TOML file
-    #[error("Failed to read TOML file '{path}': {source}")]
+    #[error("Failed to read TOML file '{path}'")]
     Io {
         path: PathBuf,
         #[source]
@@ -14,12 +14,12 @@ pub enum TomlHookError {
     },
 
     /// Failed to parse the file content as TOML
-    #[error("Failed to parse TOML: {0}")]
+    #[error("Failed to parse TOML")]
     Toml(#[from] toml::de::Error),
 
     /// Failed to deserialize the hook config from JSON, or to convert the
     /// parsed TOML value to JSON for embedding in the run output.
-    #[error("Failed to (de)serialize JSON: {0}")]
+    #[error("Failed to (de)serialize JSON")]
     Json(#[from] serde_json::Error),
 }
 
