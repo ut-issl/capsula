@@ -166,6 +166,22 @@ pub fn resolve_attachment_globs(
     Ok(files)
 }
 
+/// Check the `ok` field of a Slack Web API response body, returning the
+/// error code when the call failed.
+///
+/// Slack reports errors such as `invalid_auth` or `channel_not_found` with
+/// HTTP 200 and `"ok": false`, so a successful HTTP status does not mean
+/// that the call succeeded.
+fn check_ok(response: &serde_json::Value) -> Result<(), &str> {
+    match response.get("ok").and_then(serde_json::Value::as_bool) {
+        Some(true) => Ok(()),
+        Some(false) | None => Err(response
+            .get("error")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown error")),
+    }
+}
+
 /// Upload a single file to Slack and return its `file_id`
 fn upload_file_to_slack(
     client: &reqwest::blocking::Client,
@@ -205,16 +221,7 @@ fn upload_file_to_slack(
 
     debug!("Received upload URL response");
 
-    if !upload_url_json
-        .get("ok")
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
-    {
-        let error_msg = upload_url_json
-            .get("error")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown error");
-
+    if let Err(error_msg) = check_ok(&upload_url_json) {
         // Provide helpful message for missing_scope error
         let message = if error_msg == "missing_scope" {
             "Failed to upload file: missing_scope. The Slack bot needs the 'files:write' OAuth scope. \
@@ -243,11 +250,19 @@ fn upload_file_to_slack(
 
     // Upload file to the URL
     debug!("Uploading file content to URL (file_id: {})", file_id);
-    client
+    let upload_res = client
         .post(upload_url)
         .body(file_content)
         .send()
         .map_err(SlackNotifyError::from)?;
+    if !upload_res.status().is_success() {
+        return Err(SlackNotifyError::SlackApi {
+            message: format!(
+                "Failed to upload file '{file_name}': {}",
+                upload_res.status()
+            ),
+        });
+    }
 
     debug!("File upload completed successfully");
     Ok((file_id.to_string(), file_name))
@@ -295,12 +310,20 @@ fn send_simple_message(
         });
     }
 
-    let response_text = res.text().unwrap_or_else(|_| String::from("{}"));
+    let response_text = res.text().map_err(SlackNotifyError::from)?;
+    let response_json: serde_json::Value =
+        serde_json::from_str(&response_text).map_err(SlackNotifyError::from)?;
+    if let Err(error_msg) = check_ok(&response_json) {
+        return Err(SlackNotifyError::SlackApi {
+            message: format!("Failed to send Slack notification: {error_msg}"),
+        });
+    }
 
     // Extract the timestamp from the response for threading
-    let ts = serde_json::from_str::<serde_json::Value>(&response_text)
-        .ok()
-        .and_then(|v| v.get("ts").and_then(|t| t.as_str()).map(String::from));
+    let ts = response_json
+        .get("ts")
+        .and_then(serde_json::Value::as_str)
+        .map(String::from);
 
     Ok((response_text, ts))
 }
@@ -391,15 +414,7 @@ fn send_slack_message(
 
     let complete_json: serde_json::Value = complete_res.json().map_err(SlackNotifyError::from)?;
 
-    if !complete_json
-        .get("ok")
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
-    {
-        let error_msg = complete_json
-            .get("error")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown error");
+    if let Err(error_msg) = check_ok(&complete_json) {
         return Err(SlackNotifyError::SlackApi {
             message: format!("Failed to share files in thread: {error_msg}"),
         });
@@ -456,14 +471,18 @@ fn send_slack_message(
         .send()
         .map_err(SlackNotifyError::from)?;
 
-    if broadcast_res.status().is_success() {
-        debug!("Broadcast message sent successfully");
+    let broadcast_result = if broadcast_res.status().is_success() {
+        broadcast_res
+            .json::<serde_json::Value>()
+            .map_err(|e| e.to_string())
+            .and_then(|json| check_ok(&json).map_err(str::to_string))
     } else {
+        Err(broadcast_res.status().to_string())
+    };
+    match broadcast_result {
+        Ok(()) => debug!("Broadcast message sent successfully"),
         // Don't fail the whole operation if broadcast fails
-        warn!(
-            "Warning: Failed to broadcast file message: {}",
-            broadcast_res.status()
-        );
+        Err(e) => warn!("Failed to broadcast file message: {e}"),
     }
 
     Ok((message_response, attached_files))
@@ -615,5 +634,30 @@ impl Hook<PostRun> for SlackNotifyHook {
             "✅ Capsula Run Completed",
             "has completed",
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_ok_accepts_successful_response() {
+        assert_eq!(check_ok(&json!({ "ok": true, "ts": "1.2" })), Ok(()));
+    }
+
+    #[test]
+    fn check_ok_returns_error_code_of_failed_response() {
+        // Slack returns errors like this with HTTP 200.
+        assert_eq!(
+            check_ok(&json!({ "ok": false, "error": "invalid_auth" })),
+            Err("invalid_auth")
+        );
+    }
+
+    #[test]
+    fn check_ok_rejects_response_without_ok() {
+        assert_eq!(check_ok(&json!({})), Err("unknown error"));
+        assert_eq!(check_ok(&json!({ "ok": false })), Err("unknown error"));
     }
 }
