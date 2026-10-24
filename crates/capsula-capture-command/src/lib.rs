@@ -3,9 +3,10 @@ mod error;
 use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PhaseMarker, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::path::PathBuf;
 use tracing::debug;
 
@@ -13,15 +14,77 @@ use tracing::debug;
 #[serde(deny_unknown_fields)]
 pub struct CommandHookConfig {
     command: Vec<String>,
+    /// Always serialized, so that `__meta.config` records the effective policy.
     #[serde(default)]
-    abort_on_failure: bool,
+    success_codes: SuccessCodes,
     cwd: Option<PathBuf>,
+}
+
+/// Exit statuses of the command that count as a successful hook outcome.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SuccessCodes {
+    /// Any exit status: `success_codes = "any"`.
+    Any,
+    /// Only the listed exit statuses: `success_codes = [0, 1]`.
+    Only(Vec<i32>),
+}
+
+impl Default for SuccessCodes {
+    fn default() -> Self {
+        Self::Only(vec![0])
+    }
+}
+
+impl SuccessCodes {
+    /// Check an exit status, returning the failure reason when it is not one
+    /// of the success codes.
+    fn check(&self, status: i32) -> Result<(), String> {
+        match self {
+            Self::Any => Ok(()),
+            Self::Only(codes) if codes.contains(&status) => Ok(()),
+            Self::Only(codes) if codes.as_slice() == [0] => {
+                Err(format!("command exited with status {status}; expected 0"))
+            }
+            Self::Only(codes) => Err(format!(
+                "command exited with status {status}; expected one of {codes:?}"
+            )),
+        }
+    }
+}
+
+impl Serialize for SuccessCodes {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Any => serializer.serialize_str("any"),
+            Self::Only(codes) => codes.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for SuccessCodes {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Keyword(String),
+            Codes(Vec<i32>),
+        }
+
+        const EXPECTED: &str = r#"expected "any" or an array of exit statuses"#;
+        match Raw::deserialize(deserializer).map_err(|_| D::Error::custom(EXPECTED))? {
+            Raw::Keyword(keyword) if keyword == "any" => Ok(Self::Any),
+            Raw::Keyword(keyword) => Err(D::Error::custom(format!(
+                "invalid success_codes {keyword:?}, {EXPECTED}"
+            ))),
+            Raw::Codes(codes) => Ok(Self::Only(codes)),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct CommandHook {
     config: CommandHookConfig,
-    working_dir: PathBuf,
+    project_root: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
@@ -29,8 +92,6 @@ pub struct CommandCaptured {
     stdout: String,
     stderr: String,
     status: i32,
-    #[serde(skip)]
-    abort_requested: bool,
 }
 
 impl<P> Hook<P> for CommandHook
@@ -46,16 +107,22 @@ where
         config: &serde_json::Value,
         project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
+        if config.get("abort_on_failure").is_some() {
+            return Err(CommandHookError::RemovedAbortOnFailure.into());
+        }
         let config: CommandHookConfig = serde_json::from_value(config.clone())?;
+        if config.command.is_empty() {
+            return Err(CommandHookError::EmptyCommand.into());
+        }
+        if config.success_codes == SuccessCodes::Only(Vec::new()) {
+            return Err(CommandHookError::EmptySuccessCodes.into());
+        }
 
-        let working_dir = match &config.cwd {
-            Some(cwd) => capsula_core::util::resolve_relative(cwd, project_root)?,
-            None => project_root.to_path_buf(),
-        };
-
+        // `cwd` is resolved when the hook runs, because a post-run hook may
+        // refer to a directory that the command creates.
         Ok(Self {
             config,
-            working_dir,
+            project_root: project_root.to_path_buf(),
         })
     }
 
@@ -67,23 +134,21 @@ where
         &self,
         _metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         use std::process::Command;
 
-        if self.config.command.is_empty() {
+        let Some((program, args)) = self.config.command.split_first() else {
             return Err(CommandHookError::EmptyCommand.into());
-        }
+        };
+        let working_dir = self.working_dir()?;
 
         debug!(
             "CommandHook: Executing command: {:?} in {}",
             self.config.command,
-            self.working_dir.display()
+            working_dir.display()
         );
-        let mut cmd = Command::new(&self.config.command[0]);
-        cmd.current_dir(&self.working_dir);
-        if self.config.command.len() > 1 {
-            cmd.args(&self.config.command[1..]);
-        }
+        let mut cmd = Command::new(program);
+        cmd.current_dir(&working_dir).args(args);
 
         let output = cmd
             .output()
@@ -103,26 +168,97 @@ where
             stderr.len()
         );
 
-        let abort_requested = self.config.abort_on_failure && status != 0;
-        if abort_requested {
-            debug!("CommandHook: Requesting abort due to command failure");
-        }
-
-        Ok(CommandCaptured {
+        let captured = CommandCaptured {
             stdout,
             stderr,
             status,
-            abort_requested,
-        })
+        };
+
+        match self.config.success_codes.check(status) {
+            Ok(()) => Ok(HookOutcome::success(captured)),
+            Err(reason) => {
+                debug!("CommandHook: {reason}");
+                Ok(HookOutcome::failure(captured, reason))
+            }
+        }
+    }
+}
+
+impl CommandHook {
+    /// The directory the command runs in: `cwd` resolved against the project
+    /// root, or the project root itself.
+    fn working_dir(&self) -> Result<PathBuf, CommandHookError> {
+        self.config.cwd.as_ref().map_or_else(
+            || Ok(self.project_root.clone()),
+            |cwd| {
+                capsula_core::util::resolve_relative(cwd, &self.project_root).map_err(|source| {
+                    CommandHookError::WorkingDirectory {
+                        path: cwd.clone(),
+                        source,
+                    }
+                })
+            },
+        )
     }
 }
 
 impl Captured for CommandCaptured {
-    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::to_value(self)
+    fn serialize_json(
+        &self,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, serde_json::Error> {
+        capsula_core::captured::to_object(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, reason = "Tests use unwrap for brevity")]
+
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn success_codes_deserializes_any_and_lists() {
+        let parse = |value| serde_json::from_value::<SuccessCodes>(value);
+        assert_eq!(parse(json!("any")).unwrap(), SuccessCodes::Any);
+        assert_eq!(
+            parse(json!([0, 1])).unwrap(),
+            SuccessCodes::Only(vec![0, 1])
+        );
     }
 
-    fn abort_requested(&self) -> bool {
-        self.abort_requested
+    #[test]
+    fn success_codes_rejects_other_values() {
+        for value in [json!("all"), json!(0), json!(["0"])] {
+            let err = serde_json::from_value::<SuccessCodes>(value.clone()).unwrap_err();
+            assert!(err.to_string().contains(r#""any""#), "{value}: {err}");
+        }
+    }
+
+    #[test]
+    fn success_codes_serializes_as_written() {
+        assert_eq!(
+            serde_json::to_value(SuccessCodes::Any).unwrap(),
+            json!("any")
+        );
+        assert_eq!(
+            serde_json::to_value(SuccessCodes::default()).unwrap(),
+            json!([0])
+        );
+    }
+
+    #[test]
+    fn success_codes_checks_status() {
+        assert_eq!(SuccessCodes::Any.check(3), Ok(()));
+        assert_eq!(SuccessCodes::default().check(0), Ok(()));
+        assert_eq!(
+            SuccessCodes::default().check(1),
+            Err("command exited with status 1; expected 0".to_string())
+        );
+        assert_eq!(SuccessCodes::Only(vec![0, 1]).check(1), Ok(()));
+        assert_eq!(
+            SuccessCodes::Only(vec![0, 1]).check(2),
+            Err("command exited with status 2; expected one of [0, 1]".to_string())
+        );
     }
 }

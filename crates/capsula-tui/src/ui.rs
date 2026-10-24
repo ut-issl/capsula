@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
-use crate::app::{App, FocusTarget, HitAreas};
+use crate::app::{App, CompletedRun, FocusTarget, HitAreas};
 use crate::widgets::{render_button, render_checkbox};
 
 pub fn draw(frame: &mut Frame, app: &App) -> HitAreas {
@@ -32,9 +32,9 @@ pub fn draw(frame: &mut Frame, app: &App) -> HitAreas {
         draw_status(frame, area, status);
     }
 
-    // Success message after completed run
-    if let Some(ref run_name) = app.last_completed_run {
-        draw_success(frame, area, run_name);
+    // Result message after completed run
+    if let Some(ref completed) = app.last_completed_run {
+        draw_completed(frame, area, completed);
     }
 
     // Error display at bottom
@@ -188,40 +188,92 @@ fn draw_status(frame: &mut Frame, area: Rect, status: &str) {
     frame.render_widget(status_widget, status_area);
 }
 
-fn draw_success(frame: &mut Frame, area: Rect, run_name: &str) {
-    let success_y = area.height.saturating_sub(4);
-    let success_area = Rect::new(area.x + 1, success_y, area.width.saturating_sub(2), 1);
+fn draw_completed(frame: &mut Frame, area: Rect, completed: &CompletedRun) {
+    let run_name = &completed.run_name;
 
-    let success_widget = Paragraph::new(Line::from(vec![
-        Span::styled(
+    let (mark, message, color) = if completed.hook_failures.is_empty() {
+        (
             "✓ ",
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
             format!("Run '{run_name}' completed successfully"),
-            Style::default().fg(Color::Green),
-        ),
-    ]));
-    frame.render_widget(success_widget, success_area);
+            Color::Green,
+        )
+    } else {
+        (
+            "! ",
+            format!("Run '{run_name}' completed, but a post-run hook failed:"),
+            Color::Yellow,
+        )
+    };
+
+    let style = Style::default().fg(color);
+    let lines = std::iter::once(Line::from(vec![
+        Span::styled(mark, style.add_modifier(Modifier::BOLD)),
+        Span::styled(message, style),
+    ]))
+    .chain(
+        completed
+            .hook_failures
+            .iter()
+            .map(|failure| Line::styled(format!("  {failure}"), style)),
+    )
+    .collect();
+    draw_message(frame, area, lines);
 }
 
 fn draw_error(frame: &mut Frame, area: Rect, error: &str) {
-    // Position error near the bottom, above the footer
-    let error_y = area.height.saturating_sub(4);
-    let error_area = Rect::new(area.x + 1, error_y, area.width.saturating_sub(2), 2);
+    let style = Style::default().fg(Color::Red);
+    let mut lines = error.lines();
+    let first = Line::from(vec![
+        Span::styled("Error: ", style.add_modifier(Modifier::BOLD)),
+        Span::styled(lines.next().unwrap_or_default(), style),
+    ]);
+    let lines = std::iter::once(first)
+        .chain(lines.map(|line| Line::styled(line, style)))
+        .collect();
+    draw_message(frame, area, lines);
+}
 
-    let error_widget = Paragraph::new(Line::from(vec![
-        Span::styled(
-            "Error: ",
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(error, Style::default().fg(Color::Red)),
-    ]))
-    .wrap(Wrap { trim: true });
+/// Rows from the top of the screen that the idle state uses: the border, the
+/// idle-state widgets (see [`draw_idle_state`]), and one blank row.
+const IDLE_CONTENT_ROWS: u16 = 1 + 9 + 1;
 
-    frame.render_widget(error_widget, error_area);
+/// Draw a message above the footer. The message grows upwards to fit its
+/// lines, but not into the idle-state widgets, and wraps long lines.
+fn draw_message(frame: &mut Frame, area: Rect, lines: Vec<Line<'_>>) {
+    let width = area.width.saturating_sub(2);
+    let needed = lines
+        .iter()
+        .map(|line| wrapped_height(line.width(), width))
+        .sum();
+    let message_area = Rect {
+        x: area.x + 1,
+        width,
+        ..message_rows(area.height, needed)
+    };
+    let widget = Paragraph::new(lines).wrap(Wrap { trim: true });
+    frame.render_widget(widget, message_area);
+}
+
+/// Number of rows a line of `line_width` columns takes when wrapped to `width`.
+fn wrapped_height(line_width: usize, width: u16) -> u16 {
+    let rows = line_width.div_ceil(usize::from(width.max(1))).max(1);
+    u16::try_from(rows).unwrap_or(u16::MAX)
+}
+
+/// The rows of the message area (only `y` and `height` are set) for a
+/// message that needs `needed` rows on a screen `screen_height` rows tall.
+///
+/// The area ends two rows above the footer and keeps at least two rows, as
+/// before messages could grow.
+fn message_rows(screen_height: u16, needed: u16) -> Rect {
+    let bottom = screen_height.saturating_sub(2);
+    let max_height = bottom.saturating_sub(IDLE_CONTENT_ROWS).max(2);
+    let height = needed.clamp(2, max_height);
+    Rect {
+        y: bottom.saturating_sub(height),
+        height,
+        ..Rect::default()
+    }
 }
 
 fn draw_footer(frame: &mut Frame, area: Rect) {
@@ -328,4 +380,61 @@ fn draw_confirm_quit(frame: &mut Frame, area: Rect, hit: &mut HitAreas) {
 
     hit.confirm_yes = Some(yes_area);
     hit.confirm_no = Some(no_area);
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, reason = "Tests use unwrap for brevity")]
+
+    use super::*;
+
+    #[test]
+    fn wrapped_height_counts_wrapped_rows() {
+        assert_eq!(wrapped_height(0, 10), 1);
+        assert_eq!(wrapped_height(10, 10), 1);
+        assert_eq!(wrapped_height(11, 10), 2);
+    }
+
+    #[test]
+    fn message_rows_grows_upwards_to_fit() {
+        // A 30-row screen: the message ends at row 28 (exclusive).
+        assert_eq!(message_rows(30, 1), Rect::new(0, 26, 0, 2));
+        assert_eq!(message_rows(30, 5), Rect::new(0, 23, 0, 5));
+    }
+
+    #[test]
+    fn message_rows_stops_at_idle_widgets() {
+        let rows = message_rows(30, 100);
+        assert_eq!(rows.y, IDLE_CONTENT_ROWS);
+        assert_eq!(rows.height, 30 - 2 - IDLE_CONTENT_ROWS);
+    }
+
+    #[test]
+    fn message_rows_keeps_two_rows_on_small_screens() {
+        assert_eq!(message_rows(12, 5), Rect::new(0, 8, 0, 2));
+    }
+
+    #[test]
+    fn draw_completed_shows_every_failed_hook() {
+        let completed = CompletedRun {
+            run_name: "quiet-lake".to_string(),
+            hook_failures: (0..3)
+                .map(|i| format!("post[{i}] capture-command: command exited with status 1"))
+                .collect(),
+        };
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 30)).unwrap();
+
+        terminal
+            .draw(|frame| draw_completed(frame, frame.area(), &completed))
+            .unwrap();
+
+        let screen = format!("{:?}", terminal.backend().buffer());
+        for i in 0..3 {
+            assert!(
+                screen.contains(&format!("post[{i}] capture-command")),
+                "missing failure {i}:\n{screen}"
+            );
+        }
+    }
 }

@@ -9,23 +9,38 @@ pub enum CommandHookError {
     EmptyCommand,
 
     /// Command execution failed
-    #[error("Failed to execute command '{command}': {source}")]
+    #[error("Failed to execute command '{command}'")]
     ExecutionFailed {
         command: String,
         #[source]
         source: std::io::Error,
     },
 
+    /// The configured working directory cannot be resolved
+    #[error("Failed to resolve working directory '{}'", path.display())]
+    WorkingDirectory {
+        path: std::path::PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// No exit status can be accepted by the configured success code set.
+    #[error("success_codes cannot be empty")]
+    EmptySuccessCodes,
+
+    /// The removed `abort_on_failure` option was set.
+    #[error(
+        "abort_on_failure has been removed: replace `abort_on_failure = false` with \
+         `success_codes = \"any\"`, and delete `abort_on_failure = true`"
+    )]
+    RemovedAbortOnFailure,
+
     /// Command output contains invalid UTF-8
     #[error("Command output contains invalid UTF-8: {message}")]
     InvalidUtf8 { message: String },
 
-    /// Command exited with non-zero status
-    #[error("Command '{command}' exited with status {status}")]
-    NonZeroExit { command: String, status: i32 },
-
     /// Serialization failed
-    #[error("Failed to serialize command hook: {0}")]
+    #[error("Failed to serialize command hook")]
     Serialization(#[from] serde_json::Error),
 }
 

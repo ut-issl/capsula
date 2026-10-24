@@ -1,6 +1,7 @@
 pub(crate) mod hooks;
 pub mod pull;
 pub mod push;
+pub mod record;
 pub mod resolve;
 pub mod run;
 pub mod setup;

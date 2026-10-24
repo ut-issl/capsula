@@ -83,6 +83,9 @@ channel = "#experiments"
 attachment_globs = ["results/*.png"]
 ```
 
+!!! warning "Failure Behavior"
+    If the notification cannot be sent, for example because Slack is temporarily unreachable, rejects the token, or cannot find the channel, the hook errors. In `pre-run`, this stops Capsula before running your command. Use `notify-slack` in `post-run` unless a start notification is required. See [Hook Failures](../configuration.md#hook-failures).
+
 ## Output Example
 
 ### Successful Notification

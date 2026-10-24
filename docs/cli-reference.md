@@ -81,6 +81,8 @@ Example using environment variables:
 capsula run bash -c 'echo "Run: $CAPSULA_RUN_NAME"'
 ```
 
+If a pre-run hook fails, Capsula does not run the command. See [Exit Status](#exit-status) for how `capsula run` reports hook failures.
+
 ## `capsula run-start`
 
 Start a manual run: create the run directory and execute pre-run hooks.
@@ -108,12 +110,23 @@ name=$(capsula run-start)
 capsula run-end "$name"
 ```
 
+If a pre-run hook fails, `run-start` exits with status `125` and prints no run name, so check its exit status before starting the external process. The run directory and `pre-run.json` are still written so that you can inspect the failure. See [Exit Status](#exit-status).
+
+`run-start` also checks the configuration of the post-run hooks, so that a mistake in it is reported before you start the external process rather than by `run-end`.
+
 ## `capsula run-end`
 
 End a manual run: execute post-run hooks for an existing run.
 
 Finalizes a run previously started with `run-start`. This command will fail
-if the run has already been finalized (i.e., `post-run.json` already exists).
+if the run has already been finalized (i.e., `post-run.json` already exists)
+or if any post-run hook fails. In the latter case the run is still finalized:
+`post-run.json` records the failure, and running `run-end` again fails because
+the run has already been finalized. See [Exit Status](#exit-status).
+
+`run-end` refuses a run whose pre-run hooks failed, because `run-start`
+stopped that run before it was started. It runs no post-run hook for such a
+run.
 
 ### Usage
 
@@ -182,6 +195,32 @@ Pre-run hooks:
 Post-run hooks:
   [ok]     capture-file
 ```
+
+A hook that failed or errored is shown with its reason. When a pre-run hook
+failure stopped the run, there is no `Result:` line because the command did
+not run:
+
+```bash
+$ capsula show quiet-lake
+Run:       quiet-lake
+ID:        01K8WSYC91YAE21R7CWHQ4KYN3
+Timestamp: 2025-01-09 14:35:10 UTC
+Command:   python train.py --epochs 100
+Directory: /path/.capsula/vault/2025-01-09/143510-quiet-lake
+
+Pre-run hooks:
+  [FAILED] capture-git-repo: repository has uncommitted changes
+  [ok]     capture-env
+```
+
+!!! note "Runs recorded by Capsula v0.15.1 and earlier"
+    `capsula show` displays hook results as they were recorded. Earlier
+    versions recorded a hook that stopped the run by policy (for example,
+    `capture-git-repo` with `allow_dirty = false` on a dirty repository) as
+    successful, so it is shown as `[ok]`. They also omitted the hook ID from
+    hook errors, so such a hook is shown as `[FAILED] unknown`. To tell whether
+    the command of such a run was executed, check whether
+    `_capsula/command.json` exists.
 
 ## `capsula run-dir`
 
@@ -327,3 +366,29 @@ capsula vaults list --server https://capsula.example.com
 | Option | Description |
 | -------- | ------------- |
 | `--server <URL>` | Server URL (can also be set via `CAPSULA_SERVER_URL` env var or `server` field in `capsula.toml`) |
+
+## Exit Status
+
+`capsula run` exits with one of the following statuses. Following the convention of wrappers such as GNU `env`, `timeout`, and `docker run`, `125` means that the command was not executed.
+
+| Status | Meaning |
+| -------- | ------------- |
+| `0` | The command exited with `0` and every post-run hook succeeded. |
+| The command's status | The command exited with a non-zero status. A post-run hook failure does not change it. A command killed by signal `N` gives `128 + N`. |
+| `125` | A pre-run hook failed or errored. The command was not executed. |
+| `1` | The command exited with `0`, but a post-run hook failed or errored. Also used when Capsula itself fails, for example on an invalid configuration (detected before any hook or the command runs) or when the command cannot be started. |
+
+`capsula run-start` exits with `125` when a pre-run hook fails or errors, and with `1` when Capsula itself fails. `capsula run-end` exits with `1` when a post-run hook fails or errors, or when Capsula itself fails.
+
+Capsula prints each failed hook to stderr with its phase, position, and reason:
+
+```text
+ERROR Aborting run due to pre-run hook failure:
+  pre[0] capture-git-repo: repository has uncommitted changes
+```
+
+The exit status alone cannot distinguish Capsula's statuses from the command's own, because the command may itself exit with `1` or `125`. Check the run directory instead:
+
+- `_capsula/command.json` exists only if the command was executed. Its `exit_code` is the command's own status.
+- In `_capsula/pre-run.json` and `_capsula/post-run.json`, a hook that failed has `__meta.success: false` with the reason in `__meta.failure_reason`, or in `__meta.error` if the hook errored. See [Hook Failures](configuration.md#hook-failures).
+- `capsula show <RUN_NAME>` summarizes both.

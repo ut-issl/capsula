@@ -3,7 +3,10 @@ use std::time::Instant;
 use anyhow::Result;
 use capsula_core::hook::{PostRun, PreRun};
 use capsula_core::run::PreparedRun;
-use capsula_orchestration::run::{create_and_setup_run, run_post_hooks, run_pre_hooks};
+use capsula_orchestration::record::PhaseReport;
+use capsula_orchestration::run::{
+    Hooks, build_hooks, create_and_setup_run, run_post_hooks, run_pre_hooks,
+};
 use capsula_orchestration::setup::LoadedConfig;
 use capsula_orchestration::vault::find_run_dir_by_name;
 use ratatui::layout::Rect;
@@ -36,6 +39,13 @@ pub struct ActiveRun {
     pub timestamp_display: String,
 }
 
+/// A run whose post-run hooks have been executed and recorded.
+pub struct CompletedRun {
+    pub run_name: String,
+    /// One line per failed post-run hook; empty when every hook succeeded.
+    pub hook_failures: Vec<String>,
+}
+
 /// A deferred action that requires a redraw before execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PendingAction {
@@ -56,11 +66,12 @@ pub struct App {
     pub confirm_quit: bool,
     pub active_run: Option<ActiveRun>,
     pub pending_action: Option<PendingAction>,
-    pub last_completed_run: Option<String>,
+    pub last_completed_run: Option<CompletedRun>,
 
-    // Hook registries (created once)
-    pre_run_registry: capsula_registry::HookRegistry<PreRun>,
-    post_run_registry: capsula_registry::HookRegistry<PostRun>,
+    // Hooks of both phases, built once at startup so that a configuration
+    // error is reported before any run starts.
+    pre_run_hooks: Hooks<PreRun>,
+    post_run_hooks: Hooks<PostRun>,
 
     /// Clickable areas from the most recent render. Updated by the main loop
     /// after `ui::draw` returns; read by the mouse event handler for hit-testing.
@@ -69,6 +80,16 @@ pub struct App {
 
 impl App {
     pub fn new(config: LoadedConfig) -> Result<Self> {
+        let pre_run_hooks = build_hooks(
+            &config.config.pre_run,
+            &capsula_registry::standard_pre_run_hook_registry()?,
+            &config.project_root,
+        )?;
+        let post_run_hooks = build_hooks(
+            &config.config.post_run,
+            &capsula_registry::standard_post_run_hook_registry()?,
+            &config.project_root,
+        )?;
         Ok(Self {
             config,
             instant_run: false,
@@ -80,8 +101,8 @@ impl App {
             active_run: None,
             pending_action: None,
             last_completed_run: None,
-            pre_run_registry: capsula_registry::standard_pre_run_hook_registry()?,
-            post_run_registry: capsula_registry::standard_post_run_hook_registry()?,
+            pre_run_hooks,
+            post_run_hooks,
             hit_areas: HitAreas::default(),
         })
     }
@@ -121,10 +142,12 @@ impl App {
 
     fn do_start_run_flow(&mut self) {
         match self.execute_start_run() {
-            Ok(should_abort) => {
-                if should_abort {
-                    self.error =
-                        Some("A pre-run hook requested abort. Run was not started.".into());
+            Ok(report) => {
+                if report.is_failed() {
+                    self.error = Some(format!(
+                        "A pre-run hook failed. Run was not started:\n  {}",
+                        report.failure_lines().join("\n  ")
+                    ));
                     self.status_message = None;
                     self.active_run = None;
                     self.focused = FocusTarget::StartButton;
@@ -141,7 +164,7 @@ impl App {
                 }
             }
             Err(e) => {
-                self.error = Some(format!("Failed to start run: {e}"));
+                self.error = Some(format!("Failed to start run: {e:#}"));
                 self.status_message = None;
                 self.active_run = None;
                 self.focused = FocusTarget::StartButton;
@@ -149,19 +172,13 @@ impl App {
         }
     }
 
-    fn execute_start_run(&mut self) -> Result<bool> {
+    fn execute_start_run(&mut self) -> Result<PhaseReport<PreRun>> {
         let (run, capsula_dir) =
             create_and_setup_run(vec![], &self.config.project_root, &self.config.vault_dir)?;
 
         info!("Run created: {} (ID: {})", run.name, run.id);
 
-        let should_abort = run_pre_hooks(
-            &run,
-            &capsula_dir,
-            &self.config.config.pre_run,
-            &self.pre_run_registry,
-            &self.config.project_root,
-        )?;
+        let report = run_pre_hooks(&run, &capsula_dir, &self.pre_run_hooks)?;
 
         let timestamp = run.timestamp();
         self.active_run = Some(ActiveRun {
@@ -170,7 +187,7 @@ impl App {
             timestamp_display: timestamp.format("%H:%M:%S").to_string(),
         });
 
-        Ok(should_abort)
+        Ok(report)
     }
 
     fn do_end_run_flow(&mut self) {
@@ -180,10 +197,14 @@ impl App {
             .map(|a| a.run_name.clone())
             .unwrap_or_default();
 
-        if let Err(e) = self.execute_end_run() {
-            self.error = Some(format!("Failed to end run: {e}"));
-        } else {
-            self.last_completed_run = Some(run_name);
+        match self.execute_end_run() {
+            Ok(report) => {
+                self.last_completed_run = Some(CompletedRun {
+                    run_name,
+                    hook_failures: report.failure_lines(),
+                });
+            }
+            Err(e) => self.error = Some(format!("Failed to end run: {e:#}")),
         }
 
         self.active_run = None;
@@ -191,7 +212,7 @@ impl App {
         self.focused = FocusTarget::StartButton;
     }
 
-    fn execute_end_run(&self) -> Result<()> {
+    fn execute_end_run(&self) -> Result<PhaseReport<PostRun>> {
         let active = self
             .active_run
             .as_ref()
@@ -212,16 +233,10 @@ impl App {
 
         info!("Finalizing run: {} (ID: {})", run.name, run.id);
 
-        run_post_hooks(
-            &run,
-            &capsula_dir,
-            &self.config.config.post_run,
-            &self.post_run_registry,
-            &self.config.project_root,
-        )?;
+        let report = run_post_hooks(&run, &capsula_dir, &self.post_run_hooks)?;
 
-        info!("Run '{}' finalized successfully", run.name);
-        Ok(())
+        info!("Run '{}' finalized", run.name);
+        Ok(report)
     }
 
     pub const fn toggle_instant_run(&mut self) {

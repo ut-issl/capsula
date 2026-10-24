@@ -14,11 +14,11 @@ pub enum FileHookError {
     NoFilesMatched { pattern: String },
 
     /// Pattern is invalid
-    #[error("Invalid glob pattern: {0}")]
+    #[error("Invalid glob pattern")]
     InvalidPattern(#[from] glob::PatternError),
 
     /// Glob traversal error
-    #[error("Glob traversal error: {0}")]
+    #[error("Glob traversal error")]
     GlobError(#[from] glob::GlobError),
 
     #[error("Run directory is not set")]
@@ -31,7 +31,7 @@ pub enum FileHookError {
     ArtifactDirMissing,
 
     /// Failed to read file
-    #[error("Failed to read file {path}: {source}")]
+    #[error("Failed to read file {path}")]
     ReadError {
         path: PathBuf,
         #[source]
@@ -43,7 +43,7 @@ pub enum FileHookError {
     HashError { path: PathBuf, message: String },
 
     /// Serialization failed
-    #[error("Failed to serialize file hook: {0}")]
+    #[error("Failed to serialize file hook")]
     Serialization(#[from] serde_json::Error),
 
     #[error(transparent)]

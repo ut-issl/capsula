@@ -4,7 +4,7 @@ use crate::error::SlackNotifyError;
 use crate::secret::SecretString;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
-use capsula_core::hook::{Hook, PostRun, PreRun, RuntimeParams};
+use capsula_core::hook::{Hook, HookOutcome, PostRun, PreRun, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -484,8 +484,10 @@ pub struct SlackNotifyCaptured {
 }
 
 impl Captured for SlackNotifyCaptured {
-    fn serialize_json(&self) -> Result<serde_json::Value, serde_json::Error> {
-        serde_json::to_value(self)
+    fn serialize_json(
+        &self,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, serde_json::Error> {
+        capsula_core::captured::to_object(self)
     }
 }
 
@@ -582,8 +584,9 @@ impl Hook<PreRun> for SlackNotifyHook {
         &self,
         metadata: &PreparedRun,
         _params: &RuntimeParams<PreRun>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         self.send(metadata, "PreRun", "🚀 Capsula Run Starting", "is starting")
+            .map(HookOutcome::success)
     }
 }
 
@@ -608,12 +611,13 @@ impl Hook<PostRun> for SlackNotifyHook {
         &self,
         metadata: &PreparedRun,
         _params: &RuntimeParams<PostRun>,
-    ) -> CapsulaResult<Self::Output> {
+    ) -> CapsulaResult<HookOutcome<Self::Output>> {
         self.send(
             metadata,
             "PostRun",
             "✅ Capsula Run Completed",
             "has completed",
         )
+        .map(HookOutcome::success)
     }
 }

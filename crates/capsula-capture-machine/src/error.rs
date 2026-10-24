@@ -13,7 +13,7 @@ pub enum MachineHookError {
     HostnameError,
 
     /// Serialization failed
-    #[error("Failed to serialize machine hook: {0}")]
+    #[error("Failed to serialize machine hook")]
     Serialization(#[from] serde_json::Error),
 }
 
