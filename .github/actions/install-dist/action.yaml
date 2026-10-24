@@ -1,0 +1,58 @@
+name: Install dist
+description: Install a checksum-pinned dist release without `curl | sh`
+runs:
+  using: composite
+  steps:
+    # Keep the version in sync with `cargo-dist-version` in dist-workspace.toml.
+    - name: Install checksum-pinned dist
+      shell: bash
+      env:
+        RUNNER_PLATFORM: ${{ runner.os }}
+        RUNNER_ARCHITECTURE: ${{ runner.arch }}
+      # Only a runner-owned path containing a checksum-verified binary is added.
+      run: | # zizmor: ignore[github-env]
+        version=0.33.0
+        case "$RUNNER_PLATFORM/$RUNNER_ARCHITECTURE" in
+          Linux/X64)
+            archive=cargo-dist-x86_64-unknown-linux-musl.tar.xz
+            checksum=b8e95bc76c63375958173ef5ae2dbd8e9211cc1ed03cdee0899702766b4c2a2e
+            ;;
+          Linux/ARM64)
+            archive=cargo-dist-aarch64-unknown-linux-musl.tar.xz
+            checksum=4761cff5fc547ad66d1449abbf321380b0e6bd8093b1fe6593852a3314fd0c19
+            ;;
+          macOS/X64)
+            archive=cargo-dist-x86_64-apple-darwin.tar.xz
+            checksum=6a49bfb61bd86770d79c27f3d2b40c6b2e71cde940d3d31a6ccaaffc124d7a29
+            ;;
+          macOS/ARM64)
+            archive=cargo-dist-aarch64-apple-darwin.tar.xz
+            checksum=7b3cbe25511de01d74c0f5fcb7909edabd379bea9cfa284d93af5a3cdfa3247c
+            ;;
+          Windows/X64)
+            archive=cargo-dist-x86_64-pc-windows-msvc.zip
+            checksum=9a36d70795e14326a5ec4bf17aee085df00ab85a322739291ea5d4b1b5f693cd
+            ;;
+          *) echo "Unsupported dist platform: $RUNNER_PLATFORM/$RUNNER_ARCHITECTURE" >&2; exit 1 ;;
+        esac
+        dir="$RUNNER_TEMP/install-dist"
+        mkdir -p "$dir"
+        cd "$dir"
+        curl --fail --location --retry 3 --output "$archive" "https://github.com/axodotdev/cargo-dist/releases/download/v$version/$archive"
+        # macOS runners provide `shasum`, not GNU `sha256sum`.
+        if [ "$RUNNER_PLATFORM" = macOS ]; then
+          echo "$checksum  $archive" | shasum --algorithm 256 --check
+        else
+          echo "$checksum  $archive" | sha256sum --check
+        fi
+        if [ "$RUNNER_PLATFORM" = Windows ]; then
+          # The Windows archive holds `dist.exe` at its root.
+          7z x -y -obin "$archive" > /dev/null
+          bin=$(cygpath -w "$dir/bin")
+        else
+          # Unix archives hold `<archive stem>/dist`.
+          mkdir -p bin
+          tar -xJf "$archive" --strip-components=1 -C bin
+          bin="$dir/bin"
+        fi
+        echo "$bin" >> "$GITHUB_PATH"
