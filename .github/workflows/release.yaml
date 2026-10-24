@@ -4,8 +4,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  precondition:
+    name: Check preconditions
+    runs-on: ubuntu-latest
+    # Required reviewers of this environment must approve the release before any other job runs.
+    environment:
+      name: release-approval
+    permissions: {}
+    steps:
+      - name: Ensure the workflow runs on the main branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Releases must be made from refs/heads/main, not ${GITHUB_REF}"
+          exit 1
+
   create-tag:
     name: Create a Git tag
+    needs:
+      - precondition
     runs-on: ubuntu-latest
     permissions:
       contents: write
