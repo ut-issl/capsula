@@ -31,7 +31,6 @@ reviews:
 
   auto_review:
     auto_incremental_review: false
-    auto_pause_after_reviewed_commits: 2
     # Dependency-update PRs would quickly exhaust the review rate limit.
     ignore_usernames:
       - "renovate[bot]"
