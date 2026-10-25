@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit configuration. Reference: https://docs.coderabbit.ai/reference/configuration
+# CodeRabbit also reads CLAUDE.md / AGENTS.md as coding guidelines.
+language: "en-US"
+
+reviews:
+  # Lockfiles and generated output are not worth reviewing and count against
+  # the per-review file limit.
+  path_filters:
+    - "!**/Cargo.lock"
+    - "!target/**"
+    - "!site/**"
+    - "!crates/capsula-server/.sqlx/**"
+
+  path_instructions:
+    - path: "crates/capsula-capture-*/**/*.rs"
+      instructions: >-
+        Hook::from_config must only validate the configuration and must not
+        touch the file system; resolve paths in Hook::run. Return
+        HookOutcome::failure when the hook ran but its success condition was
+        not met, and Err only when it could not produce a result. Captured
+        output must serialize to a JSON object without a `__meta` key. Flag
+        config or behavior changes that are not reflected in docs/hooks/.
+    - path: "crates/capsula-server/migrations/**"
+      instructions: >-
+        Migrations are embedded and run on startup. Flag edits to existing
+        migration files; changes must be added as new migrations.
+    - path: "crates/**/*.rs"
+      instructions: >-
+        Do not repeat issues that clippy or rustfmt already report.
+
+  auto_review:
+    auto_incremental_review: false
+    # Dependency-update PRs would quickly exhaust the review rate limit.
+    ignore_usernames:
+      - "renovate[bot]"
+
+  # Already enforced by CI (cargo clippy) or pre-commit (rumdl).
+  tools:
+    clippy:
+      enabled: false
+    markdownlint:
+      enabled: false
