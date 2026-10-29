@@ -30,7 +30,7 @@ reviews:
         Do not repeat issues that clippy or rustfmt already report.
 
   auto_review:
-    auto_incremental_review: false
+    auto_incremental_review: true
     # Dependency-update PRs would quickly exhaust the review rate limit.
     ignore_usernames:
       - "renovate[bot]"
