@@ -134,6 +134,7 @@ A release fails early when that tag already exists, which means the version was 
 
 `publish-docker.yaml` builds the image from the dispatched commit, because the release tag is created later by the `announce` job.
 It tags the image with `<major>.<minor>.<patch>`, `<major>.<minor>`, `<major>`, and `latest`, using the tag from the dist manifest.
+A prerelease gets only the `<major>.<minor>.<patch>` tag, so `latest` and the shorter tags keep pointing at the latest stable release.
 It does not use the GitHub Actions cache, so that a release build cannot read cache entries written by other workflows.
 
 ### `cargo binstall`

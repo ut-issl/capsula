@@ -48,7 +48,7 @@ jobs:
             type=semver,pattern={{version}},value=${{ fromJson(inputs.plan).announcement_tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ fromJson(inputs.plan).announcement_tag }}
             type=semver,pattern={{major}},value=${{ fromJson(inputs.plan).announcement_tag }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ !fromJson(inputs.plan).announcement_is_prerelease }}
 
       # No GitHub Actions cache: a release build must not read cache entries
       # that other workflows can write (cache poisoning).
