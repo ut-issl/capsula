@@ -127,6 +127,7 @@ The server can be configured via **command-line flags** or **environment variabl
 ### Configuration Examples
 
 **Using CLI flags only:**
+
 ```bash
 capsula-server \
   --host 0.0.0.0 \
@@ -138,6 +139,7 @@ capsula-server \
 ```
 
 **Using environment variables only:**
+
 ```bash
 export DATABASE_URL="postgresql://localhost/capsula"
 export CAPSULA_HOST="0.0.0.0"
@@ -149,6 +151,7 @@ capsula-server
 ```
 
 **Mixed (CLI overrides environment):**
+
 ```bash
 export DATABASE_URL="postgresql://localhost/capsula"
 export CAPSULA_PORT="8080"
@@ -291,16 +294,19 @@ cargo fmt --check
 If you see connection errors:
 
 1. Verify PostgreSQL is running:
+
    ```bash
    pg_isready
    ```
 
 2. Check the DATABASE_URL format:
+
    ```
    postgresql://[user[:password]@][host][:port][/database]
    ```
 
 3. Verify database exists:
+
    ```bash
    psql -l | grep capsula
    ```

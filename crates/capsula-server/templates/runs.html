@@ -63,9 +63,9 @@
     {% if page > 1 %}
     <a href="/runs?page={{ page - 1 }}{% match vault %}{% when Some with (v) %}&vault={{ v }}{% when None %}{% endmatch %}" class="button-secondary">Previous</a>
     {% endif %}
-    
+
     <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
-    
+
     {% if page < total_pages %}
     <a href="/runs?page={{ page + 1 }}{% match vault %}{% when Some with (v) %}&vault={{ v }}{% when None %}{% endmatch %}" class="button-secondary">Next</a>
     {% endif %}
