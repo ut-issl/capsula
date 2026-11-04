@@ -27,7 +27,7 @@ workflows:
         - 'docker/setup-qemu-action@v4.4.0'
     '.github/workflows/release-precondition.yaml':
         - 'actions/checkout@v7.0.1'
-        - 'hustcer/setup-nu@v3.27'
+        - 'hustcer/setup-nu@v3.29'
     '.github/workflows/release.yaml':
         - 'actions/attest@v4.2.2'
         - 'actions/checkout@v7.0.1'
@@ -131,9 +131,9 @@ dependencies:
         commit: 'sha1-9b3254085494b55a0f7c4c2b3d2d52cc712ce370'
         owner_id: 9919
         repo_id: 259445878
-    'hustcer/setup-nu@v3.27':
-        ref: 'v3.27'
-        commit: 'sha1-9215c80adb545a85c419d5085b76eb6d082f49e7'
+    'hustcer/setup-nu@v3.29':
+        ref: 'v3.29'
+        commit: 'sha1-eacad52a4634c4f8d17a94916f93be6856861b9c'
         owner_id: 1161607
         repo_id: 486109928
     'rust-lang/crates-io-auth-action@v1.0.6':
