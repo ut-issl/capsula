@@ -154,7 +154,7 @@ jobs:
       - uses: $/.github/actions/install-dist
       # Get the dist-manifest
       - name: Fetch local artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: artifacts-*
           path: target/distrib/
@@ -213,7 +213,7 @@ jobs:
       - uses: $/.github/actions/install-dist
       # Get all the local artifacts for the global tasks to use (for e.g. checksums)
       - name: Fetch local artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: artifacts-*
           path: target/distrib/
@@ -266,7 +266,7 @@ jobs:
       - uses: $/.github/actions/install-dist
       # Fetch artifacts from scratch-storage
       - name: Fetch artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: artifacts-*
           path: target/distrib/
@@ -331,7 +331,7 @@ jobs:
           persist-credentials: false
       # Create a GitHub Release while uploading all files to it
       - name: "Download GitHub Artifacts"
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: artifacts-*
           path: artifacts
