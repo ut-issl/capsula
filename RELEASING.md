@@ -130,6 +130,11 @@ The workflow has no tag input.
 The `plan` job reads the version of the `capsula` package from the `dist plan` manifest and releases it as the tag `v<version>`, so the tag always matches the workspace version in `Cargo.toml`.
 A release fails early when that tag already exists, which means the version was not bumped.
 
+Release runs share the `release` concurrency group, so only one of them runs at a time.
+A release started while another is running waits until that one finishes, then fails in `plan` if the first run created the tag.
+GitHub keeps at most one waiting run per group, so starting a third release cancels the waiting one.
+Dry runs and pull request runs are not in that group and never wait.
+
 ### Docker image
 
 `publish-docker.yaml` builds the image from the dispatched commit, because the release tag is created later by the `announce` job.

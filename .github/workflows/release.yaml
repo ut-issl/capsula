@@ -37,6 +37,14 @@ on:
 
 permissions: {}
 
+# Release runs share one group, so two of them never publish the same version
+# at the same time: a second run waits until the first one finishes and then
+# fails in `plan` because the tag exists. Dry runs and pull requests get a
+# group per run and never wait.
+concurrency:
+  group: ${{ inputs.mode == 'release' && 'release' || format('release-{0}', github.run_id) }}
+  cancel-in-progress: false
+
 jobs:
   # Required reviewers of the release-approval environment must approve a
   # release before anything is published. Dry runs skip it. Only `host` needs
