@@ -76,7 +76,8 @@ field; the configured path is available under `__meta.config.path`.
 
 The hook fails (recorded with `__meta.success: false`) when:
 
-- The file does not exist or is unreadable (`Io` error)
+- The path cannot be resolved, for example because the file does not exist (`InvalidPath` error)
+- The file cannot be read (`Io` error)
 - The file content is not valid JSON (`Json` error)
 
 A failing `capture-json` does not stop other hooks from running.
