@@ -70,7 +70,7 @@ _by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1283>, <https:
 - Use the shared Renovate preset (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1323>_)
 - Add a CodeRabbit configuration with incremental review (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1306>, <https://github.com/ut-issl/capsula/pull/1313>_)
 - Rename the deprecated `unsafe-code` workspace lint key to `unsafe_code` (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1276>_)
-- Update the development and CI toolchain to Rust 1.99.1, including the Rust Docker image, while retaining Rust 1.95 as the minimum supported Rust version (_by @renovate[bot] in <https://github.com/ut-issl/capsula/pull/1281>, <https://github.com/ut-issl/capsula/pull/1297>, <https://github.com/ut-issl/capsula/pull/1299>_)
+- Update the development and CI toolchain to Rust 1.99.1 and the Rust Docker image to 1.99.0, while retaining Rust 1.95 as the minimum supported Rust version (_by @renovate[bot] in <https://github.com/ut-issl/capsula/pull/1281>, <https://github.com/ut-issl/capsula/pull/1297>, <https://github.com/ut-issl/capsula/pull/1299>_)
 - Update `taiki-e/install-action` from v2.87.11 through v2.87.31 (_by @renovate[bot] in multiple pull requests_)
 - Update GitHub Actions for Codecov, Docker login/build/Buildx/QEMU, typo checking, Rust caching, Python setup, crates.io authentication, and zizmor (_by @renovate[bot] in multiple pull requests_)
 
