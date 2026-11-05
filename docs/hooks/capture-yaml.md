@@ -19,7 +19,7 @@ under the `content` field.
 
 | Option | Type   | Description                                                                               |
 | ------ | ------ | ----------------------------------------------------------------------------------------- |
-| `path` | string | Path to the YAML file to parse, relative to project root. Absolute paths are also accepted. |
+| `path` | string | Path to the YAML file to parse. A relative path is resolved against the project root, and an absolute path is used as it is. |
 
 ### Example
 

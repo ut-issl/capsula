@@ -19,7 +19,7 @@ under the `content` field.
 
 | Option | Type   | Description                                                |
 | ------ | ------ | ---------------------------------------------------------- |
-| `path` | string | Path to the JSON file to parse, relative to project root.  |
+| `path` | string | Path to the JSON file to parse. A relative path is resolved against the project root, and an absolute path is used as it is. |
 
 ### Example
 

@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
+use capsula_core::project_path::{Containment, ResolvedProjectPath};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -82,7 +83,16 @@ where
         metadata: &PreparedRun,
         _params: &RuntimeParams<P>,
     ) -> CapsulaResult<HookOutcome<Self::Output>> {
-        let full_path = metadata.project_root.join(&self.config.path);
+        let full_path = ResolvedProjectPath::resolve(
+            &self.config.path,
+            &metadata.project_root,
+            Containment::Unrestricted,
+        )
+        .map_err(|source| YamlHookError::InvalidPath {
+            path: self.config.path.clone(),
+            source,
+        })?
+        .into_path_buf();
         debug!("YamlHook: reading {}", full_path.display());
 
         let raw = std::fs::read_to_string(&full_path).map_err(|source| YamlHookError::Io {
@@ -198,7 +208,7 @@ sat1:
     }
 
     #[test]
-    fn missing_file_returns_io_error() {
+    fn missing_file_returns_error() {
         let tmp = TempDir::new().unwrap();
         let hook = make_hook(tmp.path(), "does-not-exist.yaml");
         assert!(run_hook(&hook, tmp.path()).is_err());
