@@ -1,0 +1,9 @@
+[advisories]
+ignore = [
+  # `astral-tokio-tar` is unmaintained. It is only pulled in by the
+  # `testcontainers-modules` dev-dependency of `capsula-server` (via
+  # `testcontainers`), so it never ships in the released binaries. Even
+  # `testcontainers` 0.28.0 still depends on it; remove this entry once
+  # upstream drops it.
+  "RUSTSEC-2026-0440",
+]
