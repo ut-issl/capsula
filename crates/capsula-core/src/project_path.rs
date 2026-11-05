@@ -226,11 +226,17 @@ mod tests {
     #[test]
     fn join_to_root_joins_relative_and_keeps_absolute() {
         let root = Path::new("/project");
+        // `/absolute/path` is partially qualified on Windows, so use a drive.
+        let absolute = if cfg!(windows) {
+            r"C:\absolute\path"
+        } else {
+            "/absolute/path"
+        };
         let cases = [
             (".", "/project/."),
             ("sub/dir", "/project/sub/dir"),
             ("../outside", "/project/../outside"),
-            ("/absolute/path", "/absolute/path"),
+            (absolute, absolute),
         ];
         for (input, expected) in cases {
             assert_eq!(
