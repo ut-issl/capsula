@@ -5,7 +5,8 @@
 //! same meaning:
 //!
 //! - A relative path is joined to the project root; an absolute path is used
-//!   as it is.
+//!   as it is. A Windows path that is neither, such as `C:file` or `\file`,
+//!   is rejected, because joining it would discard part of the project root.
 //! - The result is canonicalized, so it must exist, and symbolic links are
 //!   resolved the same way whichever form the path was written in.
 //! - With [`Containment::Enforced`], a path outside the project root is
@@ -15,7 +16,7 @@
 //! The joining and the containment decision are pure functions. `resolve`
 //! only adds the two `canonicalize` calls that need the file system.
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 
 /// Whether a resolved path must stay inside the project root.
@@ -39,6 +40,17 @@ pub enum ProjectPathError {
         /// The underlying I/O error.
         #[source]
         source: std::io::Error,
+    },
+
+    /// The path is relative to a Windows drive or drive root, such as `C:file`
+    /// or `\file`, so it is neither absolute nor relative to the project root.
+    #[error(
+        "Path '{}' is relative to a drive or drive root; write it relative to the project root or as a full absolute path",
+        input.display()
+    )]
+    PartiallyQualified {
+        /// The path as configured.
+        input: PathBuf,
     },
 
     /// The path cannot be canonicalized, for example because it does not exist.
@@ -100,7 +112,7 @@ impl ResolvedProjectPath {
                     project_root: project_root.to_path_buf(),
                     source,
                 })?;
-        let joined = join_to_root(path, &canonical_root);
+        let joined = join_to_root(path, &canonical_root)?;
         let canonical_path = joined
             .canonicalize()
             .map_err(|source| ProjectPathError::Path {
@@ -130,12 +142,47 @@ impl ResolvedProjectPath {
     }
 }
 
+/// How a path relates to the directory it is resolved from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PathForm {
+    /// Independent of any base directory, such as `/etc` or `C:\etc`.
+    Absolute,
+    /// Relative to the base directory, such as `sub/dir`.
+    Relative,
+    /// Relative to a Windows drive or drive root, such as `C:etc` or `\etc`.
+    /// Joining it to a base directory discards all or part of the base.
+    PartiallyQualified,
+}
+
+impl PathForm {
+    fn of(path: &Path) -> Self {
+        Self::from_parts(
+            path.is_absolute(),
+            path.has_root(),
+            matches!(path.components().next(), Some(Component::Prefix(_))),
+        )
+    }
+
+    /// Classify a path from its platform-specific properties. On Unix a path
+    /// has no prefix and has a root exactly when it is absolute, so only
+    /// Windows paths can be partially qualified.
+    const fn from_parts(is_absolute: bool, has_root: bool, has_prefix: bool) -> Self {
+        match (is_absolute, has_root || has_prefix) {
+            (true, _) => Self::Absolute,
+            (false, false) => Self::Relative,
+            (false, true) => Self::PartiallyQualified,
+        }
+    }
+}
+
 /// Join `path` to `project_root` unless it is already absolute.
-fn join_to_root(path: &Path, project_root: &Path) -> PathBuf {
-    if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        project_root.join(path)
+fn join_to_root(path: &Path, project_root: &Path) -> Result<PathBuf, ProjectPathError> {
+    match PathForm::of(path) {
+        PathForm::Absolute => Ok(path.to_path_buf()),
+        PathForm::Relative => Ok(project_root.join(path)),
+        PathForm::PartiallyQualified => Err(ProjectPathError::PartiallyQualified {
+            input: path.to_path_buf(),
+        }),
     }
 }
 
@@ -187,11 +234,53 @@ mod tests {
         ];
         for (input, expected) in cases {
             assert_eq!(
-                join_to_root(Path::new(input), root),
+                join_to_root(Path::new(input), root).unwrap(),
                 PathBuf::from(expected),
                 "input: {input}"
             );
         }
+    }
+
+    #[test]
+    fn path_form_rejects_only_partially_qualified_paths() {
+        // (is_absolute, has_root, has_prefix, expected)
+        let cases = [
+            // `/etc` on Unix, `C:\etc` or `\\server\share\etc` on Windows.
+            (true, true, false, PathForm::Absolute),
+            (true, true, true, PathForm::Absolute),
+            // `sub/dir`.
+            (false, false, false, PathForm::Relative),
+            // `\etc` on Windows.
+            (false, true, false, PathForm::PartiallyQualified),
+            // `C:etc` on Windows.
+            (false, false, true, PathForm::PartiallyQualified),
+        ];
+        for (is_absolute, has_root, has_prefix, expected) in cases {
+            assert_eq!(
+                PathForm::from_parts(is_absolute, has_root, has_prefix),
+                expected,
+                "is_absolute: {is_absolute}, has_root: {has_root}, has_prefix: {has_prefix}"
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn join_to_root_rejects_partially_qualified_windows_paths() {
+        let root = Path::new(r"C:\project");
+        for input in [r"C:config.json", r"\config.json"] {
+            assert!(
+                matches!(
+                    join_to_root(Path::new(input), root),
+                    Err(ProjectPathError::PartiallyQualified { .. })
+                ),
+                "input: {input}"
+            );
+        }
+        assert_eq!(
+            join_to_root(Path::new(r"D:\data"), root).unwrap(),
+            PathBuf::from(r"D:\data")
+        );
     }
 
     #[test]
