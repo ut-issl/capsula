@@ -4,6 +4,7 @@ use crate::error::CommandHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
+use capsula_core::project_path::{Containment, ResolvedProjectPath};
 use capsula_core::run::PreparedRun;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -191,12 +192,12 @@ impl CommandHook {
         self.config.cwd.as_ref().map_or_else(
             || Ok(self.project_root.clone()),
             |cwd| {
-                capsula_core::util::resolve_relative(cwd, &self.project_root).map_err(|source| {
-                    CommandHookError::WorkingDirectory {
+                ResolvedProjectPath::resolve(cwd, &self.project_root, Containment::Unrestricted)
+                    .map(ResolvedProjectPath::into_path_buf)
+                    .map_err(|source| CommandHookError::WorkingDirectory {
                         path: cwd.clone(),
                         source,
-                    }
-                })
+                    })
             },
         )
     }

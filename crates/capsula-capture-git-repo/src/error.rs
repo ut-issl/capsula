@@ -13,7 +13,7 @@ pub enum GitHookError {
     InvalidPath {
         path: std::path::PathBuf,
         #[source]
-        source: std::io::Error,
+        source: capsula_core::project_path::ProjectPathError,
     },
 
     /// Failed to get HEAD

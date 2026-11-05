@@ -268,3 +268,34 @@ fn command_hook_resolves_cwd_when_run() {
 
     std::fs::remove_dir_all(&project_root).ok();
 }
+
+#[test]
+fn command_hook_accepts_cwd_outside_project_root() {
+    // Containment within the project root is not enforced yet, so `cwd` may
+    // point to a sibling of the project root, written either way.
+    // Canonicalize, because the temporary directory is a symbolic link on macOS.
+    let base = std::env::temp_dir().join(format!("capsula_command_test_{}", Ulid::generate()));
+    std::fs::create_dir_all(&base).expect("create base dir");
+    let base = base.canonicalize().expect("canonicalize base dir");
+    let project_root = base.join("project");
+    let outside = base.join("outside");
+    std::fs::create_dir_all(&project_root).expect("create project root");
+    std::fs::create_dir_all(&outside).expect("create outside dir");
+    let params = RuntimeParams::<PreRun>::default();
+
+    for cwd in ["../outside".to_string(), outside.display().to_string()] {
+        let config = json!({ "command": ["pwd"], "cwd": cwd });
+        let hook = <CommandHook as Hook<PreRun>>::from_config(&config, &project_root)
+            .expect("from_config ok");
+        let outcome = <CommandHook as Hook<PreRun>>::run(&hook, &prepared_run(), &params)
+            .expect("a cwd outside the project root should be accepted");
+        let json = outcome.output().serialize_json().expect("serialize");
+        assert_eq!(
+            json["stdout"].as_str().map(str::trim),
+            Some(outside.to_str().expect("utf-8 path")),
+            "cwd: {cwd}"
+        );
+    }
+
+    std::fs::remove_dir_all(&base).ok();
+}

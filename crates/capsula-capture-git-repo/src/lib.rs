@@ -4,6 +4,7 @@ use crate::error::GitHookError;
 use capsula_core::captured::Captured;
 use capsula_core::error::CapsulaResult;
 use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
+use capsula_core::project_path::{Containment, ResolvedProjectPath};
 use capsula_core::run::PreparedRun;
 use git2::Repository;
 use serde::{Deserialize, Serialize};
@@ -93,11 +94,16 @@ where
         metadata: &PreparedRun,
         params: &RuntimeParams<P>,
     ) -> CapsulaResult<HookOutcome<Self::Output>> {
-        let repo_path = capsula_core::util::resolve_relative(&self.config.path, &self.project_root)
-            .map_err(|source| GitHookError::InvalidPath {
-                path: self.config.path.clone(),
-                source,
-            })?;
+        let repo_path = ResolvedProjectPath::resolve(
+            &self.config.path,
+            &self.project_root,
+            Containment::Unrestricted,
+        )
+        .map_err(|source| GitHookError::InvalidPath {
+            path: self.config.path.clone(),
+            source,
+        })?
+        .into_path_buf();
 
         debug!(
             "GitHook: Discovering repository at: {}",

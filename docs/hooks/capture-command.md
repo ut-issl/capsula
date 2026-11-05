@@ -26,6 +26,7 @@ Runs a shell command and captures its output and exit code.
 | Option | Type | Default | Description |
 | -------- | ------ | --------- | ------------- |
 | `success_codes` | array of integers, or `"any"` | `[0]` | Exit statuses that count as a successful hook outcome. `"any"` accepts every status. A command terminated by a signal is recorded with status `-1`. |
+| `cwd` | string | project root | Directory to run the command in. A relative path is resolved against the project root, and an absolute path is used as it is. Symbolic links are resolved, and the directory must exist when the hook runs. |
 
 ### Example
 
