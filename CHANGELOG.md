@@ -78,7 +78,7 @@ _by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1283>, <https:
 
 - Update `thiserror` to 2.0.21 (_by @renovate[bot] in <https://github.com/ut-issl/capsula/pull/1269>_)
 - Refresh Rust and PostgreSQL container image digests and Cargo lock files (_by @renovate[bot] in multiple pull requests_)
-- Bump the workspace version to v0.16.0 (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/TBD>_)
+- Bump the workspace version to v0.16.0 (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1326>_)
 
 **Full Changelog**: <https://github.com/ut-issl/capsula/compare/v0.15.1...v0.16.0>
 
