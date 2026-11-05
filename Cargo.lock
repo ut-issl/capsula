@@ -541,7 +541,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "capsula"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -565,7 +565,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-api-types"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-command"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -585,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-cwd"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -597,7 +597,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-env"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -609,7 +609,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-file"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "glob",
@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-git-repo"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "git2",
@@ -636,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-json"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -649,7 +649,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-machine"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -662,7 +662,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-toml"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -676,7 +676,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-capture-yaml"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -690,7 +690,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-client"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-api-types",
  "percent-encoding",
@@ -704,7 +704,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-config"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "serde",
@@ -716,7 +716,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-core"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "chrono",
  "clap",
@@ -730,7 +730,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-notify-slack"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-core",
  "glob",
@@ -746,7 +746,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-orchestration"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "anyhow",
  "capsula-api-types",
@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-registry"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "capsula-capture-command",
  "capsula-capture-cwd",
@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-server"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "askama",
  "askama_web",
@@ -821,7 +821,7 @@ dependencies = [
 
 [[package]]
 name = "capsula-tui"
-version = "0.15.1"
+version = "0.16.0"
 dependencies = [
  "anyhow",
  "capsula-config",

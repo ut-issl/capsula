@@ -5,6 +5,83 @@ Add a `## v<version>` section before running the release workflow (see `RELEASIN
 The `rs-v*` sections are the early releases of the Rust rewrite.
 Releases of the earlier Python implementation (v0.8.0 and before) are listed on [GitHub Releases](https://github.com/ut-issl/capsula/releases).
 
+## v0.16.0
+
+This release makes hook failures stop the run instead of being recorded and ignored, ships prebuilt `capsula` binaries for the first time, and fixes a bug that recorded rejected Slack notifications as sent.
+
+### Breaking Changes
+
+#### Hook failures now fail closed
+
+Capsula no longer continues after a hook fails or errors. Every hook of a phase still runs so that as much context as possible is captured, and the phase's JSON file is written with every hook result, but the run then fails:
+
+- If any pre-run hook fails or errors, `capsula run` and `capsula run-start` exit with `125` before the wrapped command runs.
+- If any post-run hook fails or errors, `capsula run` exits with `1` when the wrapped command succeeded, and with the command's own status otherwise. `capsula run-end` exits with `1`.
+
+This affects policy failures such as a dirty repository with `allow_dirty = false` or an unpushed commit with `require_pushed = true`, and operational errors such as a missing guard command or a Slack notification that cannot be sent. Put non-essential hooks such as `notify-slack` in `post-run` so that a transient error does not stop the command.
+
+`capture-command` now treats a non-zero exit status as a failure by default. The `abort_on_failure` field has been removed and replaced by `success_codes`, which takes a list of accepted exit statuses or `"any"` and defaults to `[0]`. A configuration that still sets `abort_on_failure` is rejected before the run starts.
+
+| Before | After |
+| --- | --- |
+| `abort_on_failure = false` (or unset) | `success_codes = "any"` |
+| `abort_on_failure = true` | Delete it; this is now the default. |
+
+Hook configurations of both phases are validated before the run is created, so an invalid post-run hook configuration exits with `1` before any hook or the command runs. Paths such as `cwd` of `capture-command` are resolved when the hook runs, so a post-run hook can refer to a directory that the command creates. `capsula run-end` refuses a run whose pre-run hooks failed or that has no `pre-run.json`.
+
+Hook results now record why a hook failed. A hook that completed but violated its configured policy is recorded with `__meta.success: false` and `__meta.failure_reason`, and an operational error is recorded with `__meta.error` and always includes `__meta.id`. The CLI, `capsula show`, and the TUI list each failed hook with its phase, position, and reason. The server stores and displays `failure_reason` through a migration that it applies at startup; upgrade the server before the clients.
+
+Runs recorded by earlier versions need no migration. Note that `capsula show` displays a policy abort recorded by an earlier version as `[ok]`, because it was recorded as a success.
+
+For hook developers, `Hook::run` now returns `CapsulaResult<HookOutcome<Self::Output>>`, where `HookOutcome` is `Succeeded(output)` or `Failed { output, reason }`. `Captured::abort_requested()` has been removed, `Captured::serialize_json` returns a JSON object, and `Hook::from_config` must not depend on the file system. `capsula_config::build_hooks` is replaced by `capsula_orchestration::run::build_hooks`.
+
+_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1097>_
+
+### Bug Fixes
+
+#### `notify-slack` checks the `ok` field of Slack API responses
+
+Slack reports errors such as `invalid_auth` or `channel_not_found` with HTTP 200 and `{"ok": false, "error": "..."}`. The `notify-slack` hook treated such a response as a success and recorded the notification as sent. The hook now checks the `ok` field of every Slack API response and errors with Slack's error code, for example `Failed to send Slack notification: invalid_auth`. The upload of attachment content also checks the HTTP status.
+
+_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1293>_
+
+### Release Engineering
+
+#### Prebuilt binaries, installers, and `cargo binstall`
+
+Releases now ship prebuilt `capsula` binaries built with [dist](https://axodotdev.github.io/cargo-dist/) for Linux (x86_64 and arm64, statically linked against musl), macOS (x86_64 and arm64), and Windows (x86_64), together with shell and PowerShell installers, checksums, and build attestations. `cargo binstall capsula` downloads the same archives. The `capsula-server` Docker image and the crates.io packages are published by the same `Release` workflow, and the GitHub Release is created only after both succeed.
+
+Release notes are now hand-written in `CHANGELOG.md`, the release workflow checks the CHANGELOG section and the crates.io Trusted Publishing settings before building anything, and a reviewer of the `release-approval` environment must approve a release before anything is published. The procedure is documented in `RELEASING.md`.
+
+_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1283>, <https://github.com/ut-issl/capsula/pull/1305>_
+
+### Security
+
+- Update `rustls` to 0.23.46 to address [RUSTSEC-2026-0346](https://rustsec.org/advisories/RUSTSEC-2026-0346), [RUSTSEC-2026-0347](https://rustsec.org/advisories/RUSTSEC-2026-0347), [RUSTSEC-2026-0348](https://rustsec.org/advisories/RUSTSEC-2026-0348), and [RUSTSEC-2026-0349](https://rustsec.org/advisories/RUSTSEC-2026-0349) (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1291>_)
+- Update `rustls-webpki`, `webpki-roots`, and `webpki-root-certs` to address [RUSTSEC-2026-0381](https://rustsec.org/advisories/RUSTSEC-2026-0381), [RUSTSEC-2026-0382](https://rustsec.org/advisories/RUSTSEC-2026-0382), and [RUSTSEC-2026-0383](https://rustsec.org/advisories/RUSTSEC-2026-0383), and drop the unmaintained `basic-toml` dependency (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1298>_)
+- Update `ctutils` to address [RUSTSEC-2026-0385](https://rustsec.org/advisories/RUSTSEC-2026-0385) (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1304>_)
+- Update `libz-sys` to 1.1.31 to address [RUSTSEC-2026-0418](https://rustsec.org/advisories/RUSTSEC-2026-0418) (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1312>_)
+- Update `tokio` to 1.54.1 and `yoke-derive` to 0.8.4 to move off yanked versions (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1300>, <https://github.com/ut-issl/capsula/pull/1272>_)
+
+### Development and CI
+
+- Pin every GitHub Action, including transitive ones, in `.github/workflows/actions.lock` and verify it in CI (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1320>_)
+- Run pre-commit hooks with `prek` in GitHub Actions instead of pre-commit.ci (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1325>_)
+- Use the shared Renovate preset (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1323>_)
+- Add a CodeRabbit configuration with incremental review (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1306>, <https://github.com/ut-issl/capsula/pull/1313>_)
+- Rename the deprecated `unsafe-code` workspace lint key to `unsafe_code` (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/1276>_)
+- Update the development and CI toolchain to Rust 1.99.1, including the Rust Docker image, while retaining Rust 1.95 as the minimum supported Rust version (_by @renovate[bot] in <https://github.com/ut-issl/capsula/pull/1281>, <https://github.com/ut-issl/capsula/pull/1297>, <https://github.com/ut-issl/capsula/pull/1299>_)
+- Update `taiki-e/install-action` from v2.87.11 through v2.87.31 (_by @renovate[bot] in multiple pull requests_)
+- Update GitHub Actions for Codecov, Docker login/build/Buildx/QEMU, typo checking, Rust caching, Python setup, crates.io authentication, and zizmor (_by @renovate[bot] in multiple pull requests_)
+
+### Internal Changes
+
+- Update `thiserror` to 2.0.21 (_by @renovate[bot] in <https://github.com/ut-issl/capsula/pull/1269>_)
+- Refresh Rust and PostgreSQL container image digests and Cargo lock files (_by @renovate[bot] in multiple pull requests_)
+- Bump the workspace version to v0.16.0 (_by @shunichironomura in <https://github.com/ut-issl/capsula/pull/TBD>_)
+
+**Full Changelog**: <https://github.com/ut-issl/capsula/compare/v0.15.1...v0.16.0>
+
 ## v0.15.1
 
 This patch release addresses a `rustls` security advisory and refreshes Capsula's development tooling.
