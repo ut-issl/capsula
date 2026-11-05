@@ -21,7 +21,7 @@ Captures git repository state including commit hash, branch, and whether there a
 | Option | Type | Description |
 | -------- | ------ | ------------- |
 | `name` | string | Base name used for the patch file (`<name>.patch`) when the repository has uncommitted changes |
-| `path` | string | Path to the git repository (`.` for current directory) |
+| `path` | string | Path to the git repository. A relative path is resolved against the project root (`.` for the project root itself), and an absolute path is used as it is. Symbolic links are resolved, and the recorded `working_dir` is the resolved path. |
 
 ### Optional Options
 

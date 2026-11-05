@@ -5,6 +5,14 @@ use thiserror::Error;
 /// `capture-yaml` hook specific errors
 #[derive(Debug, Error)]
 pub enum YamlHookError {
+    /// Failed to resolve the configured path against the project root
+    #[error("Failed to resolve YAML file path '{path}'")]
+    InvalidPath {
+        path: PathBuf,
+        #[source]
+        source: capsula_core::project_path::ProjectPathError,
+    },
+
     /// Failed to read the configured YAML file
     #[error("Failed to read YAML file '{path}'")]
     Io {

@@ -19,7 +19,7 @@ under the `content` field.
 
 | Option | Type   | Description                                                                               |
 | ------ | ------ | ----------------------------------------------------------------------------------------- |
-| `path` | string | Path to the YAML file to parse, relative to project root. Absolute paths are also accepted. |
+| `path` | string | Path to the YAML file to parse. A relative path is resolved against the project root, and an absolute path is used as it is. |
 
 ### Example
 
@@ -128,7 +128,8 @@ plain, JSON-representable YAML to stay clear of these edge cases.
 
 The hook fails (recorded with `__meta.success: false`) when:
 
-- The file does not exist or is unreadable (`Io` error)
+- The path cannot be resolved, for example because the file does not exist (`InvalidPath` error)
+- The file cannot be read (`Io` error)
 - The file content is not valid YAML, or uses a YAML feature listed as a
   parse error above (`Yaml` error)
 

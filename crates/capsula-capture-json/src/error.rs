@@ -5,6 +5,14 @@ use thiserror::Error;
 /// `capture-json` hook specific errors
 #[derive(Debug, Error)]
 pub enum JsonHookError {
+    /// Failed to resolve the configured path against the project root
+    #[error("Failed to resolve JSON file path '{path}'")]
+    InvalidPath {
+        path: PathBuf,
+        #[source]
+        source: capsula_core::project_path::ProjectPathError,
+    },
+
     /// Failed to read the configured JSON file
     #[error("Failed to read JSON file '{path}'")]
     Io {

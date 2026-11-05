@@ -21,7 +21,7 @@ pub enum CommandHookError {
     WorkingDirectory {
         path: std::path::PathBuf,
         #[source]
-        source: std::io::Error,
+        source: capsula_core::project_path::ProjectPathError,
     },
 
     /// No exit status can be accepted by the configured success code set.

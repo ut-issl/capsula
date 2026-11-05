@@ -5,6 +5,14 @@ use thiserror::Error;
 /// `capture-toml` hook specific errors
 #[derive(Debug, Error)]
 pub enum TomlHookError {
+    /// Failed to resolve the configured path against the project root
+    #[error("Failed to resolve TOML file path '{path}'")]
+    InvalidPath {
+        path: PathBuf,
+        #[source]
+        source: capsula_core::project_path::ProjectPathError,
+    },
+
     /// Failed to read the configured TOML file
     #[error("Failed to read TOML file '{path}'")]
     Io {

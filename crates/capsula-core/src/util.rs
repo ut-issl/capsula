@@ -1,7 +1,5 @@
 //! Small pure-helper utilities shared across Capsula crates.
 
-use std::path::{Path, PathBuf};
-
 /// Encode bytes as a lowercase hexadecimal string.
 #[must_use]
 pub fn hex_encode(bytes: &[u8]) -> String {
@@ -14,22 +12,9 @@ pub fn hex_encode(bytes: &[u8]) -> String {
         })
 }
 
-/// Resolve a path that may be absolute or relative to `project_root`.
-///
-/// For absolute paths, returns a clone. For relative paths, joins against
-/// `project_root` and canonicalizes (which requires the path to exist).
-pub fn resolve_relative(path: &Path, project_root: &Path) -> std::io::Result<PathBuf> {
-    if path.is_absolute() {
-        Ok(path.to_path_buf())
-    } else {
-        project_root.join(path).canonicalize()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{hex_encode, resolve_relative};
-    use std::path::Path;
+    use super::hex_encode;
 
     #[test]
     fn hex_encode_empty() {
@@ -41,21 +26,5 @@ mod tests {
         assert_eq!(hex_encode(&[0x00]), "00");
         assert_eq!(hex_encode(&[0xff]), "ff");
         assert_eq!(hex_encode(&[0xab, 0xcd, 0xef]), "abcdef");
-    }
-
-    #[test]
-    fn resolve_relative_passes_absolute_through() {
-        let abs = Path::new("/does/not/exist/absolute");
-        let resolved = resolve_relative(abs, Path::new("/tmp")).unwrap();
-        assert_eq!(resolved, abs);
-    }
-
-    #[test]
-    fn resolve_relative_joins_relative_and_canonicalizes() {
-        // project_root = cwd so canonicalize can resolve it.
-        let cwd = std::env::current_dir().unwrap();
-        let resolved = resolve_relative(Path::new("."), &cwd).unwrap();
-        // canonicalize resolves symlinks; on macOS this is /private/var/... etc.
-        assert_eq!(resolved, cwd.canonicalize().unwrap());
     }
 }
