@@ -122,8 +122,8 @@ fn file_hook_captures_files_in_subdirectories() {
     );
     assert!(file_info.get("hash").is_some(), "Should have hash");
 
-    // Verify file was copied (by filename, flat)
-    let copied_path = artifact_dir.join("input.txt");
+    // Verify the project-relative path was preserved
+    let copied_path = artifact_dir.join("data/input.txt");
     assert!(
         copied_path.exists(),
         "File should be copied to artifact dir"
@@ -184,8 +184,8 @@ fn file_hook_captures_files_in_nested_subdirectories() {
         "Should capture the file in deeply nested subdirectory"
     );
 
-    // Verify file was copied (by filename, flat)
-    let copied_path = artifact_dir.join("config.json");
+    // Verify the project-relative path was preserved
+    let copied_path = artifact_dir.join("data/deep/nested/config.json");
     assert!(
         copied_path.exists(),
         "File should be copied to artifact dir"
@@ -619,4 +619,204 @@ fn file_hook_treats_backslash_as_literal_on_unix() {
 
     assert_eq!(captured_paths(&json).len(), 1);
     assert!(project.artifact_dir.join(file_name).exists());
+}
+
+fn sha256(bytes: &[u8]) -> String {
+    use sha2::Digest;
+    format!(
+        "sha256:{}",
+        capsula_core::util::hex_encode(sha2::Sha256::digest(bytes).as_ref())
+    )
+}
+
+#[test]
+fn file_hook_keeps_files_with_the_same_name_apart() {
+    let project = Project::new();
+    fs::create_dir_all(project.root.join("a")).unwrap();
+    fs::create_dir_all(project.root.join("b")).unwrap();
+    fs::write(project.root.join("a/config.json"), b"first").unwrap();
+    fs::write(project.root.join("b/config.json"), b"second").unwrap();
+
+    let json = project
+        .run(&json!({ "glob": "**/config.json", "mode": "copy" }))
+        .expect("run ok");
+
+    let files = json["files"].as_array().unwrap();
+    assert_eq!(files.len(), 2);
+    for (file, relative) in [(&files[0], "a/config.json"), (&files[1], "b/config.json")] {
+        let copied_path = project.artifact_dir.join(relative);
+        assert_eq!(file["copied_path"], json!(copied_path));
+        assert_eq!(
+            file["hash"],
+            json!(sha256(&fs::read(&copied_path).unwrap()))
+        );
+    }
+    assert_eq!(
+        fs::read(project.artifact_dir.join("a/config.json")).unwrap(),
+        b"first"
+    );
+    assert_eq!(
+        fs::read(project.artifact_dir.join("b/config.json")).unwrap(),
+        b"second"
+    );
+}
+
+#[test]
+fn file_hook_never_overwrites_an_existing_artifact() {
+    let project = Project::new();
+    let source = project.root.join("data.txt");
+    let existing = project.artifact_dir.join("data.txt");
+    fs::write(&source, b"new").unwrap();
+    fs::write(&existing, b"existing").unwrap();
+
+    let result = project.run(&json!({ "glob": "*.txt", "mode": "move" }));
+
+    let error = format!(
+        "{:?}",
+        result.expect_err("an existing artifact should fail the hook")
+    );
+    assert!(error.contains("ArtifactExists"), "{error}");
+    assert_eq!(fs::read(&existing).unwrap(), b"existing");
+    assert!(source.exists(), "the source must not be removed");
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_move_archives_an_independent_copy() {
+    let project = Project::new();
+    let source = project.root.join("out.txt");
+    let other_link = project.root.join("writer.dat");
+    fs::write(&source, b"captured").unwrap();
+    // A second name for the same inode stands in for a writer that still has
+    // the file open after it is moved.
+    fs::hard_link(&source, &other_link).unwrap();
+
+    let json = project
+        .run(&json!({ "glob": "*.txt", "mode": "move" }))
+        .expect("run ok");
+    fs::write(&other_link, b"modified after capture").unwrap();
+
+    let archived = fs::read(project.artifact_dir.join("out.txt")).unwrap();
+    assert_eq!(archived, b"captured");
+    assert_eq!(json["files"][0]["hash"], json!(sha256(&archived)));
+    assert!(!source.exists(), "the source should be removed");
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_copy_preserves_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let project = Project::new();
+    let source = project.root.join("run.sh");
+    fs::write(
+        &source,
+        b"#!/bin/sh
+",
+    )
+    .unwrap();
+    fs::set_permissions(&source, fs::Permissions::from_mode(0o750)).unwrap();
+
+    project
+        .run(&json!({ "glob": "*.sh", "mode": "copy", "hash": "none" }))
+        .expect("run ok");
+
+    let mode = fs::metadata(project.artifact_dir.join("run.sh"))
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o750);
+}
+
+#[test]
+fn file_hook_checks_every_destination_before_moving_any_file() {
+    let project = Project::new();
+    fs::create_dir_all(project.root.join("a")).unwrap();
+    fs::create_dir_all(project.root.join("b")).unwrap();
+    fs::create_dir_all(project.artifact_dir.join("b")).unwrap();
+    fs::write(project.root.join("a/data.txt"), b"a").unwrap();
+    fs::write(project.root.join("b/data.txt"), b"b").unwrap();
+    fs::write(project.artifact_dir.join("b/data.txt"), b"existing").unwrap();
+
+    let result = project.run(&json!({ "glob": "*/data.txt", "mode": "move" }));
+
+    let error = format!(
+        "{:?}",
+        result.expect_err("an existing artifact should fail the hook")
+    );
+    assert!(error.contains("ArtifactExists"), "{error}");
+    assert!(
+        project.root.join("a/data.txt").exists(),
+        "a must not be moved"
+    );
+    assert!(!project.artifact_dir.join("a/data.txt").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_records_files_moved_before_a_later_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let project = Project::new();
+    fs::write(project.root.join("a.txt"), b"a").unwrap();
+    fs::write(project.root.join("b.txt"), b"b").unwrap();
+    let unreadable = project.root.join("b.txt");
+    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::File::open(&unreadable).is_ok() {
+        // Running with privileges that bypass permissions; nothing to test.
+        return;
+    }
+
+    let hook = <FileHook as Hook<PreRun>>::from_config(
+        &json!({ "glob": "*.txt", "mode": "move" }),
+        &project.root,
+    )
+    .unwrap();
+    let run_metadata = PreparedRun {
+        id: Ulid::generate(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir: project.root.join("run"),
+        project_root: project.root.clone(),
+    };
+    let params = RuntimeParams::<PreRun>::with_artifact_dir(project.artifact_dir.clone());
+    let outcome = hook
+        .run(&run_metadata, &params)
+        .expect("the hook should produce output");
+    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o644)).unwrap();
+
+    assert!(
+        !outcome.is_success(),
+        "the failed capture should fail the hook"
+    );
+    let json = outcome.output().serialize_json().unwrap();
+    let paths = captured_paths(&json);
+    assert_eq!(paths.len(), 1, "the moved file should stay recorded");
+    assert!(paths[0].ends_with("a.txt"));
+    assert!(!project.root.join("a.txt").exists());
+    assert!(project.artifact_dir.join("a.txt").exists());
+    assert!(unreadable.exists(), "the failed source must stay in place");
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_moves_a_symlink_by_removing_only_the_link() {
+    let project = Project::new();
+    let target = project.outside("target.txt");
+    let link = project.root.join("link.txt");
+    fs::write(&target, b"target").unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+
+    let json = project
+        .run(&json!({ "glob": "*.txt", "mode": "move" }))
+        .expect("run ok");
+
+    let archived = fs::read(project.artifact_dir.join("link.txt")).unwrap();
+    assert_eq!(archived, b"target");
+    assert_eq!(json["files"][0]["hash"], json!(sha256(&archived)));
+    assert!(
+        link.symlink_metadata().is_err(),
+        "the link should be removed"
+    );
+    assert!(target.exists(), "the link target should be kept");
 }
