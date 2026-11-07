@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tracing::{debug, info};
 
 /// Push a single run to the server.
@@ -80,19 +80,7 @@ pub fn push_single_run(
         capsula_client::CreateRunOutcome::Created => {}
     }
 
-    // Collect files to upload
-    let mut files = Vec::new();
-    for entry in walkdir::WalkDir::new(run_dir)
-        .into_iter()
-        .filter_entry(|e| e.file_name() != "_capsula")
-    {
-        let entry = entry?;
-        if entry.file_type().is_file() {
-            let local_path = entry.path();
-            let relative_path = local_path.strip_prefix(run_dir)?;
-            files.push((local_path.to_path_buf(), relative_path.to_path_buf()));
-        }
-    }
+    let files = collect_artifact_files(run_dir)?;
 
     // Upload files and hooks
     if !files.is_empty() || pre_run_hooks.is_some() || post_run_hooks.is_some() {
@@ -108,4 +96,69 @@ pub fn push_single_run(
 
     info!("Pushed: {}", run_name);
     Ok(())
+}
+
+/// Collect the artifact files of a run as `(local path, path relative to the
+/// run directory)` pairs, skipping the run's own `_capsula` metadata
+/// directory.
+///
+/// Only the top-level `_capsula` is skipped: an artifact can itself lie
+/// beneath a directory named `_capsula`, such as a captured
+/// `results/_capsula/data.csv`.
+fn collect_artifact_files(run_dir: &Path) -> Result<Vec<(PathBuf, PathBuf)>> {
+    let capsula_dir = run_dir.join("_capsula");
+    let mut files = Vec::new();
+    for entry in walkdir::WalkDir::new(run_dir)
+        .into_iter()
+        .filter_entry(|e| e.path() != capsula_dir)
+    {
+        let entry = entry?;
+        if entry.file_type().is_file() {
+            let local_path = entry.path();
+            let relative_path = local_path.strip_prefix(run_dir)?;
+            files.push((local_path.to_path_buf(), relative_path.to_path_buf()));
+        }
+    }
+    Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn collect_artifact_files_skips_only_the_run_metadata_directory() {
+        let run_dir = std::env::temp_dir().join(format!(
+            "capsula_push_test_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(run_dir.join("_capsula")).unwrap();
+        fs::create_dir_all(run_dir.join("post-0-capture-file/results/_capsula")).unwrap();
+        fs::write(run_dir.join("_capsula/metadata.json"), b"{}").unwrap();
+        fs::write(
+            run_dir.join("post-0-capture-file/results/_capsula/data.csv"),
+            b"a",
+        )
+        .unwrap();
+
+        let mut relative: Vec<_> = collect_artifact_files(&run_dir)
+            .unwrap()
+            .into_iter()
+            .map(|(_, relative)| relative)
+            .collect();
+        relative.sort();
+        fs::remove_dir_all(&run_dir).ok();
+
+        assert_eq!(
+            relative,
+            [PathBuf::from(
+                "post-0-capture-file/results/_capsula/data.csv"
+            )]
+        );
+    }
 }
