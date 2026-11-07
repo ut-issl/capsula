@@ -1,8 +1,10 @@
 mod error;
 mod hash;
+mod project_glob;
 
 use crate::error::FileHookError;
 use crate::hash::file_digest_sha256;
+use crate::project_glob::ProjectGlob;
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
 use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
@@ -42,6 +44,7 @@ pub enum HashAlgorithm {
 #[derive(Debug)]
 pub struct FileHook {
     config: FileHookConfig,
+    glob: ProjectGlob,
 }
 
 #[derive(Debug, Serialize)]
@@ -78,7 +81,8 @@ where
         _project_root: &std::path::Path,
     ) -> CapsulaResult<Self> {
         let config: FileHookConfig = serde_json::from_value(config.clone())?;
-        Ok(Self { config })
+        let glob = ProjectGlob::parse(&config.glob).map_err(FileHookError::from)?;
+        Ok(Self { config, glob })
     }
 
     fn config(&self) -> &Self::Config {
@@ -105,27 +109,21 @@ where
 }
 
 impl FileHook {
-    /// Builds a complete glob pattern from base path and user pattern.
-    /// Users must use forward slashes (/) in patterns.
-    /// On Windows, this normalizes path separators from backslashes to forward slashes.
-    fn build_glob_pattern(base: &Path, pattern: &str) -> String {
-        base.join(pattern).to_string_lossy().replace('\\', "/")
-    }
-
     fn run(
         &self,
         metadata: &PreparedRun,
         artifact_dir: &Path,
     ) -> Result<FileCaptured, FileHookError> {
-        let pattern = Self::build_glob_pattern(&metadata.project_root, &self.config.glob);
         debug!(
-            "FileHook: Searching for files matching pattern: {}",
-            pattern
+            "FileHook: Searching {} for files matching pattern: {}",
+            metadata.project_root.display(),
+            self.config.glob
         );
 
-        let files: Vec<_> = glob::glob(&pattern)?
-            .filter_map(Result::ok) // Filter out GlobErrors
-            .filter(|path| path.is_file()) // Only files, not directories
+        let files: Vec<_> = self
+            .glob
+            .find_files(&metadata.project_root)?
+            .into_iter()
             .map(|path| {
                 debug!("FileHook: Processing file: {}", path.display());
                 self.capture_file(&path, artifact_dir)

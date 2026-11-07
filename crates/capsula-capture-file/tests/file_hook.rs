@@ -413,3 +413,210 @@ fn file_hook_rejects_unknown_config_fields() {
 
     assert!(result.is_err(), "unknown config fields should be rejected");
 }
+
+/// A temporary project with a run directory and a `capture-file` artifact
+/// directory, removed when dropped.
+struct Project {
+    root: std::path::PathBuf,
+    artifact_dir: std::path::PathBuf,
+}
+
+impl Project {
+    fn new() -> Self {
+        Self::named("project")
+    }
+
+    /// A project whose root directory has the given name.
+    fn named(name: &str) -> Self {
+        let root = std::env::temp_dir()
+            .join(format!("capsula_test_{}", Ulid::generate()))
+            .join(name);
+        let artifact_dir = root.join("run").join("pre-0-capture-file");
+        fs::create_dir_all(&artifact_dir).unwrap();
+        Self { root, artifact_dir }
+    }
+
+    /// A path next to the project root, outside the project.
+    fn outside(&self, name: &str) -> std::path::PathBuf {
+        self.root.parent().unwrap().join(name)
+    }
+
+    fn run(
+        &self,
+        config: &serde_json::Value,
+    ) -> capsula_core::error::CapsulaResult<serde_json::Map<String, serde_json::Value>> {
+        let hook = <FileHook as Hook<PreRun>>::from_config(config, &self.root)?;
+        let run_metadata = PreparedRun {
+            id: Ulid::generate(),
+            name: "test-run".to_string(),
+            command: vec![],
+            run_dir: self.root.join("run"),
+            project_root: self.root.clone(),
+        };
+        let params = RuntimeParams::<PreRun>::with_artifact_dir(self.artifact_dir.clone());
+        let outcome = hook.run(&run_metadata, &params)?;
+        Ok(outcome.output().serialize_json().unwrap())
+    }
+}
+
+impl Drop for Project {
+    fn drop(&mut self) {
+        fs::remove_dir_all(self.root.parent().unwrap()).ok();
+    }
+}
+
+fn captured_paths(json: &serde_json::Map<String, serde_json::Value>) -> Vec<String> {
+    json["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|file| file["path"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[test]
+fn file_hook_rejects_absolute_glob_at_build_time() {
+    let project = Project::new();
+    let secret = project.outside("secret.txt");
+    fs::write(&secret, b"secret").unwrap();
+
+    let result = <FileHook as Hook<PreRun>>::from_config(
+        &json!({ "glob": secret.to_string_lossy(), "mode": "move" }),
+        &project.root,
+    );
+
+    assert!(result.is_err(), "absolute globs should be rejected");
+    assert!(secret.exists());
+}
+
+#[test]
+fn file_hook_rejects_parent_traversal_glob_at_build_time() {
+    let project = Project::new();
+
+    let result = <FileHook as Hook<PreRun>>::from_config(
+        &json!({ "glob": "../*.txt", "mode": "move" }),
+        &project.root,
+    );
+
+    assert!(result.is_err(), "'..' globs should be rejected");
+}
+
+#[test]
+fn file_hook_accepts_current_dir_prefix() {
+    let project = Project::new();
+    fs::write(project.root.join("a.txt"), b"a").unwrap();
+
+    let json = project
+        .run(&json!({ "glob": "./*.txt", "mode": "none" }))
+        .expect("run ok");
+
+    assert_eq!(captured_paths(&json).len(), 1);
+}
+
+#[test]
+fn file_hook_double_star_matches_at_any_depth() {
+    let project = Project::new();
+    fs::create_dir_all(project.root.join("x/y")).unwrap();
+    fs::write(project.root.join("top.txt"), b"top").unwrap();
+    fs::write(project.root.join("x/y/deep.txt"), b"deep").unwrap();
+
+    let json = project
+        .run(&json!({ "glob": "**/*.txt", "mode": "none" }))
+        .expect("run ok");
+
+    assert_eq!(captured_paths(&json).len(), 2);
+}
+
+#[test]
+fn file_hook_matches_glob_characters_in_the_project_root_literally() {
+    let project = Project::named("run[1]");
+    fs::write(project.root.join("a.txt"), b"a").unwrap();
+
+    let json = project
+        .run(&json!({ "glob": "*.txt", "mode": "none" }))
+        .expect("run ok");
+
+    assert_eq!(captured_paths(&json).len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_follows_a_symlinked_directory() {
+    let project = Project::new();
+    let storage = project.outside("storage");
+    fs::create_dir_all(&storage).unwrap();
+    fs::write(storage.join("input.csv"), b"input").unwrap();
+    std::os::unix::fs::symlink(&storage, project.root.join("data")).unwrap();
+
+    let json = project
+        .run(&json!({ "glob": "data/*.csv", "mode": "copy" }))
+        .expect("run ok");
+
+    assert_eq!(captured_paths(&json).len(), 1);
+    assert!(storage.join("input.csv").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_ignores_unreadable_directory_the_glob_cannot_reach() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let project = Project::new();
+    let results = project.root.join("results");
+    let private = project.root.join("private");
+    fs::create_dir_all(&results).unwrap();
+    fs::create_dir_all(private.join("inner")).unwrap();
+    fs::write(results.join("a.csv"), b"a").unwrap();
+    fs::set_permissions(&private, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_dir(&private).is_ok() {
+        // Running with privileges that bypass permissions; nothing to test.
+        fs::set_permissions(&private, fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+
+    let result = project.run(&json!({ "glob": "results/*.csv", "mode": "none" }));
+    fs::set_permissions(&private, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let json = result.expect("an unrelated unreadable directory should not fail the hook");
+    assert_eq!(captured_paths(&json).len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_fails_on_unreadable_directory_the_glob_must_search() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let project = Project::new();
+    let private = project.root.join("private");
+    fs::create_dir_all(&private).unwrap();
+    fs::write(project.root.join("a.csv"), b"a").unwrap();
+    fs::set_permissions(&private, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_dir(&private).is_ok() {
+        // Running with privileges that bypass permissions; nothing to test.
+        fs::set_permissions(&private, fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+
+    let result = project.run(&json!({ "glob": "**/*.csv", "mode": "none" }));
+    fs::set_permissions(&private, fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(
+        result.is_err(),
+        "a directory that can contain a match but cannot be read should fail the hook"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn file_hook_treats_backslash_as_literal_on_unix() {
+    let project = Project::new();
+    let file_name = r"report\2026.txt";
+    fs::write(project.root.join(file_name), b"report").unwrap();
+
+    let json = project
+        .run(&json!({ "glob": file_name, "mode": "copy", "hash": "none" }))
+        .expect("run ok");
+
+    assert_eq!(captured_paths(&json).len(), 1);
+    assert!(project.artifact_dir.join(file_name).exists());
+}
