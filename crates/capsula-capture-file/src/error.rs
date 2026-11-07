@@ -1,3 +1,4 @@
+use crate::project_glob::{FindFilesError, ProjectGlobError};
 use capsula_core::error::CapsulaError;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -13,13 +14,13 @@ pub enum FileHookError {
     #[error("No files matched the pattern: {pattern}")]
     NoFilesMatched { pattern: String },
 
-    /// Pattern is invalid
-    #[error("Invalid glob pattern")]
-    InvalidPattern(#[from] glob::PatternError),
+    /// The configured glob pattern is not allowed or invalid.
+    #[error(transparent)]
+    Pattern(#[from] ProjectGlobError),
 
-    /// Glob traversal error
-    #[error("Glob traversal error")]
-    GlobError(#[from] glob::GlobError),
+    /// Matching files cannot be found under the project root.
+    #[error(transparent)]
+    FindFiles(#[from] FindFilesError),
 
     #[error("Run directory is not set")]
     RunDirNotSet,
