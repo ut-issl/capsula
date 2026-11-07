@@ -232,6 +232,14 @@ async fn test_pagination() {
     let client = reqwest::Client::new();
 
     let response = client
+        .get(format!("{}/runs?limit=0", ctx.base_url()))
+        .send()
+        .await
+        .expect("Failed to list runs in HTML");
+
+    assert_eq!(response.status(), 200);
+
+    let response = client
         .get(format!("{}/api/v1/runs?limit=2", ctx.base_url()))
         .send()
         .await
@@ -256,6 +264,18 @@ async fn test_pagination() {
     let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
     assert_eq!(body["limit"], 1);
     assert_eq!(body["offset"], 1);
+
+    let response = client
+        .get(format!("{}/api/v1/runs?limit=0&offset=-1", ctx.base_url()))
+        .send()
+        .await
+        .expect("Failed to list runs with out-of-range pagination");
+
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["status"], "ok");
+    assert_eq!(body["limit"], 1);
+    assert_eq!(body["offset"], 0);
 }
 
 #[tokio::test]
