@@ -57,7 +57,7 @@ sqlx = { version = "0.9", features = [
   "runtime-tokio",
   "tls-rustls"
 ] }
-sysinfo = "0.39"
+sysinfo = "0.40"
 tempfile = "3"
 testcontainers-modules = { version = "0.15", features = ["postgres"] }
 thiserror = "2"
