@@ -4,14 +4,6 @@ use thiserror::Error;
 /// Machine hook specific errors
 #[derive(Debug, Error)]
 pub enum MachineHookError {
-    /// Failed to get OS information
-    #[error("Failed to get OS information")]
-    OsInfoError,
-
-    /// Failed to get hostname
-    #[error("Failed to get hostname")]
-    HostnameError,
-
     /// Serialization failed
     #[error("Failed to serialize machine hook")]
     Serialization(#[from] serde_json::Error),
