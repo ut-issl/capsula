@@ -6,4 +6,11 @@ ignore = [
   # `testcontainers` 0.28.0 still depends on it; remove this entry once
   # upstream drops it.
   "RUSTSEC-2026-0440",
+  # `libsqlite3-sys` is only present in Cargo.lock because `sqlx-macros-core`
+  # references `sqlx-sqlite` through weak optional features, which Cargo still
+  # locks (rust-lang/cargo#10801). Capsula enables only the `postgres` backend,
+  # so SQLite is never compiled. `sqlx-sqlite` 0.9.0 caps it at <0.38.0, so the
+  # patched >=0.39.0 is unreachable. Remove this entry once a `sqlx` release
+  # allows libsqlite3-sys >=0.39.
+  "RUSTSEC-2026-0459",
 ]
