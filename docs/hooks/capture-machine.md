@@ -24,6 +24,8 @@ id = "capture-machine"
 
 ## Output Example
 
+Fields that cannot be retrieved on the machine, for example because the platform does not support them, are omitted from the output instead of failing the hook. A warning is logged for each omitted field. Only `architecture` is always present.
+
 ```json
 {
   "__meta": {

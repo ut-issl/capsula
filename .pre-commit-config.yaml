@@ -21,7 +21,7 @@ repos:
       - id: no-commit-to-branch
 
   - repo: https://github.com/rvben/rumdl-pre-commit
-    rev: 4f7fb84c204d04a8b458ad18ca6cd63417d524a9  # frozen: v0.2.55
+    rev: b0cff962ee693b9e612c097d22e71e0cba127447  # frozen: v0.3.2
     hooks:
       - id: rumdl
 
