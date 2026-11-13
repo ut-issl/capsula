@@ -2,8 +2,17 @@
 SQLX_OFFLINE = "true"
 
 # Supply-chain hardening: the resolver ignores registry versions published less
-# than 7 days ago (matching Renovate's minimumReleaseAge). Lockfile builds are
-# unaffected. To take an urgent fix earlier, re-resolve with
-# `CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow cargo update -p <crate>`.
+# than 7 days ago (matching Renovate's minimumReleaseAge). This needs Cargo 1.100
+# or later, as pinned in rust-toolchain.toml; older Cargo ignores the setting, so
+# never update Cargo.lock with an older toolchain such as the MSRV.
+#
+# Lockfile builds are unaffected. A full `cargo update` re-resolves every
+# dependency and moves locked versions younger than 7 days back to older ones,
+# so check Cargo.lock for urgent fixes after one.
+#
+# To take an urgent fix earlier, re-resolve with
+# `CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow cargo update -p <crate>`. The age
+# check is then off for every crate that the update re-resolves, including
+# transitive dependencies, so review the whole Cargo.lock diff.
 [registry]
 global-min-publish-age = "7 days"
