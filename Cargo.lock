@@ -719,7 +719,6 @@ name = "capsula-core"
 version = "0.16.0"
 dependencies = [
  "chrono",
- "clap",
  "serde",
  "serde_json",
  "shlex",
