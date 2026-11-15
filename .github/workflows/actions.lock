@@ -6,10 +6,10 @@ workflows:
     '.github/workflows/ci.yaml':
         - 'actions/checkout@v7.0.1'
         - 'codecov/codecov-action@v7.1.1'
-        - 'crate-ci/typos@v1.51.1'
+        - 'crate-ci/typos@v1.52.0'
         - 'j178/prek-action@v3.1.0'
         - 'swatinem/rust-cache@v2.9.3'
-        - 'taiki-e/install-action@v2.88.1'
+        - 'taiki-e/install-action@v2.90.3'
     '.github/workflows/docs.yaml':
         - 'actions/checkout@v7.0.1'
         - 'actions/configure-pages@v6.0.0'
@@ -22,7 +22,7 @@ workflows:
     '.github/workflows/publish-docker.yaml':
         - 'actions/checkout@v7.0.1'
         - 'docker/build-push-action@v7.4.0'
-        - 'docker/login-action@v4.7.0'
+        - 'docker/login-action@v4.8.0'
         - 'docker/metadata-action@v6.2.0'
         - 'docker/setup-buildx-action@v4.4.1'
         - 'docker/setup-qemu-action@v4.4.0'
@@ -97,9 +97,9 @@ dependencies:
         repo_id: 200299178
         uses:
             - 'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd'
-    'crate-ci/typos@v1.51.1':
-        ref: 'v1.51.1'
-        commit: 'sha1-7f9d0819ca1c008ade73f4b41fa9d258d48f605b'
+    'crate-ci/typos@v1.52.0':
+        ref: 'v1.52.0'
+        commit: 'sha1-4c8b7f51ca60df14e3c5ca82770dfbbe6c3dae85'
         owner_id: 36412122
         repo_id: 181782286
     'docker/build-push-action@v7.4.0':
@@ -107,9 +107,9 @@ dependencies:
         commit: 'sha1-c3c9e263c25d99ce0380d002d59b67737d91b0dc'
         owner_id: 5429470
         repo_id: 241092383
-    'docker/login-action@v4.7.0':
-        ref: 'v4.7.0'
-        commit: 'sha1-81c6f93d4bc991e510b342a00b419b3bb4efc5c6'
+    'docker/login-action@v4.8.0':
+        ref: 'v4.8.0'
+        commit: 'sha1-8aa5831fb8d48d8f76594c7ddde61ae58019f550'
         owner_id: 5429470
         repo_id: 287743349
     'docker/metadata-action@v6.2.0':
@@ -152,9 +152,9 @@ dependencies:
         commit: 'sha1-d1527c8f67ef9af357290475d4af4b0fab8f12e0'
         owner_id: 580492
         repo_id: 298565987
-    'taiki-e/install-action@v2.88.1':
-        ref: 'v2.88.1'
-        commit: 'sha1-68a389c788b2cd04016ce8c80ee23b80d2ab3d68'
+    'taiki-e/install-action@v2.90.3':
+        ref: 'v2.90.3'
+        commit: 'sha1-cfdb7ed4ccc7c7dce37759eae89dc5674b469b39'
         owner_id: 43724913
         repo_id: 442947557
     'zizmorcore/zizmor-action@v0.8.1':
