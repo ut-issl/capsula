@@ -1,15 +1,20 @@
+mod artifact;
 mod error;
 mod hash;
 mod project_glob;
+mod source;
 
+use crate::artifact::ArtifactDir;
 use crate::error::FileHookError;
-use crate::hash::file_digest_sha256;
+use crate::hash::copy_with_digest_sha256;
 use crate::project_glob::ProjectGlob;
+use crate::source::{FileState, open_source, remove_if_unchanged};
 use capsula_core::captured::Captured;
 use capsula_core::error::{CapsulaError, CapsulaResult};
 use capsula_core::hook::{Hook, HookOutcome, PhaseMarker, RuntimeParams};
 use capsula_core::run::PreparedRun;
 use serde::{Deserialize, Serialize};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
@@ -98,9 +103,7 @@ where
             .artifact_dir
             .as_deref()
             .ok_or(FileHookError::ArtifactDirMissing)?;
-        self.run(metadata, artifact_dir)
-            .map(HookOutcome::success)
-            .map_err(CapsulaError::from)
+        self.run(metadata, artifact_dir).map_err(CapsulaError::from)
     }
 
     fn needs_artifact_dir(&self) -> bool {
@@ -109,75 +112,172 @@ where
 }
 
 impl FileHook {
+    /// Find the files that match the glob under the project root and capture
+    /// each of them.
+    ///
+    /// An error before any file is captured is returned as `Err`. Once
+    /// capturing has started, an error stops it and fails the hook with the
+    /// files captured so far as output, so that every file already copied or
+    /// moved stays recorded.
     fn run(
         &self,
         metadata: &PreparedRun,
         artifact_dir: &Path,
-    ) -> Result<FileCaptured, FileHookError> {
+    ) -> Result<HookOutcome<FileCaptured>, FileHookError> {
+        let project_root = &metadata.project_root;
         debug!(
             "FileHook: Searching {} for files matching pattern: {}",
-            metadata.project_root.display(),
+            project_root.display(),
             self.config.glob
         );
 
-        let files: Vec<_> = self
-            .glob
-            .find_files(&metadata.project_root)?
-            .into_iter()
-            .map(|path| {
-                debug!("FileHook: Processing file: {}", path.display());
-                self.capture_file(&path, artifact_dir)
-            })
-            .collect::<Result<Vec<_>, FileHookError>>()?;
+        // Find every match, and check every destination, before capturing
+        // any file, so that an existing destination fails the hook before a
+        // file is copied or moved.
+        let matches = self.glob.find_files(project_root)?;
+        let artifacts = match self.config.mode {
+            CaptureMode::None => None,
+            CaptureMode::Copy | CaptureMode::Move => {
+                let artifacts = ArtifactDir::new(artifact_dir);
+                for relative_path in &matches {
+                    if artifacts.exists(relative_path)? {
+                        return Err(FileHookError::ArtifactExists {
+                            path: artifacts.path_of(relative_path),
+                        });
+                    }
+                }
+                Some(artifacts)
+            }
+        };
+
+        let mut files = Vec::with_capacity(matches.len());
+        for relative_path in &matches {
+            debug!("FileHook: Processing file: {}", relative_path.display());
+            let error = match self.capture_file(
+                &project_root.join(relative_path),
+                artifacts.as_ref(),
+                relative_path,
+            ) {
+                Ok((file, None)) => {
+                    files.push(file);
+                    continue;
+                }
+                Ok((file, Some(error))) => {
+                    files.push(file);
+                    error
+                }
+                Err(error) => error,
+            };
+            return Ok(HookOutcome::failure(
+                FileCaptured { files },
+                error_chain(&error),
+            ));
+        }
 
         debug!("FileHook: Captured {} files", files.len());
-        Ok(FileCaptured { files })
+        Ok(HookOutcome::success(FileCaptured { files }))
     }
 
+    /// Capture one matched file at `path`: hash it, and copy or move it into
+    /// the artifact directory under `relative_path`, its path relative to the
+    /// project root.
+    ///
+    /// If the file was copied but, in move mode, its source could not be
+    /// removed, the captured file is returned together with that error, so
+    /// that the copy stays recorded.
     fn capture_file(
         &self,
         path: &Path,
-        artifact_dir: &Path,
-    ) -> Result<FileCapturedPerFile, FileHookError> {
-        // Compute hash if needed
-        let hash = match self.config.hash {
+        artifacts: Option<&ArtifactDir>,
+        relative_path: &Path,
+    ) -> Result<(FileCapturedPerFile, Option<FileHookError>), FileHookError> {
+        // Read the source only through this handle, so that the hash and the
+        // copy describe the same file.
+        let mut source = open_source(path)?;
+        let Some(artifacts) = artifacts else {
+            let hash = self.hash(&mut source)?;
+            return Ok((
+                FileCapturedPerFile {
+                    path: path.to_path_buf(),
+                    copied_path: None,
+                    hash,
+                },
+                None,
+            ));
+        };
+
+        let opened_state = FileState::of(&source.metadata()?);
+        let copied_path = artifacts.path_of(relative_path);
+        debug!(
+            "FileHook: {:?} {} to {}",
+            self.config.mode,
+            path.display(),
+            copied_path.display()
+        );
+        let (hash, copied_len) = self.copy_to_artifact(&mut source, artifacts, relative_path)?;
+        let removal_error = match self.config.mode {
+            CaptureMode::Move => {
+                remove_if_unchanged(path, &source, opened_state.archived(copied_len)).err()
+            }
+            CaptureMode::Copy | CaptureMode::None => None,
+        };
+        Ok((
+            FileCapturedPerFile {
+                path: path.to_path_buf(),
+                copied_path: Some(copied_path),
+                hash,
+            },
+            removal_error,
+        ))
+    }
+
+    /// Hash the rest of `source` with the configured algorithm.
+    fn hash(&self, source: &mut File) -> Result<Option<String>, FileHookError> {
+        match self.config.hash {
             HashAlgorithm::Sha256 => {
-                debug!("FileHook: Computing SHA256 hash for: {}", path.display());
-                Some(format!("sha256:{}", file_digest_sha256(path)?))
+                let digest = copy_with_digest_sha256(source, &mut std::io::sink())?;
+                Ok(Some(format!("sha256:{digest}")))
             }
-            HashAlgorithm::None => None,
-        };
+            HashAlgorithm::None => Ok(None),
+        }
+    }
 
-        // Copy or move file if needed
-        let copied_path = match self.config.mode {
-            CaptureMode::Copy | CaptureMode::Move => {
-                debug!(
-                    "FileHook: {:?} file to artifact directory",
-                    self.config.mode
-                );
-                let file_name = path
-                    .file_name()
-                    .ok_or_else(|| FileHookError::InvalidRunDir {
-                        path: path.to_path_buf(),
-                    })?
-                    .to_os_string();
-                let dest_path = artifact_dir.join(file_name);
-                match self.config.mode {
-                    CaptureMode::Copy => std::fs::copy(path, &dest_path).map(|_| ())?,
-                    CaptureMode::Move => {
-                        std::fs::rename(path, &dest_path)?;
-                    }
-                    CaptureMode::None => unreachable!(),
-                }
-                Some(dest_path)
-            }
-            CaptureMode::None => None,
-        };
+    /// Copy the rest of `source_file` to a new artifact at `relative_path`,
+    /// hashing the bytes as they are written, so that the hash describes the
+    /// archived copy even if the source changes meanwhile. Returns the hash
+    /// and the number of bytes copied. An existing artifact is never
+    /// overwritten, and a partial copy is removed.
+    fn copy_to_artifact(
+        &self,
+        source_file: &mut File,
+        artifacts: &ArtifactDir,
+        relative_path: &Path,
+    ) -> Result<(Option<String>, u64), FileHookError> {
+        let permissions = source_file.metadata()?.permissions();
+        let mut destination_file = artifacts.create_new(relative_path)?;
 
-        Ok(FileCapturedPerFile {
-            path: path.to_path_buf(),
-            copied_path,
-            hash,
+        let result = match self.config.hash {
+            HashAlgorithm::Sha256 => copy_with_digest_sha256(source_file, &mut destination_file)
+                .map(|digest| Some(format!("sha256:{digest}"))),
+            HashAlgorithm::None => std::io::copy(source_file, &mut destination_file).map(|_| None),
+        }
+        .and_then(|hash| {
+            destination_file.set_permissions(permissions)?;
+            Ok((hash, destination_file.metadata()?.len()))
+        });
+        drop(destination_file);
+
+        result.map_err(|error| {
+            artifacts.remove_partial(relative_path);
+            FileHookError::Io(error)
         })
     }
+}
+
+/// Render an error with its sources, for a hook failure reason.
+fn error_chain(error: &dyn std::error::Error) -> String {
+    std::iter::successors(Some(error), |error| error.source())
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ")
 }
