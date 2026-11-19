@@ -28,12 +28,6 @@ impl<Dir> Run<Dir> {
         let dt: DateTime<Utc> = self.id.datetime().into();
         dt
     }
-
-    fn gen_run_dir(&self, vault_dir: impl AsRef<Path>) -> PathBuf {
-        vault_dir
-            .as_ref()
-            .join(run_dir_relative_path(&self.id, &self.name))
-    }
 }
 
 /// Relative path of a run directory within its vault:
@@ -60,56 +54,57 @@ pub fn run_dir_relative_path(id: &Ulid, name: &str) -> PathBuf {
 }
 
 impl UnpreparedRun {
+    /// Create the vault (if needed) and a fresh run directory inside it.
+    ///
+    /// The run directory is created with [`std::fs::create_dir`], so an
+    /// existing directory is never reused: `AlreadyExists` signals a collision
+    /// with another run (e.g. a concurrent one that started in the same second
+    /// with the same name). On a collision the run is renamed with a name from
+    /// `next_name` and the creation is retried, up to `max_attempts` attempts in
+    /// total. The returned [`PreparedRun`] carries the name that was used.
     pub fn setup_run_dir(
         &self,
-        vault_dir: impl AsRef<std::path::Path>,
-        max_retries: usize,
+        vault_dir: impl AsRef<Path>,
+        max_attempts: usize,
+        next_name: impl FnMut() -> io::Result<String>,
     ) -> io::Result<PreparedRun> {
-        debug!(
-            "Setting up vault directory: {}",
-            vault_dir.as_ref().display()
-        );
-        setup_vault(&vault_dir)?;
+        let vault_dir = vault_dir.as_ref();
+        debug!("Setting up vault directory: {}", vault_dir.display());
+        setup_vault(vault_dir)?;
 
-        // TODO: Consider removing retries as it is too conservative?
-        let run_dir = {
-            let mut attempt = 0;
-            loop {
-                let candidate = self.gen_run_dir(&vault_dir);
-                debug!("Candidate run directory: {}", candidate.display());
-                if candidate.exists() {
-                    debug!(
-                        "Directory already exists, retrying (attempt {})",
-                        attempt + 1
-                    );
-                    // Slight delay before retrying
-                    thread::sleep(Duration::from_millis(10 * (attempt as u64 + 1)));
-                    attempt += 1;
-                    if attempt >= max_retries {
-                        return Err(io::Error::new(
-                            io::ErrorKind::AlreadyExists,
-                            format!(
-                                "Failed to create unique run directory after {max_retries} attempts",
-                            ),
-                        ));
-                    }
-                } else {
-                    break candidate;
+        let names = std::iter::once(Ok(self.name.clone()))
+            .chain(std::iter::repeat_with(next_name))
+            .take(max_attempts);
+        for name in names {
+            let name = name?;
+            let run_dir = vault_dir.join(run_dir_relative_path(&self.id, &name));
+            debug!("Creating run directory: {}", run_dir.display());
+            std::fs::create_dir_all(run_dir.parent().unwrap_or(vault_dir))?;
+            match std::fs::create_dir(&run_dir) {
+                Ok(()) => {
+                    debug!("Run directory created successfully");
+                    return Ok(PreparedRun {
+                        id: self.id,
+                        name,
+                        command: self.command.clone(),
+                        run_dir,
+                        project_root: self.project_root.clone(),
+                    });
                 }
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                    debug!(
+                        "Run directory already exists, retrying with another name: {}",
+                        run_dir.display()
+                    );
+                }
+                Err(e) => return Err(e),
             }
-        };
+        }
 
-        debug!("Creating run directory: {}", run_dir.display());
-        std::fs::create_dir_all(&run_dir)?;
-        debug!("Run directory created successfully");
-
-        Ok(PreparedRun {
-            id: self.id,
-            name: self.name.clone(),
-            command: self.command.clone(),
-            run_dir,
-            project_root: self.project_root.clone(),
-        })
+        Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("Failed to create a unique run directory after {max_attempts} attempts"),
+        ))
     }
 }
 
@@ -308,4 +303,93 @@ pub fn setup_vault(path: impl AsRef<std::path::Path>) -> io::Result<()> {
     )?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unprepared(name: &str, project_root: &Path) -> UnpreparedRun {
+        UnpreparedRun {
+            id: Ulid::generate(),
+            name: name.to_string(),
+            command: vec![],
+            run_dir: (),
+            project_root: project_root.to_path_buf(),
+        }
+    }
+
+    #[test]
+    fn setup_run_dir_creates_directory_with_initial_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = tmp.path().join("vault");
+        let run = unprepared("first-name", tmp.path());
+
+        let prepared = run
+            .setup_run_dir(&vault, 5, || panic!("no collision expected"))
+            .unwrap();
+
+        assert_eq!(prepared.name, "first-name");
+        assert_eq!(
+            prepared.run_dir,
+            vault.join(run_dir_relative_path(&run.id, "first-name"))
+        );
+        assert!(prepared.run_dir.is_dir());
+    }
+
+    #[test]
+    fn setup_run_dir_renames_on_collision_instead_of_sharing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = tmp.path().join("vault");
+        let run = unprepared("first-name", tmp.path());
+        let taken = vault.join(run_dir_relative_path(&run.id, "first-name"));
+        std::fs::create_dir_all(&taken).unwrap();
+        std::fs::write(taken.join("marker"), "other run").unwrap();
+
+        let prepared = run
+            .setup_run_dir(&vault, 5, || Ok("second-name".to_string()))
+            .unwrap();
+
+        assert_eq!(prepared.name, "second-name");
+        assert_ne!(prepared.run_dir, taken);
+        assert_eq!(
+            prepared.run_dir,
+            vault.join(run_dir_relative_path(&run.id, "second-name"))
+        );
+        assert!(prepared.run_dir.is_dir());
+        assert!(!prepared.run_dir.join("marker").exists());
+    }
+
+    #[test]
+    fn setup_run_dir_fails_after_max_attempts() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = tmp.path().join("vault");
+        let run = unprepared("same-name", tmp.path());
+        std::fs::create_dir_all(vault.join(run_dir_relative_path(&run.id, "same-name"))).unwrap();
+        let mut calls = 0;
+
+        let err = run
+            .setup_run_dir(&vault, 3, || {
+                calls += 1;
+                Ok("same-name".to_string())
+            })
+            .unwrap_err();
+
+        assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(calls, 2);
+    }
+
+    #[test]
+    fn setup_run_dir_propagates_name_generation_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = tmp.path().join("vault");
+        let run = unprepared("first-name", tmp.path());
+        std::fs::create_dir_all(vault.join(run_dir_relative_path(&run.id, "first-name"))).unwrap();
+
+        let err = run
+            .setup_run_dir(&vault, 5, || Err(io::Error::other("no name")))
+            .unwrap_err();
+
+        assert_eq!(err.kind(), io::ErrorKind::Other);
+    }
 }
