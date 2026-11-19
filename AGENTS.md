@@ -130,7 +130,7 @@ The core hook API is in `crates/capsula-core/src/hook.rs`:
 `Run<Dir>` in `crates/capsula-core/src/run.rs` uses type state:
 
 - `Run<()>` (`UnpreparedRun`) has metadata but no run directory and cannot execute.
-- `setup_run_dir()` transforms it into `Run<PathBuf>` (`PreparedRun`), creates the vault/run directory, and retries collisions.
+- `setup_run_dir()` transforms it into `Run<PathBuf>` (`PreparedRun`), creates the vault and a fresh run directory (never reusing an existing one), and on a collision retries under a newly generated name.
 - `PreparedRun::exec()` runs the command directly (not through a shell), streams stdout/stderr to the console while capturing them, and returns exit code, output, and duration.
 
 The normal `capsula run` flow is:

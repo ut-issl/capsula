@@ -20,19 +20,25 @@ pub fn create_and_setup_run(
     vault_dir: &Path,
 ) -> Result<(PreparedRun, PathBuf)> {
     debug!("Creating run metadata");
+    let mut names = Generator::default();
+    let mut next_name = move || {
+        names
+            .next()
+            .ok_or_else(|| std::io::Error::other("Failed to generate a random name for the run"))
+    };
     let run = UnpreparedRun {
         id: Ulid::generate(),
-        name: Generator::default()
-            .next()
-            .with_context(|| "Failed to generate a random name for the run")?,
+        name: next_name()?,
         command,
         run_dir: (),
         project_root: project_root.to_path_buf(),
     };
 
-    info!("Run ID: {}, Name: {}", run.id, run.name);
     debug!("Setting up run directory in vault: {}", vault_dir.display());
-    let run = run.setup_run_dir(vault_dir, 5)?;
+    let run = run
+        .setup_run_dir(vault_dir, 5, next_name)
+        .with_context(|| format!("Failed to set up run directory in {}", vault_dir.display()))?;
+    info!("Run ID: {}, Name: {}", run.id, run.name);
     info!("Run directory: {}", run.run_dir.to_string_lossy());
 
     let capsula_dir = run.run_dir.join("_capsula");
