@@ -282,6 +282,41 @@ async fn test_multipart_upload() {
 }
 
 #[tokio::test]
+async fn truncated_multipart_upload_is_reported_as_error() {
+    let ctx = TestContext::new().await;
+    let client = reqwest::Client::new();
+
+    // One complete part, then a body that ends in the middle of the next
+    // part's headers, as when the client disconnects mid-upload.
+    let body = concat!(
+        "--BOUNDARY\r\n",
+        "Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n",
+        "\r\n",
+        "complete part\r\n",
+        "--BOUNDARY\r\n",
+        "Content-Disposition: form-da",
+    );
+
+    let response = client
+        .post(format!("{}/api/v1/upload", ctx.base_url()))
+        .header("content-type", "multipart/form-data; boundary=BOUNDARY")
+        .body(body)
+        .send()
+        .await
+        .expect("Failed to send multipart request");
+
+    assert_eq!(response.status(), 400);
+    let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
+    assert_eq!(body["status"], "error");
+    assert!(
+        body["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("Failed to read multipart body: ")
+    );
+}
+
+#[tokio::test]
 async fn test_single_file_upload_with_storage() {
     let ctx = TestContext::new().await;
     let client = reqwest::Client::new();
