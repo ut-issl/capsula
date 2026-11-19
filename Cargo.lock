@@ -702,10 +702,12 @@ name = "capsula-client"
 version = "0.16.0"
 dependencies = [
  "capsula-api-types",
+ "capsula-core",
  "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "thiserror 2.0.21",
  "tokio",
  "wiremock",

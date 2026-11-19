@@ -175,6 +175,54 @@ fn pull_fails_on_hash_mismatch_without_leaving_partial_run() {
 }
 
 #[test]
+fn pull_streams_large_file_byte_exact() {
+    // Several MiB, so the download is written in many chunks
+    let payload: Vec<u8> = (0..6 * 1024 * 1024u32)
+        .map(|i| (i.wrapping_mul(31) % 251) as u8)
+        .collect();
+    let files = json!([
+        {"path": "artifacts/big.bin", "size": payload.len(), "hash": sha256_hex(&payload)}
+    ]);
+    let (rt, server) = start_server(detail_response(&files), None);
+    rt.block_on(
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/runs/{RUN_ID}/files/artifacts/big.bin"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(payload.clone()))
+            .mount(&server),
+    );
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+
+    let run_dir = pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap();
+
+    let restored = std::fs::read(run_dir.join("artifacts/big.bin")).unwrap();
+    assert!(restored == payload, "restored content differs");
+}
+
+#[test]
+fn pull_hash_mismatch_leaves_no_temporary_files() {
+    let files = json!([
+        {"path": "output/result.txt", "size": FILE_CONTENT.len(), "hash": sha256_hex(b"different content")}
+    ]);
+    let (_rt, server) = start_server(detail_response(&files), Some("output/result.txt"));
+    let client = capsula_client::CapsulaClient::new(server.uri());
+    let tmp = tempfile::TempDir::new().unwrap();
+    let vault_dir = tmp.path().join(VAULT);
+
+    pull_single_run(RUN_ID, VAULT, &vault_dir, &client, false).unwrap_err();
+
+    let leftovers: Vec<_> = std::fs::read_dir(&vault_dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .filter(|name| name.to_string_lossy().starts_with(".pull-tmp-"))
+        .collect();
+    assert!(leftovers.is_empty(), "leftover temp dirs: {leftovers:?}");
+}
+
+#[test]
 fn pull_fails_on_size_mismatch() {
     let files = json!([
         {"path": "output/result.txt", "size": FILE_CONTENT.len() + 1, "hash": sha256_hex(FILE_CONTENT)}

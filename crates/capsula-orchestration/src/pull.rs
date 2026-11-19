@@ -1,10 +1,8 @@
 use crate::resolve::VaultPathSource;
 use anyhow::{Context, Result};
-use capsula_api_types::{RunDetailResponse, RunRecord};
+use capsula_api_types::{RunDetailFile, RunDetailResponse, RunRecord};
 use capsula_config::default_vault_path;
 use capsula_core::run::{run_dir_relative_path, setup_vault};
-use capsula_core::util::hex_encode;
-use sha2::{Digest, Sha256};
 use std::path::{Component, Path, PathBuf};
 use tracing::{debug, info, warn};
 use ulid::Ulid;
@@ -206,42 +204,74 @@ fn download_captured_files(
 ) -> Result<()> {
     for file in &detail.files {
         let relative_path = checked_run_relative_path(&file.path)?;
-        let bytes = client
-            .download_file(run_id, &file.path)
-            .with_context(|| format!("Failed to download '{}'", file.path))?;
-
-        if i64::try_from(bytes.len()).ok() != Some(file.size) {
-            anyhow::bail!(
-                "Size mismatch for '{}': server recorded {} bytes, downloaded {}",
-                file.path,
-                file.size,
-                bytes.len()
-            );
-        }
-
-        if let Some(expected) = &file.hash {
-            let actual = hex_encode(Sha256::digest(&bytes).as_ref());
-            if !actual.eq_ignore_ascii_case(expected) {
-                anyhow::bail!(
-                    "Hash mismatch for '{}': server recorded {expected}, downloaded {actual}",
-                    file.path
-                );
-            }
-        } else {
-            warn!(
-                "No hash recorded for '{}'; restoring without verification",
-                file.path
-            );
-        }
-
         let dest_path = dest.join(&relative_path);
         if let Some(parent) = dest_path.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("Failed to create {}", parent.display()))?;
         }
-        std::fs::write(&dest_path, &bytes)
-            .with_context(|| format!("Failed to write {}", dest_path.display()))?;
-        debug!("Restored {} ({} bytes)", file.path, bytes.len());
+        let size = download_verified(client, run_id, file, &dest_path)?;
+        debug!("Restored {} ({} bytes)", file.path, size);
+    }
+    Ok(())
+}
+
+/// Stream one captured file to `dest_path`, then verify it against the
+/// server-recorded size and hash. The file is deleted if the download or
+/// the verification fails, so only verified content is ever kept.
+///
+/// Returns the number of bytes restored.
+fn download_verified(
+    client: &capsula_client::CapsulaClient,
+    run_id: &str,
+    file: &RunDetailFile,
+    dest_path: &Path,
+) -> Result<u64> {
+    let result = std::fs::File::create(dest_path)
+        .with_context(|| format!("Failed to write {}", dest_path.display()))
+        .and_then(|mut out| {
+            client
+                .download_file_to(run_id, &file.path, &mut out)
+                .with_context(|| format!("Failed to download '{}'", file.path))
+        })
+        .and_then(|(size, digest)| verify_download(file, size, &digest).map(|()| size));
+
+    if result.is_err()
+        && let Err(e) = std::fs::remove_file(dest_path)
+        && e.kind() != std::io::ErrorKind::NotFound
+    {
+        warn!(
+            "Failed to remove unverified download {}: {e}",
+            dest_path.display()
+        );
+    }
+    result
+}
+
+/// Check a downloaded file's size and SHA-256 digest against the values
+/// recorded by the server. A file without a recorded hash is accepted
+/// with a warning.
+fn verify_download(file: &RunDetailFile, size: u64, digest: &str) -> Result<()> {
+    if i64::try_from(size).ok() != Some(file.size) {
+        anyhow::bail!(
+            "Size mismatch for '{}': server recorded {} bytes, downloaded {}",
+            file.path,
+            file.size,
+            size
+        );
+    }
+
+    if let Some(expected) = &file.hash {
+        if !digest.eq_ignore_ascii_case(expected) {
+            anyhow::bail!(
+                "Hash mismatch for '{}': server recorded {expected}, downloaded {digest}",
+                file.path
+            );
+        }
+    } else {
+        warn!(
+            "No hash recorded for '{}'; restoring without verification",
+            file.path
+        );
     }
     Ok(())
 }
@@ -380,6 +410,93 @@ mod tests {
             parse_command("echo 'hello world'"),
             vec!["echo".to_string(), "hello world".to_string()]
         );
+    }
+
+    const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+    fn run_file(size: i64, hash: Option<&str>) -> RunDetailFile {
+        RunDetailFile {
+            path: "out/abc.txt".to_string(),
+            size,
+            hash: hash.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn verify_download_accepts_matching_size_and_hash_case_insensitively() {
+        assert!(verify_download(&run_file(3, Some(ABC_SHA256)), 3, ABC_SHA256).is_ok());
+        let upper = ABC_SHA256.to_ascii_uppercase();
+        assert!(verify_download(&run_file(3, Some(&upper)), 3, ABC_SHA256).is_ok());
+    }
+
+    #[test]
+    fn verify_download_accepts_missing_hash() {
+        assert!(verify_download(&run_file(3, None), 3, ABC_SHA256).is_ok());
+    }
+
+    #[test]
+    fn verify_download_rejects_size_mismatch() {
+        let err = verify_download(&run_file(4, Some(ABC_SHA256)), 3, ABC_SHA256).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Size mismatch for 'out/abc.txt': server recorded 4 bytes, downloaded 3"
+        );
+    }
+
+    #[test]
+    fn verify_download_rejects_hash_mismatch() {
+        let other = "0".repeat(64);
+        let err = verify_download(&run_file(3, Some(&other)), 3, ABC_SHA256).unwrap_err();
+        assert!(
+            err.to_string()
+                .starts_with("Hash mismatch for 'out/abc.txt'")
+        );
+    }
+
+    /// Serve `body` for `out/abc.txt` and stream it to a file via
+    /// `download_verified`, returning the result and whether the file
+    /// remains on disk.
+    fn run_download_verified(file: &RunDetailFile, body: &[u8]) -> (Result<u64>, Option<Vec<u8>>) {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let server = rt.block_on(async {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/api/v1/runs/01RUN/files/out/abc.txt"))
+                .respond_with(ResponseTemplate::new(200).set_body_bytes(body.to_vec()))
+                .mount(&server)
+                .await;
+            server
+        });
+        let client = capsula_client::CapsulaClient::new(server.uri());
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dest = tmp.path().join("abc.txt");
+
+        let result = download_verified(&client, "01RUN", file, &dest);
+        (result, std::fs::read(&dest).ok())
+    }
+
+    #[test]
+    fn download_verified_keeps_matching_file() {
+        let (result, kept) = run_download_verified(&run_file(3, Some(ABC_SHA256)), b"abc");
+        assert_eq!(result.unwrap(), 3);
+        assert_eq!(kept.as_deref(), Some(&b"abc"[..]));
+    }
+
+    #[test]
+    fn download_verified_discards_file_on_hash_mismatch() {
+        let (result, kept) = run_download_verified(&run_file(3, Some(ABC_SHA256)), b"xyz");
+        assert!(result.unwrap_err().to_string().contains("Hash mismatch"));
+        assert!(kept.is_none(), "mismatching file must be deleted");
+    }
+
+    #[test]
+    fn download_verified_discards_file_on_size_mismatch() {
+        let (result, kept) = run_download_verified(&run_file(3, Some(ABC_SHA256)), b"abcd");
+        assert!(result.unwrap_err().to_string().contains("Size mismatch"));
+        assert!(kept.is_none(), "mismatching file must be deleted");
     }
 
     #[test]

@@ -12,10 +12,12 @@ categories = ["api-bindings"]
 
 [dependencies]
 capsula-api-types = { workspace = true }
+capsula-core = { workspace = true }
 percent-encoding = { workspace = true }
 reqwest = { workspace = true, features = ["blocking"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
