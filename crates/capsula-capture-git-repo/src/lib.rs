@@ -141,7 +141,7 @@ where
                 .artifact_dir
                 .as_deref()
                 .ok_or(GitHookError::ArtifactDirMissing)?;
-            let diff_content = Self::diff_content(&repo)?;
+            let diff_content = Self::diff_content(&repo, oid)?;
             // Output to a patch file in the artifact directory
             let patch_file_path = artifact_dir.join(format!("{}.patch", self.config.name));
             debug!("GitHook: Writing patch to: {}", patch_file_path.display());
@@ -235,11 +235,21 @@ impl GitHook {
         Ok(false)
     }
 
-    fn diff_content(repo: &Repository) -> CapsulaResult<String> {
+    /// Diff from the HEAD commit to the working directory, so that both staged
+    /// and unstaged changes are included, together with the content of
+    /// untracked files (including those inside untracked directories).
+    fn diff_content(repo: &Repository, head_oid: git2::Oid) -> CapsulaResult<String> {
+        let head_tree = repo
+            .find_commit(head_oid)
+            .and_then(|commit| commit.tree())
+            .map_err(GitHookError::from)?;
         let mut diff_opts = git2::DiffOptions::new();
-        diff_opts.include_untracked(true);
+        diff_opts
+            .include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .show_untracked_content(true);
         let diff = repo
-            .diff_index_to_workdir(None, Some(&mut diff_opts))
+            .diff_tree_to_workdir_with_index(Some(&head_tree), Some(&mut diff_opts))
             .map_err(GitHookError::from)?;
 
         let mut diff_content = String::new();

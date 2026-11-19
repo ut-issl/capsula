@@ -100,6 +100,10 @@ tag_head = true
     writes the diff to `<name>.patch` inside the hook's artifact directory,
     located at `{phase}-{index}-capture-git-repo/` under the run directory
     (e.g., `pre-0-capture-git-repo/my-project.patch`).
+    The patch is the diff from the HEAD commit to the working directory, so it
+    contains both staged and unstaged changes, as well as the content of
+    untracked files (including files inside untracked directories). Files
+    ignored by Git are not included.
 
 ### Dirty Repository Failure (with `allow_dirty = false`)
 
