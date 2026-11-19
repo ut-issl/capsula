@@ -1,13 +1,68 @@
 use anyhow::Result;
+use std::fmt;
 use std::path::Path;
 use tracing::{debug, info};
 
+/// How a successful push registered the run on the server.
+///
+/// Both variants mean that every required upload completed successfully.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PushOutcome {
+    /// The server created a new run.
+    Created,
+    /// The server already had a run with this ID (HTTP 409); its files and
+    /// hook outputs, if any, were uploaded again.
+    Existing,
+}
+
+/// Tally of the per-run results of `capsula push --all`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PushAllSummary {
+    pub created: usize,
+    pub existing: usize,
+    pub skipped_pulled: usize,
+    pub failed: usize,
+}
+
+impl PushAllSummary {
+    /// Count a successful push.
+    pub const fn record(&mut self, outcome: PushOutcome) {
+        match outcome {
+            PushOutcome::Created => self.created += 1,
+            PushOutcome::Existing => self.existing += 1,
+        }
+    }
+
+    /// Count a run skipped because it was pulled from a server.
+    pub const fn record_skipped_pulled(&mut self) {
+        self.skipped_pulled += 1;
+    }
+
+    /// Count a run (or vault entry) that failed to push.
+    pub const fn record_failure(&mut self) {
+        self.failed += 1;
+    }
+}
+
+impl fmt::Display for PushAllSummary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Push all completed: {} created, {} re-uploaded, {} skipped (pulled runs), {} failed",
+            self.created, self.existing, self.skipped_pulled, self.failed
+        )
+    }
+}
+
 /// Push a single run to the server.
+///
+/// Returns whether the run was newly created or already existed on the
+/// server, once all uploads have succeeded.
 pub fn push_single_run(
     run_dir: &Path,
     vault_name: &str,
     client: &capsula_client::CapsulaClient,
-) -> Result<()> {
+) -> Result<PushOutcome> {
     let capsula_dir = run_dir.join("_capsula");
 
     // Runs restored by `pull` are lossy reconstructions (see pull.rs);
@@ -73,12 +128,13 @@ pub fn push_single_run(
     });
 
     // Post the run metadata through the authenticated client
-    match client.create_run(&create_run_payload)? {
+    let outcome = match client.create_run(&create_run_payload)? {
         capsula_client::CreateRunOutcome::AlreadyExists => {
             info!("Run already registered on server, re-uploading files: {run_name}");
+            PushOutcome::Existing
         }
-        capsula_client::CreateRunOutcome::Created => {}
-    }
+        capsula_client::CreateRunOutcome::Created => PushOutcome::Created,
+    };
 
     // Collect files to upload
     let mut files = Vec::new();
@@ -107,5 +163,44 @@ pub fn push_single_run(
     }
 
     info!("Pushed: {}", run_name);
-    Ok(())
+    Ok(outcome)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn summary_counts_each_outcome() {
+        let mut summary = PushAllSummary::default();
+        summary.record(PushOutcome::Created);
+        summary.record(PushOutcome::Created);
+        summary.record(PushOutcome::Existing);
+        summary.record_skipped_pulled();
+        summary.record_failure();
+
+        assert_eq!(
+            summary,
+            PushAllSummary {
+                created: 2,
+                existing: 1,
+                skipped_pulled: 1,
+                failed: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn summary_formats_counts() {
+        let summary = PushAllSummary {
+            created: 2,
+            existing: 1,
+            skipped_pulled: 0,
+            failed: 0,
+        };
+        assert_eq!(
+            summary.to_string(),
+            "Push all completed: 2 created, 1 re-uploaded, 0 skipped (pulled runs), 0 failed"
+        );
+    }
 }
