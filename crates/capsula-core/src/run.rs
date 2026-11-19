@@ -162,6 +162,38 @@ fn exit_code_from_status(status: ExitStatus) -> i32 {
     })
 }
 
+/// Read `source` to the end, echoing it to `console` while capturing it.
+///
+/// A failure to write to the console (e.g. `BrokenPipe` when the output is
+/// piped to `head`) only stops the echo: the rest of `source` is still drained
+/// and captured, so the run's result is not lost. Errors reading `source` are
+/// returned.
+fn tee_capture(mut source: impl Read, console: impl Write) -> io::Result<Vec<u8>> {
+    let mut captured = Vec::with_capacity(8 * 1024);
+    let mut buf = [0u8; 8192];
+    let mut console = Some(console);
+
+    loop {
+        let n = source.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        captured.extend_from_slice(&buf[..n]);
+        console = console.and_then(|mut c| match c.write_all(&buf[..n]) {
+            Ok(()) => Some(c),
+            Err(e) => {
+                debug!("Console write failed, no longer echoing command output: {e}");
+                None
+            }
+        });
+    }
+
+    if let Some(Err(e)) = console.map(|mut c| c.flush()) {
+        debug!("Console flush failed: {e}");
+    }
+    Ok(captured)
+}
+
 impl PreparedRun {
     pub fn exec(&self) -> std::io::Result<RunOutput> {
         if self.command.is_empty() {
@@ -209,48 +241,17 @@ impl PreparedRun {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        let mut child_stdout = child
+        let child_stdout = child
             .stdout
             .take()
             .ok_or_else(|| io::Error::other("Failed to capture stdout"))?;
-        let mut child_stderr = child
+        let child_stderr = child
             .stderr
             .take()
             .ok_or_else(|| io::Error::other("Failed to capture stderr"))?;
 
-        let t_out = thread::spawn(move || -> io::Result<Vec<u8>> {
-            let mut cap = Vec::with_capacity(8 * 1024);
-            let mut buf = [0u8; 8192];
-            let mut console = io::stdout().lock();
-
-            loop {
-                let n = child_stdout.read(&mut buf)?;
-                if n == 0 {
-                    break;
-                }
-                console.write_all(&buf[..n])?;
-                cap.extend_from_slice(&buf[..n]);
-            }
-            console.flush()?;
-            Ok(cap)
-        });
-
-        let t_err = thread::spawn(move || -> io::Result<Vec<u8>> {
-            let mut cap = Vec::with_capacity(8 * 1024);
-            let mut buf = [0u8; 8192];
-            let mut console = io::stderr().lock();
-
-            loop {
-                let n = child_stderr.read(&mut buf)?;
-                if n == 0 {
-                    break;
-                }
-                console.write_all(&buf[..n])?;
-                cap.extend_from_slice(&buf[..n]);
-            }
-            console.flush()?;
-            Ok(cap)
-        });
+        let t_out = thread::spawn(move || tee_capture(child_stdout, io::stdout().lock()));
+        let t_err = thread::spawn(move || tee_capture(child_stderr, io::stderr().lock()));
 
         debug!("Waiting for child process to complete");
         let status = child.wait()?;
@@ -391,5 +392,48 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(err.kind(), io::ErrorKind::Other);
+    }
+
+    /// A console that has been closed by its reader: every write fails.
+    struct BrokenPipeWriter {
+        writes: usize,
+    }
+
+    impl Write for BrokenPipeWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            self.writes += 1;
+            Err(io::Error::from(io::ErrorKind::BrokenPipe))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::from(io::ErrorKind::BrokenPipe))
+        }
+    }
+
+    /// More than one read buffer, so draining needs several reads.
+    fn sample_output() -> Vec<u8> {
+        (0..20_000u32).map(|i| (i % 251) as u8).collect()
+    }
+
+    #[test]
+    fn tee_capture_echoes_and_captures() {
+        let data = sample_output();
+        let mut console = Vec::new();
+
+        let captured = tee_capture(data.as_slice(), &mut console).unwrap();
+
+        assert_eq!(captured, data);
+        assert_eq!(console, data);
+    }
+
+    #[test]
+    fn tee_capture_keeps_capturing_after_broken_pipe() {
+        let data = sample_output();
+        let mut console = BrokenPipeWriter { writes: 0 };
+
+        let captured = tee_capture(data.as_slice(), &mut console).unwrap();
+
+        assert_eq!(captured, data);
+        assert_eq!(console.writes, 1, "echo must stop after the first failure");
     }
 }
