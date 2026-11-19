@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use capsula_core::hook::{PhaseMarker, PostRun, PreRun};
 use capsula_core::run::PreparedRun;
 use capsula_orchestration::pull::{is_pulled_run, pull_single_run, resolve_pull_vault_dir};
-use capsula_orchestration::push::push_single_run;
+use capsula_orchestration::push::{PushAllSummary, PushOutcome, push_single_run};
 use capsula_orchestration::record::{HookRecord, PhaseReport};
 use capsula_orchestration::resolve::{is_same_origin, resolve_server_headers, resolve_server_url};
 use capsula_orchestration::run::{
@@ -467,10 +467,7 @@ path = \".\"
                         vault_name, server_url
                     );
 
-                    let mut success_count = 0;
-                    let mut skip_count = 0;
-                    let mut pulled_skip_count = 0;
-                    let mut error_count = 0;
+                    let mut summary = PushAllSummary::default();
 
                     for entry in walkdir::WalkDir::new(&vault_dir)
                         .min_depth(2)
@@ -482,7 +479,7 @@ path = \".\"
                             Ok(e) => e,
                             Err(e) => {
                                 error!("Failed to read directory: {}", e);
-                                error_count += 1;
+                                summary.record_failure();
                                 continue;
                             }
                         };
@@ -498,40 +495,35 @@ path = \".\"
                         // instead of degrading the server's copy.
                         if is_pulled_run(run_dir) {
                             debug!("Skipping pulled run at {}", run_dir.display());
-                            pulled_skip_count += 1;
+                            summary.record_skipped_pulled();
                             continue;
                         }
 
                         match push_single_run(run_dir, vault_name, &client) {
-                            Ok(()) => success_count += 1,
+                            Ok(outcome) => summary.record(outcome),
                             Err(e) => {
-                                if e.to_string().contains("already exists") {
-                                    skip_count += 1;
-                                } else {
-                                    error!("Failed to push run: {}", e);
-                                    error_count += 1;
-                                }
+                                error!("Failed to push run: {}", e);
+                                summary.record_failure();
                             }
                         }
                     }
 
-                    info!(
-                        "Push all completed: {} succeeded, {} skipped (already exist), \
-                         {} skipped (pulled runs), {} failed",
-                        success_count, skip_count, pulled_skip_count, error_count
-                    );
+                    info!("{summary}");
 
-                    if error_count > 0 {
-                        anyhow::bail!("{error_count} runs failed to push");
+                    if summary.failed > 0 {
+                        anyhow::bail!("{} runs failed to push", summary.failed);
                     }
                 }
                 (false, Some(run_id)) => {
                     info!("Pushing run {} to server {}", run_id, server_url);
 
                     let run_dir = find_run_dir(&vault_dir, &run_id)?;
-                    push_single_run(&run_dir, vault_name, &client)?;
-
-                    info!("Push completed successfully");
+                    match push_single_run(&run_dir, vault_name, &client)? {
+                        PushOutcome::Created => info!("Push completed successfully (created)"),
+                        PushOutcome::Existing => info!(
+                            "Push completed successfully (run already existed on server; re-uploaded)"
+                        ),
+                    }
                 }
                 (false, None) => {
                     unreachable!("clap's push_target group requires a run ID or --all")
