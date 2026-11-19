@@ -1,12 +1,15 @@
 use capsula_api_types::{
     RunDetailResponse, UploadResponse, VaultExistsResponse, VaultInfo, VaultsResponse,
 };
+use capsula_core::util::hex_encode;
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use reqwest::StatusCode;
 use reqwest::blocking::multipart;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::redirect::Policy;
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
+use std::io::{Read, Write};
 use std::path::Path;
 use thiserror::Error;
 
@@ -34,6 +37,42 @@ fn encode_file_path(file_path: &str) -> String {
         .map(|segment| utf8_percent_encode(segment, PATH_SEGMENT_ENCODE_SET).to_string())
         .collect::<Vec<_>>()
         .join("/")
+}
+
+/// Copy `reader` into `writer` while computing the SHA-256 of the copied
+/// bytes.
+///
+/// Returns the number of bytes copied and the lowercase hex digest.
+pub fn copy_hashing<R: Read + ?Sized, W: Write + ?Sized>(
+    reader: &mut R,
+    writer: &mut W,
+) -> std::io::Result<(u64, String)> {
+    let mut hashing = HashingWriter {
+        inner: writer,
+        hasher: Sha256::new(),
+    };
+    let size = std::io::copy(reader, &mut hashing)?;
+    hashing.flush()?;
+    Ok((size, hex_encode(hashing.hasher.finalize().as_ref())))
+}
+
+/// Writer adapter that feeds every byte accepted by `inner` into a hasher.
+struct HashingWriter<'a, W: Write + ?Sized> {
+    inner: &'a mut W,
+    hasher: Sha256,
+}
+
+impl<W: Write + ?Sized> Write for HashingWriter<'_, W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let written = self.inner.write(buf)?;
+        // Hash only what the inner writer accepted; the rest is retried
+        self.hasher.update(buf.get(..written).unwrap_or(buf));
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -154,15 +193,25 @@ impl CapsulaClient {
         Ok(detail)
     }
 
-    /// Download a captured file of a run, returning its raw bytes
-    pub fn download_file(&self, run_id: &str, file_path: &str) -> Result<Vec<u8>> {
+    /// Download a captured file of a run, streaming its content into
+    /// `writer` without buffering the whole file in memory.
+    ///
+    /// Returns the number of bytes written and the lowercase hex SHA-256
+    /// digest of the content, so the caller can verify the download
+    /// against the server-recorded size and hash.
+    pub fn download_file_to<W: Write + ?Sized>(
+        &self,
+        run_id: &str,
+        file_path: &str,
+        writer: &mut W,
+    ) -> Result<(u64, String)> {
         let url = format!(
             "{}/api/v1/runs/{}/files/{}",
             self.base_url,
             run_id,
             encode_file_path(file_path)
         );
-        let response = self.client.get(&url).send()?;
+        let mut response = self.client.get(&url).send()?;
 
         if !response.status().is_success() {
             return Err(Self::server_error(
@@ -171,7 +220,7 @@ impl CapsulaClient {
             ));
         }
 
-        Ok(response.bytes()?.to_vec())
+        Ok(copy_hashing(&mut response, writer)?)
     }
 
     /// List all vaults on the server
@@ -461,6 +510,122 @@ mod tests {
                 .to_string()
                 .contains("authentication may be missing or expired")
         );
+    }
+
+    /// Writer that accepts at most `limit` bytes per call, to exercise
+    /// partial writes.
+    struct ChunkedWriter {
+        data: Vec<u8>,
+        limit: usize,
+    }
+
+    impl Write for ChunkedWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let n = buf.len().min(self.limit);
+            self.data.extend_from_slice(&buf[..n]);
+            Ok(n)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn copy_hashing_empty_input() {
+        let mut out = Vec::new();
+        let (size, digest) = copy_hashing(&mut &b""[..], &mut out).unwrap();
+        assert_eq!(size, 0);
+        assert_eq!(out, [] as [u8; 0]);
+        assert_eq!(
+            digest,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn copy_hashing_copies_and_hashes_known_vector() {
+        let mut out = Vec::new();
+        let (size, digest) = copy_hashing(&mut &b"abc"[..], &mut out).unwrap();
+        assert_eq!(size, 3);
+        assert_eq!(out, b"abc");
+        assert_eq!(
+            digest,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
+    fn copy_hashing_hashes_only_accepted_bytes_on_partial_writes() {
+        let input: Vec<u8> = (0..10_000u32).map(|i| (i % 251) as u8).collect();
+        let mut out = ChunkedWriter {
+            data: Vec::new(),
+            limit: 7,
+        };
+        let (size, digest) = copy_hashing(&mut input.as_slice(), &mut out).unwrap();
+        assert_eq!(size, input.len() as u64);
+        assert_eq!(out.data, input);
+        assert_eq!(digest, hex_encode(Sha256::digest(&input).as_ref()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn download_file_to_streams_large_payload() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        // Several MiB, so the body arrives in many chunks
+        let payload: Vec<u8> = (0..5 * 1024 * 1024u32)
+            .map(|i| (i.wrapping_mul(31) % 251) as u8)
+            .collect();
+        let expected_digest = hex_encode(Sha256::digest(&payload).as_ref());
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/runs/01RUN/files/out/big.bin"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(payload.clone()))
+            .mount(&server)
+            .await;
+
+        let uri = server.uri();
+        let (result, written) = tokio::task::spawn_blocking(move || {
+            let mut written = Vec::new();
+            let result =
+                CapsulaClient::new(uri).download_file_to("01RUN", "out/big.bin", &mut written);
+            (result, written)
+        })
+        .await
+        .unwrap();
+
+        let (size, digest) = result.unwrap();
+        assert_eq!(size, payload.len() as u64);
+        assert_eq!(digest, expected_digest);
+        assert!(written == payload, "downloaded content differs");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn download_file_to_reports_server_error_without_writing() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/runs/01RUN/files/missing.txt"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+            .mount(&server)
+            .await;
+
+        let uri = server.uri();
+        let (result, written) = tokio::task::spawn_blocking(move || {
+            let mut written = Vec::new();
+            let result =
+                CapsulaClient::new(uri).download_file_to("01RUN", "missing.txt", &mut written);
+            (result, written)
+        })
+        .await
+        .unwrap();
+
+        assert!(matches!(result, Err(ClientError::ServerError(_))));
+        assert_eq!(written, [] as [u8; 0]);
     }
 
     #[test]
