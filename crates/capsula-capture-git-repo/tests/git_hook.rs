@@ -1085,3 +1085,82 @@ fn git_hook_tag_head_tags_commit_when_post_run_hook_fails() {
     assert_eq!(tag.as_deref(), Some("capsula/dirty-run"));
     assert_eq!(tags, "capsula/dirty-run");
 }
+
+/// Run `capture-git-repo` with `allow_dirty = true` on `repo_dir`, and return
+/// the content of the saved patch. The artifact directory is placed outside
+/// the repository so that it does not show up in the patch itself.
+fn patch_of_dirty_repo(repo_dir: &std::path::Path) -> String {
+    let run_dir = std::env::temp_dir().join(format!("capsula_git_test_run_{}", Ulid::generate()));
+    let artifact_dir = run_dir.join("pre-0-capture-git-repo");
+    fs::create_dir_all(&artifact_dir).unwrap();
+
+    let config = json!({
+        "name": "test-repo",
+        "path": ".",
+        "allow_dirty": true
+    });
+    let hook = <GitHook as Hook<PreRun>>::from_config(&config, repo_dir).expect("from_config ok");
+    let run_metadata = PreparedRun {
+        id: Ulid::generate(),
+        name: "test-run".to_string(),
+        command: vec![],
+        run_dir: run_dir.clone(),
+        project_root: repo_dir.to_path_buf(),
+    };
+    let outcome = hook
+        .run(
+            &run_metadata,
+            &RuntimeParams::<PreRun>::with_artifact_dir(artifact_dir.clone()),
+        )
+        .expect("run ok");
+    let json = outcome.output().serialize_json().expect("serialize ok");
+    assert_eq!(
+        json.get("is_dirty").and_then(serde_json::Value::as_bool),
+        Some(true),
+        "the repository should be dirty"
+    );
+
+    let patch = fs::read_to_string(artifact_dir.join("test-repo.patch"))
+        .expect("patch file should be created for a dirty repo");
+    fs::remove_dir_all(&run_dir).ok();
+    patch
+}
+
+#[test]
+fn git_hook_patch_includes_staged_changes() {
+    let temp_dir = init_git_repo();
+    fs::write(temp_dir.join("test.txt"), b"staged change").unwrap();
+    Command::new("git")
+        .args(["add", "test.txt"])
+        .current_dir(&temp_dir)
+        .output()
+        .unwrap();
+
+    let patch = patch_of_dirty_repo(&temp_dir);
+
+    assert!(patch.contains("test.txt"), "patch: {patch}");
+    assert!(patch.contains("staged change"), "patch: {patch}");
+
+    fs::remove_dir_all(&temp_dir).ok();
+}
+
+#[test]
+fn git_hook_patch_includes_untracked_file_content() {
+    let temp_dir = init_git_repo();
+    fs::write(temp_dir.join("new.txt"), b"untracked content").unwrap();
+    fs::create_dir_all(temp_dir.join("new-dir")).unwrap();
+    fs::write(
+        temp_dir.join("new-dir").join("inner.txt"),
+        b"nested content",
+    )
+    .unwrap();
+
+    let patch = patch_of_dirty_repo(&temp_dir);
+
+    assert!(patch.contains("new.txt"), "patch: {patch}");
+    assert!(patch.contains("untracked content"), "patch: {patch}");
+    assert!(patch.contains("new-dir/inner.txt"), "patch: {patch}");
+    assert!(patch.contains("nested content"), "patch: {patch}");
+
+    fs::remove_dir_all(&temp_dir).ok();
+}
