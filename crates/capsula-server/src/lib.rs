@@ -946,10 +946,7 @@ async fn get_run(State(state): State<AppState>, Path(id): Path<String>) -> impl 
     clippy::else_if_without_else,
     reason = "There is `continue` or `return` in each branch, so `else` is redundant"
 )]
-async fn upload_files(
-    State(state): State<AppState>,
-    mut multipart: Multipart,
-) -> impl IntoResponse {
+async fn upload_files(State(state): State<AppState>, mut multipart: Multipart) -> Response {
     let storage_path = &state.storage_path;
     info!("Received file upload request");
 
@@ -962,7 +959,8 @@ async fn upload_files(
         return Json(json!({
             "status": "error",
             "error": format!("Failed to create storage directory: {}", e)
-        }));
+        }))
+        .into_response();
     }
 
     let mut files_processed = 0;
@@ -972,7 +970,26 @@ async fn upload_files(
     let mut pre_run_hooks: Option<Vec<models::HookOutputUpload>> = None;
     let mut post_run_hooks: Option<Vec<models::HookOutputUpload>> = None;
 
-    while let Ok(Some(field)) = multipart.next_field().await {
+    loop {
+        // A malformed, truncated, or oversized body must not end the loop as
+        // if the upload were complete. Parts processed before the error stay
+        // stored; the client is told the upload failed so it can retry.
+        let field = match multipart.next_field().await {
+            Ok(Some(field)) => field,
+            Ok(None) => break,
+            Err(e) => {
+                let message = e.body_text();
+                error!("Failed to read multipart field: {}", message);
+                return (
+                    e.status(),
+                    Json(json!({
+                        "status": "error",
+                        "error": format!("Failed to read multipart body: {}", message)
+                    })),
+                )
+                    .into_response();
+            }
+        };
         let field_name = field.name().unwrap_or("unknown").to_string();
 
         if field_name == "run_id" {
@@ -986,7 +1003,8 @@ async fn upload_files(
                     return Json(json!({
                         "status": "error",
                         "error": format!("Failed to read run_id: {}", e)
-                    }));
+                    }))
+                    .into_response();
                 }
             }
         } else if field_name == "path" {
@@ -1000,7 +1018,8 @@ async fn upload_files(
                     return Json(json!({
                         "status": "error",
                         "error": format!("Failed to read path: {}", e)
-                    }));
+                    }))
+                    .into_response();
                 }
             }
         } else if field_name == "pre_run" {
@@ -1016,7 +1035,8 @@ async fn upload_files(
                         return Json(json!({
                             "status": "error",
                             "error": format!("Failed to parse pre_run JSON: {}", e)
-                        }));
+                        }))
+                        .into_response();
                     }
                 },
                 Err(e) => {
@@ -1024,7 +1044,8 @@ async fn upload_files(
                     return Json(json!({
                         "status": "error",
                         "error": format!("Failed to read pre_run: {}", e)
-                    }));
+                    }))
+                    .into_response();
                 }
             }
         } else if field_name == "post_run" {
@@ -1040,7 +1061,8 @@ async fn upload_files(
                         return Json(json!({
                             "status": "error",
                             "error": format!("Failed to parse post_run JSON: {}", e)
-                        }));
+                        }))
+                        .into_response();
                     }
                 },
                 Err(e) => {
@@ -1048,7 +1070,8 @@ async fn upload_files(
                     return Json(json!({
                         "status": "error",
                         "error": format!("Failed to read post_run: {}", e)
-                    }));
+                    }))
+                    .into_response();
                 }
             }
         }
@@ -1073,7 +1096,8 @@ async fn upload_files(
                     return Json(json!({
                         "status": "error",
                         "error": "File too large to store size in database"
-                    }));
+                    }))
+                    .into_response();
                 };
 
                 let mut hasher = Sha256::new();
@@ -1093,7 +1117,8 @@ async fn upload_files(
                     return Json(json!({
                         "status": "error",
                         "error": format!("Failed to create storage directory: {}", e)
-                    }));
+                    }))
+                    .into_response();
                 }
 
                 let file_storage_path = file_storage_dir.join(&hash);
@@ -1107,7 +1132,8 @@ async fn upload_files(
                         return Json(json!({
                             "status": "error",
                             "error": format!("Failed to write file: {}", e)
-                        }));
+                        }))
+                        .into_response();
                     }
                     info!("Saved new file: {}", storage_path_str);
                 }
@@ -1140,7 +1166,7 @@ async fn upload_files(
                             return Json(json!({
                                 "status": "error",
                                 "error": format!("Invalid file path '{}': {}", candidate_path, reason)
-                            }));
+                            })).into_response();
                         }
                     };
 
@@ -1173,7 +1199,8 @@ async fn upload_files(
                             return Json(json!({
                                 "status": "error",
                                 "error": format!("Failed to store file metadata: {}", e)
-                            }));
+                            }))
+                            .into_response();
                         }
                     }
                 }
@@ -1186,7 +1213,8 @@ async fn upload_files(
                 return Json(json!({
                     "status": "error",
                     "error": format!("Failed to read file: {}", e)
-                }));
+                }))
+                .into_response();
             }
         }
     }
@@ -1256,7 +1284,8 @@ async fn upload_files(
                         return Json(json!({
                             "status": "error",
                             "error": format!("Failed to store pre-run hook {}: {}", hook.meta.id, e)
-                        }));
+                        }))
+                        .into_response();
                     }
                 }
             }
@@ -1310,7 +1339,7 @@ async fn upload_files(
                         return Json(json!({
                             "status": "error",
                             "error": format!("Failed to store post-run hook {}: {}", hook.meta.id, e)
-                        }));
+                        })).into_response();
                     }
                 }
             }
@@ -1329,7 +1358,7 @@ async fn upload_files(
         pre_run_hooks: pre_run_count,
         post_run_hooks: post_run_count,
     };
-    json_response(response)
+    json_response(response).into_response()
 }
 
 async fn download_file(
