@@ -1414,31 +1414,74 @@ fn temp_blob_file_name(hash: &str, pid: u32, counter: u64) -> String {
     format!(".{hash}.{pid}-{counter}.tmp")
 }
 
-// Store `data` as `dir/hash` so that the hash path only ever holds complete
-// content: the data is written and synced to a unique temporary file in `dir`,
-// which is then renamed into place (atomic on the same filesystem). On failure
-// the temporary file is removed and nothing is created at the hash path.
-async fn write_blob_atomically(dir: &StdPath, hash: &str, data: &[u8]) -> std::io::Result<()> {
-    let temp_path = dir.join(temp_blob_file_name(
-        hash,
-        std::process::id(),
-        TEMP_BLOB_COUNTER.fetch_add(1, Ordering::Relaxed),
-    ));
-
-    let result = async {
-        let mut file = tokio::fs::OpenOptions::new()
+// Create a new temporary file for the blob `hash` in `dir`, named after `pid`
+// and the next value of `counter`. A name that is already taken is skipped and
+// never reused or removed: it belongs to a server in another PID namespace that
+// shares the storage, or was left behind by a crashed process whose PID and
+// counter this one repeats.
+async fn create_temp_blob_file(
+    dir: &StdPath,
+    hash: &str,
+    pid: u32,
+    counter: &AtomicU64,
+) -> std::io::Result<(PathBuf, tokio::fs::File)> {
+    loop {
+        let path = dir.join(temp_blob_file_name(
+            hash,
+            pid,
+            counter.fetch_add(1, Ordering::Relaxed),
+        ));
+        match tokio::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&temp_path)
-            .await?;
+            .open(&path)
+            .await
+        {
+            Ok(file) => return Ok((path, file)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+// Make the entries of `dir` durable. A renamed or newly created file survives
+// a crash only once its directory has been synced. Only Unix can open a
+// directory for syncing; elsewhere this does nothing.
+async fn sync_dir(dir: &StdPath) -> std::io::Result<()> {
+    if cfg!(unix) {
+        tokio::fs::File::open(dir).await?.sync_all().await
+    } else {
+        Ok(())
+    }
+}
+
+// Store `data` as `dir/hash` so that the hash path only ever holds complete
+// content: the data is written and synced to a unique temporary file in `dir`,
+// which is then renamed into place (atomic on the same filesystem). `dir` and
+// its parent are synced afterwards, so that the blob, and a `dir` created for
+// it, are durable before the caller records the blob in the database. On
+// failure the temporary file is removed and nothing is created at the hash
+// path.
+async fn write_blob_atomically(dir: &StdPath, hash: &str, data: &[u8]) -> std::io::Result<()> {
+    let (temp_path, mut file) =
+        create_temp_blob_file(dir, hash, std::process::id(), &TEMP_BLOB_COUNTER).await?;
+
+    let result = async {
         file.write_all(data).await?;
         file.flush().await?;
         file.sync_all().await?;
         drop(file);
-        tokio::fs::rename(&temp_path, dir.join(hash)).await
+        tokio::fs::rename(&temp_path, dir.join(hash)).await?;
+        sync_dir(dir).await?;
+        match dir.parent() {
+            Some(parent) => sync_dir(parent).await,
+            None => Ok(()),
+        }
     }
     .await;
 
+    // Only this call's own temporary file is removed; after a successful
+    // rename it no longer exists.
     if result.is_err()
         && let Err(e) = tokio::fs::remove_file(&temp_path).await
         && e.kind() != std::io::ErrorKind::NotFound
@@ -1526,10 +1569,11 @@ fn sanitize_relative_path(candidate: &str) -> Result<String, &'static str> {
 #[cfg(test)]
 mod tests {
     use super::{
-        content_disposition_inline, sanitize_relative_path, temp_blob_file_name,
-        write_blob_atomically,
+        content_disposition_inline, create_temp_blob_file, sanitize_relative_path,
+        temp_blob_file_name, write_blob_atomically,
     };
     use std::path::{Path, PathBuf};
+    use std::sync::atomic::AtomicU64;
 
     // A fresh, empty directory for one test, removed again by `cleanup`.
     fn test_dir(name: &str) -> PathBuf {
@@ -1560,6 +1604,23 @@ mod tests {
         assert_ne!(name, "abcd");
         assert_ne!(name, temp_blob_file_name("abcd", 42, 8));
         assert_ne!(name, temp_blob_file_name("abcd", 43, 7));
+    }
+
+    #[tokio::test]
+    async fn create_temp_blob_file_skips_a_name_that_is_taken() {
+        let dir = test_dir("blob-temp-taken");
+        let taken = dir.join(temp_blob_file_name("abcd", 42, 0));
+        std::fs::write(&taken, b"another writer").unwrap();
+
+        let counter = AtomicU64::new(0);
+        let (path, file) = create_temp_blob_file(&dir, "abcd", 42, &counter)
+            .await
+            .unwrap();
+        drop(file);
+
+        assert_eq!(path, dir.join(temp_blob_file_name("abcd", 42, 1)));
+        assert_eq!(std::fs::read(&taken).unwrap(), b"another writer");
+        cleanup(&dir);
     }
 
     #[tokio::test]
