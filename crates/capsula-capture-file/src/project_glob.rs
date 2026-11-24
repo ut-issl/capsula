@@ -47,6 +47,11 @@ pub enum FindFilesError {
     /// A directory that can contain a match cannot be read.
     #[error(transparent)]
     Read(#[from] GlobError),
+
+    /// A match is not beneath the project root, which `glob` should never
+    /// return.
+    #[error("Matched path '{}' is not beneath the project root", path.display())]
+    OutsideRoot { path: PathBuf },
 }
 
 /// A glob pattern relative to the project root.
@@ -115,7 +120,8 @@ impl ProjectGlob {
         ))
     }
 
-    /// Find the files under `project_root` that match the pattern.
+    /// Find the files under `project_root` that match the pattern, as paths
+    /// relative to `project_root`.
     ///
     /// Symbolic links are followed. Only directories that can contain a
     /// match are read.
@@ -131,11 +137,15 @@ impl ProjectGlob {
                 source,
             }
         })?;
-        Ok(paths
+        paths
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .filter(|path| path.is_file())
-            .collect())
+            .map(|path| {
+                let relative_path = path.strip_prefix(project_root).map(Path::to_path_buf);
+                relative_path.map_err(|_| FindFilesError::OutsideRoot { path })
+            })
+            .collect()
     }
 }
 
