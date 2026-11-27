@@ -17,6 +17,7 @@ license = "MIT OR Apache-2.0"
 anyhow = "1"
 askama = { version = "0.16", default-features = false, features = ["derive", "std"] }
 askama_web = { version = "0.16", features = ["axum-0.8"] }
+bytes = "1"
 axum = { version = "0.8", features = ["multipart"] }
 capsula-api-types = { path = "crates/capsula-api-types", version = "0.16.0" }
 capsula-capture-command = { path = "crates/capsula-capture-command", version = "0.16.0" }
@@ -39,10 +40,12 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 crossterm = "0.29"
 dotenvy = "0.15.7"
+futures = "0.3"
 git2 = "0.21"
 glob = "0.3"
 mime_guess = "2"
 names = { version = "0.14", default-features = false }
+object_store = { version = "0.14", features = ["aws"] }
 percent-encoding = "2.3.2"
 ratatui = "0.30"
 reqwest = { version = "0.13", features = ["blocking", "json", "multipart"] }
@@ -67,6 +70,7 @@ toml = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = { version = "3", features = ["serde"] }
+url = "2"
 wiremock = "0.6"
 yaml_serde = "0.10"
 
