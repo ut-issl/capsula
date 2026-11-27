@@ -9,6 +9,26 @@ services:
       - "${POSTGRES_PORT?Variable POSTGRES_PORT not set}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
+  # S3-compatible object storage for local development and tests.
+  # versitygw serves a directory as S3 buckets, so the bucket is created with
+  # `mkdir` before the gateway starts. Not for production use.
+  s3:
+    image: versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
+    entrypoint: ["sh", "-c", "mkdir -p \"/data/$$S3_BUCKET\" && exec versitygw posix /data"]
+    environment:
+      - ROOT_ACCESS_KEY=${AWS_ACCESS_KEY_ID?Variable AWS_ACCESS_KEY_ID not set}
+      - ROOT_SECRET_KEY=${AWS_SECRET_ACCESS_KEY?Variable AWS_SECRET_ACCESS_KEY not set}
+      - VGW_REGION=${AWS_REGION:-us-east-1}
+      - S3_BUCKET=${S3_BUCKET?Variable S3_BUCKET not set}
+    ports:
+      - "${S3_PORT?Variable S3_PORT not set}:7070"
+    volumes:
+      - s3_data:/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "7070"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
   app:
     build:
       context: .
@@ -18,13 +38,23 @@ services:
       - CAPSULA_PORT=8500
       - CAPSULA_MAX_BODY_SIZE=${CAPSULA_MAX_BODY_SIZE:-104857600}
       - DATABASE_URL=postgresql://${POSTGRES_USER?Variable POSTGRES_USER not set}:${POSTGRES_PASSWORD?Variable POSTGRES_PASSWORD not set}@postgres:5432/${POSTGRES_DB?Variable POSTGRES_DB not set}
+      - CAPSULA_STORAGE_URL=s3://${S3_BUCKET?Variable S3_BUCKET not set}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID?Variable AWS_ACCESS_KEY_ID not set}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY?Variable AWS_SECRET_ACCESS_KEY not set}
+      - AWS_ENDPOINT_URL=http://s3:7070
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ALLOW_HTTP=true
     ports:
       - "${CAPSULA_PORT?Variable CAPSULA_PORT not set}:8500"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_started
+      s3:
+        condition: service_healthy
     volumes:
       - app_data:/app/storage
 
 volumes:
   postgres_data:
+  s3_data:
   app_data:

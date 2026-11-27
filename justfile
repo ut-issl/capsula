@@ -37,14 +37,23 @@ coverage-lcov:
 coverage-clean:
     cargo llvm-cov clean --workspace
 
+# Start PostgreSQL and the S3-compatible object storage (bucket included)
+start-deps:
+    dotenvx run -f {{ envfile }} -- docker compose up postgres s3 --detach --wait
+
+# Stop every compose service
+stop-deps:
+    dotenvx run -f {{ envfile }} -- docker compose down
+
+# Start only PostgreSQL (enough for `just sqlx-prepare`)
 start-db:
     dotenvx run -f {{ envfile }} -- docker compose up postgres --detach
 
-stop-db:
-    dotenvx run -f {{ envfile }} -- docker compose down
+stop-db: stop-deps
 
+# Run the server against the compose services, loading `.env.server`
 serve $RUST_LOG="info":
-    cargo run -p capsula-server -- --database-url {{ database_url }}
+    dotenvx run -f {{ envfile }} -- cargo run -p capsula-server -- --database-url {{ database_url }}
 
 [working-directory('crates/capsula-server')]
 sqlx-prepare:

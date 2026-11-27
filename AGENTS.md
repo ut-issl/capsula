@@ -63,7 +63,7 @@ just start-db
 just sqlx-prepare
 ```
 
-`just start-db`, `just stop-db`, `just serve`, and the SQLx recipe use `.env.server` and require `dotenvx` plus Docker/PostgreSQL as appropriate. `just serve` runs the server on its default port.
+The `just` recipes that touch the server read `.env.server`, which is ignored by Git; create it with `cp .env.server.example .env.server`. They require `dotenvx` and Docker. `just start-deps` starts PostgreSQL and the S3-compatible object storage (`s3` service in `compose.yaml`, a versitygw instance with the bucket pre-created), `just start-db` starts only PostgreSQL, `just stop-deps` stops everything, and `just serve` runs the server on its default port with the variables from `.env.server`.
 
 ## CLI Commands and Configuration
 
