@@ -9,11 +9,15 @@
 //! Errors are returned as [`sqlx::Error`]; use [`is_unique_violation`] to
 //! recognize duplicate keys (for example a run pushed twice).
 
+pub mod audit;
 pub mod captured_files;
+pub mod invitations;
 pub mod memberships;
 pub mod orgs;
 pub mod run_outputs;
 pub mod runs;
+pub mod ssh_keys;
+pub mod tokens;
 pub mod users;
 pub mod vaults;
 

@@ -1,0 +1,117 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO invitations (id, org_id, created_by, code_hash, expires_at, max_uses)\n        VALUES ($1, $2, $3, $4, $5, $6)\n        RETURNING id, org_id, created_by, expires_at, max_uses, uses, revoked_at, created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "invitations",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "invitations",
+            "name": "org_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_by",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "invitations",
+            "name": "created_by"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "invitations",
+            "name": "expires_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "max_uses",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "invitations",
+            "name": "max_uses"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "uses",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "invitations",
+            "name": "uses"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "revoked_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "invitations",
+            "name": "revoked_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "invitations",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Timestamptz",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "ab097bd47275a8b92ce55631bdf91dc55fea5dbb01394f1ea9f571a7cbdb788e"
+}
