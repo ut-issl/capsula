@@ -165,6 +165,7 @@ In `oidc` mode `--public-url` and at least one identity provider (all three `CAP
 ### Configuration Examples
 
 **Using CLI flags only:**
+
 ```bash
 capsula-server \
   --host 0.0.0.0 \
@@ -177,6 +178,7 @@ capsula-server \
 ```
 
 **Using environment variables only:**
+
 ```bash
 export DATABASE_URL="postgresql://localhost/capsula"
 export CAPSULA_STORAGE_URL="s3://capsula-runs"
@@ -189,6 +191,7 @@ capsula-server
 ```
 
 **Mixed (CLI overrides environment):**
+
 ```bash
 export DATABASE_URL="postgresql://localhost/capsula"
 export CAPSULA_STORAGE_URL="file:///tmp/capsula-storage"
