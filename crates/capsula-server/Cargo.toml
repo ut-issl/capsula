@@ -14,11 +14,14 @@ categories = ["web-programming::http-server"]
 askama = { workspace = true }
 askama_web = { workspace = true }
 axum = { workspace = true }
+bytes = { workspace = true }
 capsula-api-types = { workspace = true }
 capsula-core = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
+futures = { workspace = true }
 mime_guess = { workspace = true }
+object_store = { workspace = true }
 percent-encoding = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -31,9 +34,11 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
 reqwest = { workspace = true }
+tempfile = { workspace = true }
 testcontainers-modules = { workspace = true }
 
 [lints]

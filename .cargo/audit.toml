@@ -17,4 +17,9 @@ ignore = [
   # directly for timestamps. Remove this entry once `chrono` is maintained again
   # or Capsula has moved off it.
   "RUSTSEC-2026-0543",
+  # `humantime` is unmaintained, with no fixed version. It is pulled in by
+  # `object_store`, which uses it to parse duration strings in its client
+  # configuration; Capsula never passes such strings. Remove this entry once
+  # `object_store` drops the dependency.
+  "RUSTSEC-2026-0542",
 ]

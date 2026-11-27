@@ -168,6 +168,19 @@ export CAPSULA_PORT="8080"
 capsula-server --port 9000  # Will use port 9000, not 8080
 ```
 
+## Object Storage
+
+Captured files are stored in an object store through the [`object_store`](https://docs.rs/object_store) crate. The backend is selected by a URL (`CAPSULA_STORAGE_URL` once the server configuration lands in the SaaS MVP work; see `src/storage.rs`):
+
+| URL | Backend | Use |
+|-----|---------|-----|
+| `s3://bucket` or `s3://bucket/prefix` | Any S3-compatible service (AWS S3, Cloudflare R2, Google Cloud Storage in S3 mode, versitygw, ...) | Production |
+| `file:///absolute/path` | A local directory, created if missing | Development and tests only; not supported in production |
+
+S3 settings come from the standard AWS SDK environment variables, read by `object_store`: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_ENDPOINT_URL`, and `AWS_ALLOW_HTTP` (set to `true` only for local plain-HTTP endpoints). When no static credentials are set, the instance metadata service (IAM roles) and web identity tokens (`AWS_WEB_IDENTITY_TOKEN_FILE`) are used. Profile files under `~/.aws/` are not read.
+
+Objects are addressed by keys such as `{org_id}/sha256/{hash}`; a `s3://bucket/prefix` URL prepends `prefix/` to every key.
+
 ## API Endpoints
 
 ### Runs

@@ -81,6 +81,7 @@ pub struct AppState {
 
 mod models;
 mod query;
+pub mod storage;
 
 #[derive(Template, WebTemplate)]
 #[template(path = "index.html")]
