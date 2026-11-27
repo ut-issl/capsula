@@ -18,6 +18,7 @@ use serde_json::json;
 use sqlx::PgPool;
 
 pub mod config;
+pub mod db;
 pub mod paths;
 pub mod storage;
 
