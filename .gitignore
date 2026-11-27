@@ -28,6 +28,8 @@ lcov.info
 # dotenvx
 .env.keys
 .env
+# Local copy of .env.server.example
+.env.server
 
 # Generated Amp orb portal state
 .amp/portals/

@@ -56,22 +56,31 @@ cargo run -p capsula-server -- \
 
 The server will start on `http://127.0.0.1:8500` by default.
 
-### Using Docker
+### Local development with Docker Compose
+
+`compose.yaml` at the repository root defines the services the server depends on:
+
+- `postgres`: PostgreSQL.
+- `s3`: an S3-compatible object storage ([versitygw](https://github.com/versity/versitygw)) serving a Docker volume. The bucket named by `S3_BUCKET` is created when the service starts. This service is for development and tests only; use a managed S3-compatible service in production.
+- `app`: the server itself, built from `Dockerfile`.
+
+The `just` recipes read their settings from `.env.server`, which is ignored by Git:
 
 ```bash
-# Start PostgreSQL with Docker
-docker run -d \
-  --name capsula-postgres \
-  -e POSTGRES_DB=capsula \
-  -e POSTGRES_PASSWORD=password \
-  -p 5432:5432 \
-  postgres:16
+cp .env.server.example .env.server   # adjust ports and credentials if needed
+just start-deps                      # PostgreSQL + object storage, waits until healthy
+just serve                           # cargo run -p capsula-server with .env.server loaded
+just stop-deps                       # stop every compose service
+```
 
-# Run the server
-cargo run -p capsula-server -- \
-  --host 0.0.0.0 \
-  --port 8500 \
-  --database-url "postgresql://postgres:password@localhost:5432/capsula"
+`just start-deps` requires [`dotenvx`](https://dotenvx.com/) and Docker. The object storage listens on `S3_PORT` (default `7070`) and accepts the credentials from `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`; `.env.server.example` points `AWS_ENDPOINT_URL` at it and sets `AWS_ALLOW_HTTP=true`, which is only acceptable locally.
+
+Without `just`, the same can be done with Docker Compose directly:
+
+```bash
+docker compose --env-file .env.server up postgres s3 --detach --wait
+dotenvx run -f .env.server -- cargo run -p capsula-server -- \
+  --database-url "postgresql://capsula:capsula_dev@localhost:5432/capsula"
 ```
 
 ## Command Line Options
