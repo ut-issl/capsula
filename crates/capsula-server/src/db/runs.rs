@@ -570,7 +570,7 @@ mod tests {
 
         for (run_id, sha, env_value) in [
             ("01OK", "abc123", "production"),
-            ("01FAIL", "abd999", "staging"),
+            ("01FAIL", "a1b999", "staging"),
         ] {
             run_outputs::upsert(
                 pool,
