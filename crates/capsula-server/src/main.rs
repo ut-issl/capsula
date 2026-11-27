@@ -1,62 +1,47 @@
-use capsula_server::{build_app, create_pool};
+use capsula_server::config::{AuthMode, Config};
+use capsula_server::{build_app, create_pool, migrator};
 use clap::Parser;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
-/// Web server for managing and viewing Capsula runs
-#[derive(Parser, Debug)]
-#[command(name = "capsula-server", version, about)]
-struct Args {
-    /// Host to bind to
-    #[arg(short = 'H', long, env = "CAPSULA_HOST", default_value = "127.0.0.1")]
-    host: String,
-
-    /// Port to bind to
-    #[arg(short, long, env = "CAPSULA_PORT", default_value = "8500")]
-    port: u16,
-
-    /// PostgreSQL connection string
-    #[arg(short, long, env = "DATABASE_URL")]
-    database_url: String,
-
-    /// Storage directory for captured files
-    #[arg(short, long, env = "STORAGE_PATH", default_value = "./storage")]
-    storage_path: String,
-
-    /// Maximum database connections
-    #[arg(long, env = "CAPSULA_MAX_CONNECTIONS", default_value = "5")]
-    max_connections: u32,
-
-    /// Log level (error, warn, info, debug, trace)
-    #[arg(short, long, env = "RUST_LOG", default_value = "info")]
-    log_level: String,
-
-    /// Maximum body size for uploads in bytes (default: 100MB)
-    #[arg(long, env = "CAPSULA_MAX_BODY_SIZE", default_value = "104857600")]
-    max_body_size: usize,
-}
-
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
+    let config = Config::parse();
 
     // Initialize logging with configured level
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
-        .with_env_filter(EnvFilter::new(&args.log_level))
+        .with_env_filter(EnvFilter::new(&config.log_level))
         .init();
 
+    if let Err(e) = config.validate() {
+        error!("Invalid configuration: {e}");
+        std::process::exit(2);
+    }
+
     info!("Starting Capsula Server");
-    info!("Host: {}", args.host);
-    info!("Port: {}", args.port);
-    info!("Storage path: {}", args.storage_path);
-    info!("Max database connections: {}", args.max_connections);
-    info!("Max body size: {} bytes", args.max_body_size);
-    info!("Log level: {}", args.log_level);
+    info!("Host: {}", config.host);
+    info!("Port: {}", config.port);
+    if let Some(public_url) = &config.public_url {
+        info!("Public URL: {public_url}");
+    }
+    info!("Storage URL: {}", config.storage_url);
+    info!("Auth mode: {}", config.auth_mode);
+    info!("Max database connections: {}", config.max_connections);
+    info!("Max body size: {} bytes", config.max_body_size);
+    info!("Log level: {}", config.log_level);
+
+    if config.auth_mode == AuthMode::Oidc {
+        // Authentication is added by the SaaS MVP work (ut-issl/capsula#1356).
+        // Refuse to start rather than serve an unauthenticated server that
+        // the operator believes to be protected.
+        error!("--auth-mode oidc is not implemented yet; only `dev` is available for now");
+        std::process::exit(2);
+    }
 
     info!("Connecting to database...");
 
-    let pool = match create_pool(&args.database_url, args.max_connections).await {
+    let pool = match create_pool(config.database_url.expose(), config.max_connections).await {
         Ok(pool) => {
             info!("Database connection established");
             pool
@@ -76,7 +61,7 @@ async fn main() {
 
     // Run database migrations
     info!("Running database migrations...");
-    if let Err(e) = capsula_server::migrator().run(&pool).await {
+    if let Err(e) = migrator().run(&pool).await {
         error!("Failed to run migrations: {}", e);
         std::process::exit(1);
     }
@@ -84,7 +69,7 @@ async fn main() {
 
     let app = build_app(pool);
 
-    let bind_addr = format!("{}:{}", args.host, args.port);
+    let bind_addr = config.bind_addr();
     let listener = match tokio::net::TcpListener::bind(&bind_addr).await {
         Ok(listener) => listener,
         Err(e) => {
@@ -92,12 +77,12 @@ async fn main() {
             if e.kind() == std::io::ErrorKind::AddrInUse {
                 error!(
                     "Port {} is already in use. Try a different port with --port <PORT>",
-                    args.port
+                    config.port
                 );
             } else if e.kind() == std::io::ErrorKind::AddrNotAvailable {
                 error!(
                     "Cannot bind to host {}. Try --host 0.0.0.0 or --host 127.0.0.1",
-                    args.host
+                    config.host
                 );
             } else {
                 error!("Check your network configuration and try again");

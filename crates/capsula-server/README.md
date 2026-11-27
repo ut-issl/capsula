@@ -28,33 +28,35 @@ createdb capsula
 
 ## Running the Server
 
+Three settings are required: the database (`DATABASE_URL`), the object storage (`CAPSULA_STORAGE_URL`, see [Object Storage](#object-storage)) and the authentication mode (`CAPSULA_AUTH_MODE`). Everything else has a default.
+
 ### From Source
 
 ```bash
-# Basic usage with database URL
-cargo run -p capsula-server -- --database-url "postgresql://localhost/capsula"
+# Development: no authentication, files in a local directory
+cargo run -p capsula-server -- \
+  --database-url "postgresql://localhost/capsula" \
+  --storage-url "file:///tmp/capsula-storage" \
+  --auth-mode dev
 
-# Or use environment variable
+# Or use environment variables
 export DATABASE_URL="postgresql://localhost/capsula"
+export CAPSULA_STORAGE_URL="file:///tmp/capsula-storage"
+export CAPSULA_AUTH_MODE=dev
 cargo run -p capsula-server
 
 # Custom host and port
 cargo run -p capsula-server -- \
   --host 0.0.0.0 \
   --port 8080 \
-  --database-url "postgresql://localhost/capsula"
-
-# All options
-cargo run -p capsula-server -- \
-  --host 0.0.0.0 \
-  --port 8080 \
   --database-url "postgresql://localhost/capsula" \
-  --storage-path /var/lib/capsula/storage \
-  --max-connections 10 \
-  --log-level debug
+  --storage-url "s3://capsula-runs" \
+  --auth-mode dev
 ```
 
 The server will start on `http://127.0.0.1:8500` by default.
+
+`--auth-mode dev` disables authentication: every caller acts as the owner of the `local` organization. Use it only on a loopback address. `--auth-mode oidc` (browser login with Google and/or GitHub, Bearer tokens for the API) is not available yet; the server refuses to start with it until the authentication work of [ut-issl/capsula#1352](https://github.com/ut-issl/capsula/issues/1352) lands.
 
 ### Local development with Docker Compose
 
@@ -85,32 +87,48 @@ dotenvx run -f .env.server -- cargo run -p capsula-server -- \
 
 ## Command Line Options
 
-You can view all available options with `--help`:
+You can view all available options with `--help` (`-h` for the short form):
 
 ```bash
-cargo run -p capsula-server -- --help
+cargo run -p capsula-server -- -h
 ```
 
 ```
 Web server for managing and viewing Capsula runs
 
-Usage: capsula-server [OPTIONS] --database-url <DATABASE_URL>
+Usage: capsula-server [OPTIONS] --database-url <DATABASE_URL> --storage-url <STORAGE_URL> --auth-mode <AUTH_MODE>
 
 Options:
   -H, --host <HOST>
           Host to bind to [env: CAPSULA_HOST=] [default: 127.0.0.1]
   -p, --port <PORT>
           Port to bind to [env: CAPSULA_PORT=] [default: 8500]
+      --public-url <PUBLIC_URL>
+          Public base URL of this server, used for OAuth callbacks and absolute links (for example `https://capsula.example.com`). Required with `--auth-mode oidc` [env: CAPSULA_PUBLIC_URL=]
   -d, --database-url <DATABASE_URL>
           PostgreSQL connection string [env: DATABASE_URL=]
-  -s, --storage-path <STORAGE_PATH>
-          Storage directory for captured files [env: STORAGE_PATH=] [default: ./storage]
       --max-connections <MAX_CONNECTIONS>
           Maximum database connections [env: CAPSULA_MAX_CONNECTIONS=] [default: 5]
+      --storage-url <STORAGE_URL>
+          Object storage for captured files: `s3://bucket[/prefix]` (settings from the `AWS_*` environment variables) or `file:///path` (development and tests only) [env: CAPSULA_STORAGE_URL=]
+      --auth-mode <AUTH_MODE>
+          How callers are authenticated [env: CAPSULA_AUTH_MODE=] [possible values: dev, oidc]
+      --oidc-issuer-url <OIDC_ISSUER_URL>
+          OIDC issuer URL for browser login (for example `https://accounts.google.com`) [env: CAPSULA_OIDC_ISSUER_URL=]
+      --oidc-client-id <OIDC_CLIENT_ID>
+          OIDC client id [env: CAPSULA_OIDC_CLIENT_ID=]
+      --oidc-client-secret <OIDC_CLIENT_SECRET>
+          OIDC client secret [env: CAPSULA_OIDC_CLIENT_SECRET]
+      --github-client-id <GITHUB_CLIENT_ID>
+          GitHub OAuth App client id [env: CAPSULA_GITHUB_CLIENT_ID=]
+      --github-client-secret <GITHUB_CLIENT_SECRET>
+          GitHub OAuth App client secret [env: CAPSULA_GITHUB_CLIENT_SECRET]
   -l, --log-level <LOG_LEVEL>
           Log level (error, warn, info, debug, trace) [env: RUST_LOG=] [default: info]
+      --max-body-size <MAX_BODY_SIZE>
+          Maximum body size for uploads in bytes (default: 100MB) [env: CAPSULA_MAX_BODY_SIZE=] [default: 104857600]
   -h, --help
-          Print help
+          Print help (see more with '--help')
   -V, --version
           Print version
 ```
@@ -127,11 +145,22 @@ The server can be configured via **command-line flags** or **environment variabl
 |----------|-------|---------------------|---------|-------------|
 | `--host` | `-H` | `CAPSULA_HOST` | `127.0.0.1` | Host to bind to |
 | `--port` | `-p` | `CAPSULA_PORT` | `8500` | Port to bind to |
+| `--public-url` | | `CAPSULA_PUBLIC_URL` | (none) | Public base URL of the server (`https://capsula.example.com`), used for OAuth callbacks and absolute links. Required with `--auth-mode oidc` |
 | `--database-url` | `-d` | `DATABASE_URL` | (required) | PostgreSQL connection string |
-| `--storage-path` | `-s` | `STORAGE_PATH` | `./storage` | Directory for file storage |
 | `--max-connections` | | `CAPSULA_MAX_CONNECTIONS` | `5` | Database connection pool size |
+| `--storage-url` | | `CAPSULA_STORAGE_URL` | (required) | Object storage: `s3://bucket[/prefix]` or `file:///path` (development and tests only). See [Object Storage](#object-storage) |
+| `--auth-mode` | | `CAPSULA_AUTH_MODE` | (required) | `dev` (no authentication, loopback only) or `oidc` (browser login + Bearer tokens; not available yet) |
+| `--oidc-issuer-url` | | `CAPSULA_OIDC_ISSUER_URL` | (none) | OIDC issuer for browser login, for example `https://accounts.google.com`. Set together with the OIDC client id and secret |
+| `--oidc-client-id` | | `CAPSULA_OIDC_CLIENT_ID` | (none) | OIDC client id |
+| `--oidc-client-secret` | | `CAPSULA_OIDC_CLIENT_SECRET` | (none) | OIDC client secret |
+| `--github-client-id` | | `CAPSULA_GITHUB_CLIENT_ID` | (none) | GitHub OAuth App client id. Set together with the secret |
+| `--github-client-secret` | | `CAPSULA_GITHUB_CLIENT_SECRET` | (none) | GitHub OAuth App client secret |
 | `--log-level` | `-l` | `RUST_LOG` | `info` | Logging level |
 | `--max-body-size` | | `CAPSULA_MAX_BODY_SIZE` | `104857600` | Maximum upload body size in bytes (default: 100MB) |
+
+S3 credentials, region and endpoint are not server options: they come from the standard `AWS_*` environment variables (see [Object Storage](#object-storage)).
+
+In `oidc` mode `--public-url` and at least one identity provider (all three `CAPSULA_OIDC_*` variables, or both `CAPSULA_GITHUB_*` variables) are required. A partially configured provider is rejected in every mode. Secrets are never printed; the `Debug` output of the configuration redacts them.
 
 ### Configuration Examples
 
@@ -142,7 +171,8 @@ capsula-server \
   --host 0.0.0.0 \
   --port 8080 \
   --database-url "postgresql://localhost/capsula" \
-  --storage-path /data/storage \
+  --storage-url "s3://capsula-runs" \
+  --auth-mode dev \
   --log-level debug \
   --max-body-size 209715200  # 200MB
 ```
@@ -151,9 +181,10 @@ capsula-server \
 
 ```bash
 export DATABASE_URL="postgresql://localhost/capsula"
+export CAPSULA_STORAGE_URL="s3://capsula-runs"
+export CAPSULA_AUTH_MODE="dev"
 export CAPSULA_HOST="0.0.0.0"
 export CAPSULA_PORT="8080"
-export STORAGE_PATH="/data/storage"
 export RUST_LOG="debug"
 export CAPSULA_MAX_BODY_SIZE="209715200"  # 200MB
 capsula-server
@@ -163,6 +194,8 @@ capsula-server
 
 ```bash
 export DATABASE_URL="postgresql://localhost/capsula"
+export CAPSULA_STORAGE_URL="file:///tmp/capsula-storage"
+export CAPSULA_AUTH_MODE="dev"
 export CAPSULA_PORT="8080"
 # Override port with CLI flag
 capsula-server --port 9000  # Will use port 9000, not 8080
@@ -170,7 +203,7 @@ capsula-server --port 9000  # Will use port 9000, not 8080
 
 ## Object Storage
 
-Captured files are stored in an object store through the [`object_store`](https://docs.rs/object_store) crate. The backend is selected by a URL (`CAPSULA_STORAGE_URL` once the server configuration lands in the SaaS MVP work; see `src/storage.rs`):
+Captured files are stored in an object store through the [`object_store`](https://docs.rs/object_store) crate. The backend is selected by the `CAPSULA_STORAGE_URL` / `--storage-url` setting:
 
 | URL | Backend | Use |
 |-----|---------|-----|
@@ -263,9 +296,9 @@ If you see connection errors:
 If port 8500 is already in use, set a different port:
 
 ```bash
-capsula-server --port 8080 --database-url "postgresql://localhost/capsula"
+capsula-server --port 8080
 # Or with environment variable
-CAPSULA_PORT=8080 capsula-server --database-url "postgresql://localhost/capsula"
+CAPSULA_PORT=8080 capsula-server
 ```
 
 ### Migration Errors

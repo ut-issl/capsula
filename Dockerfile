@@ -35,16 +35,11 @@ COPY --from=builder /usr/src/capsula-workspace/crates/capsula-server/templates /
 # Copy migrations
 COPY --from=builder /usr/src/capsula-workspace/crates/capsula-server/migrations /app/migrations
 
-# Create storage directory with correct ownership
-RUN mkdir -p /app/storage && chown capsula:capsula /app/storage
-
 # Set working directory
 WORKDIR /app
 
 # Switch to non-root user
 USER capsula
-
-ENV CAPSULA_STORAGE_PATH=/app/storage
 
 # Run the server
 CMD ["capsula-server"]

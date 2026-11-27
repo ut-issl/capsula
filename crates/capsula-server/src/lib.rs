@@ -17,6 +17,7 @@ use axum::{
 use serde_json::json;
 use sqlx::PgPool;
 
+pub mod config;
 pub mod paths;
 pub mod storage;
 
