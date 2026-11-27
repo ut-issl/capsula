@@ -1,5 +1,6 @@
 use capsula_server::config::{AuthMode, Config};
-use capsula_server::{build_app, create_pool, migrator};
+use capsula_server::storage::Storage;
+use capsula_server::{AppState, build_app, create_pool, migrator};
 use clap::Parser;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -39,6 +40,14 @@ async fn main() {
         std::process::exit(2);
     }
 
+    let storage = match Storage::from_url(&config.storage_url) {
+        Ok(storage) => storage,
+        Err(e) => {
+            error!("Failed to open object storage: {e}");
+            std::process::exit(1);
+        }
+    };
+
     info!("Connecting to database...");
 
     let pool = match create_pool(config.database_url.expose(), config.max_connections).await {
@@ -67,9 +76,11 @@ async fn main() {
     }
     info!("Database migrations completed");
 
-    let app = build_app(pool);
-
+    let state = AppState::new(pool, storage, config);
+    let config = std::sync::Arc::clone(&state.config);
     let bind_addr = config.bind_addr();
+    let app = build_app(state);
+
     let listener = match tokio::net::TcpListener::bind(&bind_addr).await {
         Ok(listener) => listener,
         Err(e) => {
