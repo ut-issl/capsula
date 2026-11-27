@@ -9,22 +9,41 @@ use askama::Template;
 use askama_web::WebTemplate;
 use axum::{
     Router,
-    extract::State,
+    extract::{DefaultBodyLimit, State},
     http::{StatusCode, header},
     response::{IntoResponse, Json},
     routing::get,
 };
 use serde_json::json;
 use sqlx::PgPool;
+use std::sync::Arc;
 
 pub mod config;
 pub mod db;
 pub mod paths;
 pub mod storage;
 
+use config::Config;
+use storage::Storage;
+
+/// Everything the handlers need. Cheap to clone; clones share the pool, the
+/// storage backend and the configuration.
 #[derive(Clone)]
 pub struct AppState {
-    pool: PgPool,
+    pub pool: PgPool,
+    pub storage: Storage,
+    pub config: Arc<Config>,
+}
+
+impl AppState {
+    #[must_use]
+    pub fn new(pool: PgPool, storage: Storage, config: Config) -> Self {
+        Self {
+            pool,
+            storage,
+            config: Arc::new(config),
+        }
+    }
 }
 
 #[derive(Template, WebTemplate)]
@@ -53,14 +72,16 @@ pub fn migrator() -> sqlx::migrate::Migrator {
     sqlx::migrate!("./migrations")
 }
 
-pub fn build_app(pool: PgPool) -> Router {
-    let state = AppState { pool };
+/// Compose the router. Routers of the individual resources are nested here.
+pub fn build_app(state: AppState) -> Router {
+    let max_body_size = state.config.max_body_size;
 
     Router::new()
         .route("/", get(index))
         .route("/health", get(health_check))
         .route("/static/style.css", get(serve_style_css))
         .fallback(not_found)
+        .layer(DefaultBodyLimit::max(max_body_size))
         .with_state(state)
 }
 

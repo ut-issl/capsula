@@ -1,7 +1,10 @@
 //! The server starts on an empty database and creates every table.
 #![cfg(test)]
 
-use capsula_server::{build_app, create_pool, migrator};
+use capsula_server::config::Config;
+use capsula_server::storage::Storage;
+use capsula_server::{AppState, build_app, create_pool, migrator};
+use clap::Parser;
 use testcontainers_modules::{
     postgres::Postgres,
     testcontainers::{ImageExt, runners::AsyncRunner},
@@ -59,7 +62,20 @@ async fn migrations_create_every_table_and_the_server_starts() {
     // Running the migrator again is a no-op.
     migrator().run(&pool).await.unwrap();
 
-    let app = build_app(pool);
+    let storage_dir = tempfile::tempdir().unwrap();
+    let storage_url = url::Url::from_directory_path(storage_dir.path()).unwrap();
+    let config = Config::try_parse_from([
+        "capsula-server",
+        "--database-url",
+        &database_url,
+        "--storage-url",
+        storage_url.as_str(),
+        "--auth-mode",
+        "dev",
+    ])
+    .unwrap();
+    let storage = Storage::from_url(&config.storage_url).unwrap();
+    let app = build_app(AppState::new(pool, storage, config));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
