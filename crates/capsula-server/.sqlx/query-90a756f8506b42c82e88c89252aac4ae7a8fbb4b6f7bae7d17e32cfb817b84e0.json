@@ -1,0 +1,169 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO run_outputs (\n            org_id, run_id, phase, hook_index, hook_id, output, config,\n            success, error, failure_reason\n        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        ON CONFLICT (org_id, run_id, phase, hook_index) DO UPDATE\n        SET hook_id = EXCLUDED.hook_id,\n            output = EXCLUDED.output,\n            config = EXCLUDED.config,\n            success = EXCLUDED.success,\n            error = EXCLUDED.error,\n            failure_reason = EXCLUDED.failure_reason\n        RETURNING id, org_id, run_id, phase, hook_index, hook_id, output, config,\n                  success, error, failure_reason, created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "org_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "org_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "run_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "run_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "phase",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "phase"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "hook_index",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "hook_index"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "hook_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "hook_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "output",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "output"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "config",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "config"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "success",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "success"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "error",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "error"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "failure_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "failure_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "run_outputs",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Bool",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "90a756f8506b42c82e88c89252aac4ae7a8fbb4b6f7bae7d17e32cfb817b84e0"
+}
