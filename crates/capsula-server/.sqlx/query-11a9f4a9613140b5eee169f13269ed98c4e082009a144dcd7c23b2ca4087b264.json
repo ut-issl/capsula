@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM run_outputs WHERE org_id = $1 AND run_id = $2 AND phase = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "11a9f4a9613140b5eee169f13269ed98c4e082009a144dcd7c23b2ca4087b264"
+}
