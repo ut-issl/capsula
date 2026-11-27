@@ -76,14 +76,13 @@ async fn main() {
 
     // Run database migrations
     info!("Running database migrations...");
-    let migrations = sqlx::migrate!("./migrations");
-    if let Err(e) = migrations.run(&pool).await {
+    if let Err(e) = capsula_server::migrator().run(&pool).await {
         error!("Failed to run migrations: {}", e);
         std::process::exit(1);
     }
     info!("Database migrations completed");
 
-    let app = build_app(pool, args.storage_path.into(), args.max_body_size);
+    let app = build_app(pool);
 
     let bind_addr = format!("{}:{}", args.host, args.port);
     let listener = match tokio::net::TcpListener::bind(&bind_addr).await {

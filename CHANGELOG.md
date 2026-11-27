@@ -5,6 +5,16 @@ Add a `## v<version>` section before running the release workflow (see `RELEASIN
 The `rs-v*` sections are the early releases of the Rust rewrite.
 Releases of the earlier Python implementation (v0.8.0 and before) are listed on [GitHub Releases](https://github.com/ut-issl/capsula/releases).
 
+## Unreleased
+
+### Breaking changes
+
+#### capsula-server: new multi-tenant baseline schema, API v1 removed
+
+The server is being rewritten as a multi-tenant service (organizations, vaults, runs; see <https://github.com/ut-issl/capsula/issues/1352>). The previous migrations are squashed into a single baseline, `migrations/0001_baseline.sql`, and **existing server databases are not migrated**: drop and recreate the database, then refill it with `capsula push --all` from the local `.capsula/` directories. The single-tenant API v1 (`/api/v1/*`) and the `/vaults` and `/runs` pages are removed; the resource-oriented API v2 replaces them in later changes.
+
+Captured files are stored in S3-compatible object storage through the `object_store` crate (`file://` for development and tests only). Local development uses `compose.yaml` with PostgreSQL and a versitygw object storage service (`just start-deps`); `.env.server` is no longer tracked, copy `.env.server.example` instead.
+
 ## v0.16.0
 
 This release makes hook failures stop the run instead of being recorded and ignored, ships prebuilt `capsula` binaries for the first time, and fixes a bug that recorded rejected Slack notifications as sent.

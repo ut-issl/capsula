@@ -181,106 +181,29 @@ S3 settings come from the standard AWS SDK environment variables, read by `objec
 
 Captured files are stored content-addressed per organization under the key `{org_id}/sha256/{hash[0..2]}/{hash[2..4]}/{hash}`, where `hash` is the lowercase hex SHA-256 of the content. Identical content uploaded by two organizations is stored twice: deduplication never crosses an organization. A `s3://bucket/prefix` URL prepends `prefix/` to every key.
 
-## API Endpoints
+## API
 
-### Runs
+The single-tenant API v1 (`/api/v1/*`) and the `/vaults` and `/runs` pages have been removed together with their schema. The resource-oriented API v2 (`/api/v2/orgs/{org}/...`) and the `/o/{org}/...` web UI are added resource by resource; the design is tracked in [ut-issl/capsula#1352](https://github.com/ut-issl/capsula/issues/1352). Until then the server serves:
 
-- `GET /api/v1/runs` - List all runs
-  - Query params: `vault`, `limit`, `offset`
-- `POST /api/v1/runs` - Create a new run
-- `GET /api/v1/runs/{id}` - Get run details
-- `GET /api/v1/runs/{id}/files/{path}` - Download captured file
-- `POST /api/v1/upload` - Upload files and hook outputs for a run
-
-### Vaults
-
-- `GET /api/v1/vaults` - List all vaults
-- `GET /api/v1/vaults/{name}` - Get vault info
-
-### Health Check
-
-- `GET /health` - Health check endpoint
-
-## Web UI
-
-- `/` - Home page
-- `/vaults` - List all vaults
-- `/runs` - List all runs
-  - Query params: `vault`, `page`
-- `/runs/{id}` - View run details
-
-## CLI Integration
-
-Configure the Capsula CLI to push runs to the server:
-
-1. Add server URL to `capsula.toml`:
-
-```toml
-[vault]
-name = "my-project"
-
-server = "http://localhost:8500"
-```
-
-2. Or use environment variable:
-
-```bash
-export CAPSULA_SERVER_URL="http://localhost:8500"
-```
-
-3. Push a run:
-
-```bash
-# By run ID
-capsula push 01HQXYZ...
-
-# By run name
-capsula push chubby-back
-```
-
-4. List vaults on the server:
-
-```bash
-capsula vaults list
-```
+- `GET /health` - Health check (database connectivity)
+- `GET /` - Placeholder home page
 
 ## Database Schema
 
-### Runs Table
+The schema is a single baseline migration, `migrations/0001_baseline.sql`. Databases created by earlier versions are not migrated: drop and recreate the database, then refill it with `capsula push --all` from the local `.capsula/` directories.
 
-Stores metadata about each run:
+| Table | Purpose |
+|-------|---------|
+| `users`, `identities` | Accounts and the Google / GitHub identities linked to them |
+| `organizations`, `memberships`, `invitations` | Labs and personal spaces, who belongs to them with which role, invitation links |
+| `ssh_keys`, `auth_challenges`, `api_tokens`, `sessions` | Credentials: registered SSH public keys, login nonces, Bearer tokens, browser sessions |
+| `vaults` | Projects within an organization (`UNIQUE (org_id, name)`) |
+| `runs` | Run metadata; primary key `(org_id, id)` |
+| `run_outputs` | Pre/post hook outputs of a run (`UNIQUE (org_id, run_id, phase, hook_index)`) |
+| `captured_files` | Captured files of a run; the content lives in object storage under `storage_key` |
+| `audit_logs` | Who did what in which organization |
 
-- `id` (TEXT, PRIMARY KEY): ULID identifier
-- `name` (TEXT): Human-readable name
-- `timestamp` (TIMESTAMPTZ): When the run occurred
-- `command` (TEXT): Command that was executed
-- `vault` (TEXT): Vault name
-- `project_root` (TEXT): Project root directory
-- `exit_code` (INTEGER): Exit code of the command
-- `duration_ms` (INTEGER): Duration in milliseconds
-- `stdout` (TEXT): Standard output
-- `stderr` (TEXT): Standard error
-- `created_at` (TIMESTAMPTZ): When the record was created
-- `updated_at` (TIMESTAMPTZ): When the record was last updated
-
-### Files Table
-
-Stores captured files:
-
-- `id` (SERIAL, PRIMARY KEY)
-- `run_id` (TEXT, FOREIGN KEY): References runs(id)
-- `file_path` (TEXT): Relative path in the run directory
-- `content` (BYTEA): File content
-- `sha256` (TEXT): SHA256 hash of content
-
-### Hooks Table
-
-Stores hook outputs:
-
-- `id` (SERIAL, PRIMARY KEY)
-- `run_id` (TEXT, FOREIGN KEY): References runs(id)
-- `phase` (TEXT): 'pre' or 'post'
-- `hook_output` (JSONB): Hook output data
+`run_outputs` and `captured_files` reference `runs` through composite foreign keys that include `org_id`, so rows below a run can never point into another organization.
 
 ## Development
 
@@ -297,6 +220,8 @@ cargo test -p capsula-server -- --nocapture
 ### Database Migrations
 
 Migrations are embedded in the binary and run automatically on startup. See `crates/capsula-server/migrations/` for migration files.
+
+Compile-time checked SQLx queries need the prepared query data in `.sqlx/`; regenerate it with `just sqlx-prepare` against a database with the migrations applied. CI fails when it is out of date.
 
 ### Linting
 
