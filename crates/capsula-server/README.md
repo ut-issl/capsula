@@ -179,7 +179,7 @@ Captured files are stored in an object store through the [`object_store`](https:
 
 S3 settings come from the standard AWS SDK environment variables, read by `object_store`: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_ENDPOINT_URL`, and `AWS_ALLOW_HTTP` (set to `true` only for local plain-HTTP endpoints). When no static credentials are set, the instance metadata service (IAM roles) and web identity tokens (`AWS_WEB_IDENTITY_TOKEN_FILE`) are used. Profile files under `~/.aws/` are not read.
 
-Objects are addressed by keys such as `{org_id}/sha256/{hash}`; a `s3://bucket/prefix` URL prepends `prefix/` to every key.
+Captured files are stored content-addressed per organization under the key `{org_id}/sha256/{hash[0..2]}/{hash[2..4]}/{hash}`, where `hash` is the lowercase hex SHA-256 of the content. Identical content uploaded by two organizations is stored twice: deduplication never crosses an organization. A `s3://bucket/prefix` URL prepends `prefix/` to every key.
 
 ## API Endpoints
 

@@ -14,6 +14,7 @@
 //!   development and tests only and is not supported in production.
 //!
 //! Keys are plain `/`-separated strings; see [`Storage::put`] for the rules.
+//! Captured files use the convention implemented by [`ObjectKey::for_blob`].
 
 use bytes::Bytes;
 use futures::stream::BoxStream;
@@ -26,6 +27,7 @@ use object_store::{ObjectStore, ObjectStoreExt, ObjectStoreScheme, PutPayload, W
 use std::path::PathBuf;
 use std::sync::Arc;
 use url::Url;
+use uuid::Uuid;
 
 /// Errors returned by [`Storage`].
 #[derive(Debug, thiserror::Error)]
@@ -60,6 +62,65 @@ pub enum StorageError {
     /// Reading the data to upload failed.
     #[error("failed to read upload data: {0}")]
     Read(#[from] std::io::Error),
+}
+
+/// The key of an object in [`Storage`].
+///
+/// Captured files are stored content-addressed per organization:
+///
+/// ```text
+/// {org_id}/sha256/{hash[0..2]}/{hash[2..4]}/{hash}
+/// ```
+///
+/// where `hash` is the lowercase hex SHA-256 of the content. The organization
+/// id is part of the key, so identical content uploaded by two organizations is
+/// stored twice: deduplication never crosses an organization boundary, and
+/// deleting an organization's objects cannot affect another one. The two
+/// two-character directories keep listings of one prefix small.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ObjectKey(String);
+
+impl ObjectKey {
+    /// The key for a captured file with the given SHA-256 `digest`, owned by `org_id`.
+    #[must_use]
+    pub fn for_blob(org_id: Uuid, digest: &[u8; 32]) -> Self {
+        let hash = capsula_core::util::hex_encode(digest);
+        Self(format!(
+            "{org_id}/sha256/{}/{}/{hash}",
+            &hash[0..2],
+            &hash[2..4]
+        ))
+    }
+
+    /// The key as stored in `captured_files.storage_key`.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Wrap a key read back from the database.
+    #[must_use]
+    pub const fn from_stored(key: String) -> Self {
+        Self(key)
+    }
+}
+
+impl AsRef<str> for ObjectKey {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for ObjectKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<ObjectKey> for String {
+    fn from(key: ObjectKey) -> Self {
+        key.0
+    }
 }
 
 /// An object fetched from storage: its size and a stream of its content.
@@ -175,8 +236,12 @@ impl Storage {
     ///
     /// A key is a `/`-separated path such as `org/sha256/ab/cd/abcd...`. Leading
     /// and trailing slashes are ignored; empty, `.` and `..` segments are rejected.
-    pub async fn put(&self, key: &str, data: impl Into<PutPayload>) -> Result<(), StorageError> {
-        let location = parse_key(key)?;
+    pub async fn put(
+        &self,
+        key: impl AsRef<str>,
+        data: impl Into<PutPayload>,
+    ) -> Result<(), StorageError> {
+        let location = parse_key(key.as_ref())?;
         self.store.put(&location, data.into()).await?;
         Ok(())
     }
@@ -185,11 +250,11 @@ impl Storage {
     ///
     /// Returns the number of bytes written. The upload is aborted when the
     /// stream yields an error, and no object is left behind.
-    pub async fn put_stream<S>(&self, key: &str, stream: S) -> Result<u64, StorageError>
+    pub async fn put_stream<S>(&self, key: impl AsRef<str>, stream: S) -> Result<u64, StorageError>
     where
         S: Stream<Item = Result<Bytes, std::io::Error>>,
     {
-        let location = parse_key(key)?;
+        let location = parse_key(key.as_ref())?;
         let upload = self.store.put_multipart(&location).await?;
         let mut writer = WriteMultipart::new(upload);
         let mut written: u64 = 0;
@@ -215,8 +280,8 @@ impl Storage {
     }
 
     /// Fetch the object stored under `key`, or `None` when there is none.
-    pub async fn get(&self, key: &str) -> Result<Option<StoredObject>, StorageError> {
-        let location = parse_key(key)?;
+    pub async fn get(&self, key: impl AsRef<str>) -> Result<Option<StoredObject>, StorageError> {
+        let location = parse_key(key.as_ref())?;
         match self.store.get(&location).await {
             Ok(result) => Ok(Some(StoredObject {
                 size: result.meta.size,
@@ -228,8 +293,8 @@ impl Storage {
     }
 
     /// Delete the object stored under `key`. Deleting a missing object is not an error.
-    pub async fn delete(&self, key: &str) -> Result<(), StorageError> {
-        let location = parse_key(key)?;
+    pub async fn delete(&self, key: impl AsRef<str>) -> Result<(), StorageError> {
+        let location = parse_key(key.as_ref())?;
         match self.store.delete(&location).await {
             Ok(()) | Err(object_store::Error::NotFound { .. }) => Ok(()),
             Err(e) => Err(e.into()),
@@ -237,8 +302,8 @@ impl Storage {
     }
 
     /// Whether an object is stored under `key`.
-    pub async fn exists(&self, key: &str) -> Result<bool, StorageError> {
-        let location = parse_key(key)?;
+    pub async fn exists(&self, key: impl AsRef<str>) -> Result<bool, StorageError> {
+        let location = parse_key(key.as_ref())?;
         match self.store.head(&location).await {
             Ok(_) => Ok(true),
             Err(object_store::Error::NotFound { .. }) => Ok(false),
@@ -263,6 +328,7 @@ fn parse_key(key: &str) -> Result<ObjectPath, StorageError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::Digest;
 
     #[test]
     fn rejects_unsupported_schemes() {
@@ -291,6 +357,36 @@ mod tests {
         let url: Url = "s3://bucket".parse().unwrap();
         let err = Storage::from_url_with_options(&url, [("no_such_option", "x")]).unwrap_err();
         assert!(matches!(err, StorageError::UnknownOption { .. }), "{err}");
+    }
+
+    #[test]
+    fn blob_keys_follow_the_convention() {
+        let org = Uuid::parse_str("0192f1a2-3b4c-7d5e-8f60-123456789abc").unwrap();
+        let digest = sha2::Sha256::digest(b"hello");
+        let key = ObjectKey::for_blob(org, digest.as_ref());
+        assert_eq!(
+            key.as_str(),
+            "0192f1a2-3b4c-7d5e-8f60-123456789abc/sha256/2c/f2/\
+             2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
+        assert_eq!(key.to_string(), key.as_str());
+        assert_eq!(ObjectKey::from_stored(key.as_str().to_owned()), key);
+        // Keys are valid storage keys.
+        parse_key(key.as_str()).unwrap();
+    }
+
+    #[test]
+    fn identical_content_in_two_orgs_gets_two_keys() {
+        let digest = sha2::Sha256::digest(b"same content");
+        let org_a = Uuid::new_v4();
+        let org_b = Uuid::new_v4();
+        let key_a = ObjectKey::for_blob(org_a, digest.as_ref());
+        let key_b = ObjectKey::for_blob(org_b, digest.as_ref());
+        assert_ne!(key_a, key_b);
+        // Within one org the key is a pure function of the content.
+        assert_eq!(key_a, ObjectKey::for_blob(org_a, digest.as_ref()));
+        assert!(key_a.as_str().starts_with(&format!("{org_a}/sha256/")));
+        assert!(key_b.as_str().starts_with(&format!("{org_b}/sha256/")));
     }
 
     #[test]
