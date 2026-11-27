@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE api_tokens\n        SET last_used_at = $2,\n            expires_at = COALESCE($3, expires_at)\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "61e4bccfa37fb079a75382a767da20fe0e74c67789a47a19aa217aef99f00db3"
+}
