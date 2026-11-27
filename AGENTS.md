@@ -16,7 +16,7 @@ The workspace contains crates under `crates/`:
 - `capsula-registry`: registry/factory for creating hooks from string IDs.
 - `capsula-orchestration`: shared configuration loading, run lifecycle, hook execution, vault operations, and server push logic.
 - `capsula-tui`: interactive terminal UI for manual runs.
-- `capsula-server`: Axum/PostgreSQL web server, REST API, HTML UI, migrations, and file storage.
+- `capsula-server`: Axum/PostgreSQL web server, REST API, HTML UI, migrations, and object storage. Being rewritten as a multi-tenant server (API v2) per issue #1352; see "Server and Push Architecture".
 - `capsula-client`: blocking HTTP client used by the CLI to communicate with the server.
 - `capsula-api-types`: shared serializable client/server API types.
 - Hook crates: `capsula-capture-cwd`, `capsula-capture-env`, `capsula-capture-git-repo`, `capsula-capture-file`, `capsula-capture-machine`, `capsula-capture-command`, `capsula-capture-json`, `capsula-capture-toml`, and `capsula-notify-slack`.
@@ -165,17 +165,9 @@ The command receives these environment variables: `CAPSULA_RUN_ID`, `CAPSULA_RUN
 
 ## Server and Push Architecture
 
-`capsula-server` is an Axum web server backed by PostgreSQL and SQLx. It runs embedded migrations on startup and stores deduplicated uploaded files under the configured storage path. The HTML UI is served at `/`, `/vaults`, `/runs`, and `/runs/{id}`.
+`capsula-server` is an Axum web server backed by PostgreSQL (SQLx) and S3-compatible object storage (`object_store`, `src/storage.rs`; `file://` for development and tests only). It runs embedded migrations on startup. The schema is the single baseline `migrations/0001_baseline.sql`: organizations own vaults, vaults own runs, and `run_outputs` / `captured_files` hang off `runs` through composite foreign keys that include `org_id`. Captured files are stored under `{org_id}/sha256/{hash[0..2]}/{hash[2..4]}/{hash}` (`storage::ObjectKey`), so deduplication never crosses an organization.
 
-Important API routes include:
-
-- `GET /health`
-- `GET /api/v1/vaults` and `GET /api/v1/vaults/{name}`
-- `POST /api/v1/runs`, `GET /api/v1/runs`, `POST /api/v1/runs/search`, and `GET /api/v1/runs/{id}`
-- `GET /api/v1/runs/{id}/files/{path}`
-- `POST /api/v1/upload`
-
-Run uploads include run metadata, command output, hook outputs, and captured files. `capsula push` posts metadata first, then uploads artifacts and pre/post hook results; `--all` walks every local run in the vault. The server uses `DATABASE_URL` by default and listens on `127.0.0.1:8500`. Other server settings are documented in `crates/capsula-server/README.md` and include `CAPSULA_HOST`, `CAPSULA_PORT`, `STORAGE_PATH`, `CAPSULA_MAX_CONNECTIONS`, `CAPSULA_MAX_BODY_SIZE`, and `RUST_LOG`.
+The server is being rewritten resource by resource as the SaaS MVP (issue #1352, integration branch `saas-mvp`). The single-tenant API v1, its `/vaults` and `/runs` pages and the old schema were removed; the resource-oriented API v2 lives under `/api/v2/orgs/{org}/...` and the web UI under `/o/{org}/...`. Until the v2 endpoints land the server only serves `GET /health` and a placeholder `/`. `capsula push` and `capsula-client` still target v1 and are rewritten for v2 in the same effort. The server uses `DATABASE_URL` by default and listens on `127.0.0.1:8500`. Other server settings are documented in `crates/capsula-server/README.md`.
 
 ## Adding a Hook
 
